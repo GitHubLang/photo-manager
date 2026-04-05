@@ -55,9 +55,13 @@ function App() {
   useEffect(() => {
     fetchFolders();
     fetchModels();
-    // 加载上次浏览位置
-    fetchAppState();
   }, []);
+  
+  // 初始化完成后加载上次浏览位置
+  useEffect(() => {
+    if (folders.length === 0) return;  // 等文件夹加载完
+    fetchAppState();
+  }, [folders]);
   
   // 加载上次浏览位置
   const fetchAppState = async () => {
@@ -65,8 +69,12 @@ function App() {
       const res = await fetch(`${API_BASE}/app-state`);
       const data = await res.json();
       if (data.last_folder_path) {
-        loadImages(data.last_folder_path);
-        setSelectedFolder(data.last_folder_path);
+        // 检查路径是否在当前文件夹列表中
+        const pathExists = folders.some(f => f.path === data.last_folder_path);
+        if (pathExists) {
+          setSelectedFolder(data.last_folder_path);
+          loadImages(data.last_folder_path);
+        }
       }
     } catch (err) {
       console.error('加载浏览位置失败');
@@ -463,9 +471,14 @@ function App() {
             mode="inline"
             selectedKeys={[activeMenu]}
             onClick={({ key }) => {
-              setActiveMenu(key);
-              if (key === 'scores') fetchScoreTasks(scoreTaskFilter === 'all' ? null : 'failed');
-              if (key === 'captions') fetchCaptionHistory(captionKeyword, captionTypeFilter);
+              if (key === activeMenu && activeMenu !== 'folder') {
+                // 点击已选中的非文件夹菜单，收回面板
+                setActiveMenu('folder');
+              } else {
+                setActiveMenu(key);
+                if (key === 'scores') fetchScoreTasks(scoreTaskFilter === 'all' ? null : 'failed');
+                if (key === 'captions') fetchCaptionHistory(captionKeyword, captionTypeFilter);
+              }
             }}
             style={{ height: '100%', overflowY: 'auto' }}
           >
@@ -499,9 +512,15 @@ function App() {
         </Sider>
         
         {/* 评分记录面板 */}
-        {activeMenu === 'scores' && (
-          <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 16, overflowY: 'auto', background: '#fff' }}>
-            <Space style={{ marginBottom: 12 }}>
+        {activeMenu === 'scores' && !menuCollapsed && (
+          <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text strong>评分记录</Text>
+              <Button type="text" size="small" onClick={() => setActiveMenu('folder')} icon={'>'}>
+                收起
+              </Button>
+            </div>
+            <Space style={{ marginBottom: 10 }}>
               <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : 'failed'); }} style={{ width: 100 }} size="small">
                 <Select.Option value="failed">失败</Select.Option>
                 <Select.Option value="all">全部</Select.Option>
@@ -509,7 +528,7 @@ function App() {
               <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>
                 重试({selectedScoreTaskIds.length})
               </Button>
-              <Button size="small" onClick={() => { setSelectedScoreTaskIds(scoreTasks.map(t => t.image_id)); }}>
+              <Button size="small" onClick={() => setSelectedScoreTaskIds(scoreTasks.map(t => t.image_id))}>
                 全选
               </Button>
             </Space>
@@ -568,9 +587,16 @@ function App() {
         )}
         
         {/* 文案历史面板 */}
-        {activeMenu === 'captions' && (
-          <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 16, overflowY: 'auto', background: '#fff' }}>
-            <Space style={{ marginBottom: 12 }}>
+        {/* 文案历史面板 */}
+        {activeMenu === 'captions' && !menuCollapsed && (
+          <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text strong>文案历史</Text>
+              <Button type="text" size="small" onClick={() => setActiveMenu('folder')}>
+                收起
+              </Button>
+            </div>
+            <Space style={{ marginBottom: 10 }}>
               <Input.Search
                 placeholder="搜索图片ID、文案..."
                 value={captionKeyword}
