@@ -46,7 +46,7 @@ function App() {
   const [scoreTaskFilter, setScoreTaskFilter] = useState('all');
   const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
 
-  // 文案历史
+  // 文案记录
   const [captionHistory, setCaptionHistory] = useState([]);
   const [captionHistoryTotal, setCaptionHistoryTotal] = useState(0);
   const [captionHistoryPage, setCaptionHistoryPage] = useState(1);
@@ -125,7 +125,7 @@ function App() {
     }
   };
 
-  // 获取文案历史
+  // 获取文案记录
   const fetchCaptionHistory = async (keyword, setType, page = 1) => {
     setCaptionHistoryLoading(true);
     try {
@@ -138,7 +138,7 @@ function App() {
       setCaptionHistoryTotal(data.total || 0);
       setCaptionHistoryPage(page);
     } catch (err) {
-      message.error('加载文案历史失败');
+      message.error('加载文案记录失败');
     } finally {
       setCaptionHistoryLoading(false);
     }
@@ -508,7 +508,7 @@ function App() {
             </Menu.Item>
 
             <Menu.Item key="captions" icon={<FileTextOutlined />}>
-              文案历史
+              文案记录
             </Menu.Item>
           </Menu>
         </Sider>
@@ -609,12 +609,12 @@ function App() {
           </div>
         )}
 
-        {/* 文案历史面板 */}
-        {/* 文案历史面板 */}
+        {/* 文案记录面板 */}
+        {/* 文案记录面板 */}
         {activeMenu === 'captions' && !menuCollapsed && (
           <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text strong>文案历史</Text>
+              <Text strong>文案记录</Text>
               <Button type="text" size="small" onClick={() => setActiveMenu('folder')}>
                 收起
               </Button>
