@@ -42,7 +42,7 @@ function App() {
   const [scoreTasks, setScoreTasks] = useState([]);
   const [scoreTasksTotal, setScoreTasksTotal] = useState(0);
   const [scoreTasksLoading, setScoreTasksLoading] = useState(false);
-  const [scoreTaskFilter, setScoreTaskFilter] = useState('failed');
+  const [scoreTaskFilter, setScoreTaskFilter] = useState('all');
   const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
   
   // 文案历史
@@ -473,7 +473,7 @@ function App() {
                 setActiveMenu('folder');
               } else {
                 setActiveMenu(key);
-                if (key === 'scores') fetchScoreTasks(scoreTaskFilter === 'all' ? null : 'failed');
+                if (key === 'scores') fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter);
                 if (key === 'captions') fetchCaptionHistory(captionKeyword, captionTypeFilter);
               }
             }}
@@ -484,6 +484,7 @@ function App() {
                 <div style={{ padding: '8px 12px' }}>
                   <Tree
                     treeData={treeData}
+                    selectedKeys={selectedFolder ? [selectedFolder] : []}
                     onSelect={(keys, info) => {
                       if (info.node.path) {
                         loadImages(info.node.path);
@@ -518,9 +519,10 @@ function App() {
               </Button>
             </div>
             <Space style={{ marginBottom: 10 }}>
-              <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : 'failed'); }} style={{ width: 100 }} size="small">
-                <Select.Option value="failed">失败</Select.Option>
+              <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
                 <Select.Option value="all">全部</Select.Option>
+                <Select.Option value="failed">失败</Select.Option>
+                <Select.Option value="completed">成功</Select.Option>
               </Select>
               <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>
                 重试({selectedScoreTaskIds.length})
@@ -638,8 +640,10 @@ function App() {
                         const parsedIds = cap.image_ids ? JSON.parse(cap.image_ids) : [];
                         setGeneratedCaption({
                           ...cap,
+                          title: cap.caption_title,
                           setType: cap.set_type,
-                          content: cap.caption_body
+                          content: cap.caption_body,
+                          hashtags: cap.hashtags
                         });
                         // 从已加载图片中找，没有则去后端查
                         const found = parsedIds.map(id => displayImages.find(img => img.id === id)).filter(Boolean);
