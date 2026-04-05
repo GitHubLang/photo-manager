@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider } from 'antd';
-import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, EditOutlined, CopyOutlined, CheckOutlined } from '@ant-design/icons';
+import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip } from 'antd';
+import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import './App.css';
 
 const { Sider, Content } = Layout;
@@ -29,11 +29,24 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
 
-  // 加载目录树
+  // 加载目录树和模型列表
   useEffect(() => {
     fetchFolders();
+    fetchModels();
   }, []);
+
+  // 获取可用模型列表
+  const fetchModels = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/models`);
+      const data = await res.json();
+      setAvailableModels(data.models || []);
+    } catch (err) {
+      console.error('加载模型列表失败');
+    }
+  };
 
   const fetchFolders = async () => {
     try {
@@ -297,14 +310,16 @@ function App() {
             style={{ width: 300 }}
             onSearch={handleSearch}
           />
-          <Select 
-            value={selectedModel} 
+          <Select
+            value={selectedModel}
             onChange={setSelectedModel}
             style={{ width: 200 }}
           >
-            <Select.Option value="local">本地 Qwen2.5-9B</Select.Option>
-            <Select.Option value="minimax">MiniMax Vision</Select.Option>
-            <Select.Option value="local-gemma">本地 Gemma-4-E4B-IT</Select.Option>
+            {availableModels.map(m => (
+              <Select.Option key={m.id} value={m.id}>
+                {m.name}
+              </Select.Option>
+            ))}
           </Select>
           <Button icon={<ScanOutlined />} onClick={handleScanAll}>
             扫描
@@ -400,11 +415,13 @@ function App() {
                             src={`${API_BASE}/image/thumbnail/${encodeURIComponent(img.file_path)}?size=400`}
                             alt={img.filename}
                           />
-                          <div className="image-score" 
-                            style={{ backgroundColor: getScoreColor(img.total_score) }}
-                          >
-                            {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '待评分'}
-                          </div>
+                          <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : '待评分'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
+                            <div className="image-score" 
+                              style={{ backgroundColor: getScoreColor(img.total_score) }}
+                            >
+                              {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '待评分'}
+                            </div>
+                          </Tooltip>
                           <div className="image-check" 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -420,7 +437,7 @@ function App() {
                         </div>
                       }
                       actions={[
-                        <EditOutlined key="score" onClick={() => handleScore(img.id)} />,
+                        <MessageOutlined key="score" onClick={() => handleScore(img.id)} />,
                       ]}
                     >
                       <Card.Meta 
