@@ -437,7 +437,9 @@ function App() {
                         </div>
                       }
                       actions={[
-                        <MessageOutlined key="score" onClick={() => handleScore(img.id)} />,
+                        <Tooltip title="评分" key="score">
+                          <MessageOutlined onClick={() => handleScore(img.id)} />
+                        </Tooltip>,
                       ]}
                     >
                       <Card.Meta 
