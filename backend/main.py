@@ -38,6 +38,23 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/models")
+async def get_models():
+    """获取可用的评分模型列表"""
+    from config import LOCAL_MODELS, MINIMAX_VISION_MODEL
+    
+    local_models = [
+        {"id": model_id, "name": model_id, "type": "local"}
+        for name, model_id in LOCAL_MODELS.items()
+    ]
+    
+    return {
+        "models": local_models + [
+            {"id": "minimax", "name": "MiniMax Vision", "type": "cloud"}
+        ]
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
     """启动时初始化数据库"""

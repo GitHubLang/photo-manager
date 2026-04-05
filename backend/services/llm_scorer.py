@@ -7,7 +7,7 @@ import json
 import requests
 from PIL import Image as PILImage, ImageOps
 from typing import Dict, Optional
-from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL, MINIMAX_MODEL, MINIMAX_VISION_API_URL, MINIMAX_VISION_MODEL
+from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, LOCAL_MODELS, MINIMAX_API_KEY, MINIMAX_API_URL, MINIMAX_MODEL, MINIMAX_VISION_API_URL, MINIMAX_VISION_MODEL
 
 SCORING_PROMPT = """你是一位专业摄影比赛评委。请根据专业摄影比赛标准对这张照片进行评分。
 
@@ -84,9 +84,10 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
     """调用支持 Vision 的 LLM"""
     image_b64 = encode_image_for_llm(image_path)
     
-    if model.startswith("local"):
+    if model.startswith("local") or model in LOCAL_MODELS:
         api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
-        model_name = LOCAL_LLM_MODEL
+        # 从映射表中查找实际模型名，如果没有则使用默认模型
+        model_name = LOCAL_MODELS.get(model, LOCAL_LLM_MODEL if model.startswith("local") else model)
         messages = [
             {
                 "role": "user",
@@ -156,11 +157,27 @@ def save_score_to_db(image_id: int, scores_data: Dict, model: str):
     print(f"[DEBUG] save_score_to_db called with image_id={image_id}, model={model}")
     print(f"[DEBUG] scores_data type: {type(scores_data)}, keys: {scores_data.keys() if isinstance(scores_data, dict) else 'N/A'}")
     
-    total = float(scores.get("total", 0))
+    # 处理 total 可能是 "87.5/100" 格式
+    total_raw = scores.get("total", 0)
+    if isinstance(total_raw, str) and "/" in total_raw:
+        total_raw = total_raw.split("/")[0]
+    try:
+        total = float(total_raw)
+    except (ValueError, TypeError):
+        total = 0
     
     def get_score(dimension):
         d = scores.get(dimension, {})
-        return float(d.get("score", 0)) if isinstance(d, dict) else 0
+        if not isinstance(d, dict):
+            return 0
+        score = d.get("score", 0)
+        # 处理 "87.5/100" 或 "87/100" 格式
+        if isinstance(score, str) and "/" in score:
+            score = score.split("/")[0]
+        try:
+            return float(score)
+        except (ValueError, TypeError):
+            return 0
     
     def get_analysis(dimension):
         d = scores.get(dimension, {})
