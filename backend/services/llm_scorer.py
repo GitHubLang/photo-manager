@@ -207,6 +207,16 @@ def save_score_to_db(image_id: int, scores_data: Dict, model: str):
             %s, %s, %s,
             %s, %s
         )
+        ON DUPLICATE KEY UPDATE
+            total_score = VALUES(total_score),
+            impact_score = VALUES(impact_score), impact_analysis = VALUES(impact_analysis), impact_suggestion = VALUES(impact_suggestion),
+            composition_score = VALUES(composition_score), composition_analysis = VALUES(composition_analysis), composition_suggestion = VALUES(composition_suggestion),
+            sharpness_score = VALUES(sharpness_score), sharpness_analysis = VALUES(sharpness_analysis), sharpness_suggestion = VALUES(sharpness_suggestion),
+            exposure_score = VALUES(exposure_score), exposure_analysis = VALUES(exposure_analysis), exposure_suggestion = VALUES(exposure_suggestion),
+            color_score = VALUES(color_score), color_analysis = VALUES(color_analysis), color_suggestion = VALUES(color_suggestion),
+            uniqueness_score = VALUES(uniqueness_score), uniqueness_analysis = VALUES(uniqueness_analysis), uniqueness_suggestion = VALUES(uniqueness_suggestion),
+            raw_response = VALUES(raw_response), llm_model = VALUES(llm_model),
+            scored_at = CURRENT_TIMESTAMP
     """
     params = (
         image_id, total,

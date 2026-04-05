@@ -79,9 +79,10 @@ def init_database():
             uniqueness_suggestion TEXT,
             raw_response JSON,
             llm_model VARCHAR(100),
-            scored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            scored_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-            INDEX idx_total_score (total_score)
+            INDEX idx_total_score (total_score),
+            UNIQUE KEY uk_image_id (image_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
     
