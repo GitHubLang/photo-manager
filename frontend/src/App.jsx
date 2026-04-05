@@ -57,20 +57,13 @@ function App() {
     fetchModels();
   }, []);
   
-  // 初始化完成后加载上次浏览位置
-  useEffect(() => {
-    if (folders.length === 0) return;  // 等文件夹加载完
-    fetchAppState();
-  }, [folders]);
-  
-  // 加载上次浏览位置
-  const fetchAppState = async () => {
+  // 加载上次浏览位置（fetchFolders 完成后调用）
+  const fetchAppState = async (currentFolders) => {
     try {
       const res = await fetch(`${API_BASE}/app-state`);
       const data = await res.json();
       if (data.last_folder_path) {
-        // 检查路径是否在当前文件夹列表中
-        const pathExists = folders.some(f => f.path === data.last_folder_path);
+        const pathExists = currentFolders.some(f => f.path === data.last_folder_path);
         if (pathExists) {
           setSelectedFolder(data.last_folder_path);
           loadImages(data.last_folder_path);
@@ -161,7 +154,10 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/folders`);
       const data = await res.json();
-      setFolders(data.folders || []);
+      const folderList = data.folders || [];
+      setFolders(folderList);
+      // 文件夹加载完成后恢复上次浏览位置
+      fetchAppState(folderList);
     } catch (err) {
       message.error('加载目录失败');
     }
