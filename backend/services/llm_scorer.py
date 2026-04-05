@@ -100,7 +100,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         payload = {
             "model": model_name,
             "messages": messages,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "temperature": 0.1,
         }
         headers = {}
