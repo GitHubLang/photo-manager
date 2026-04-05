@@ -25,6 +25,7 @@ function App() {
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
   const [failedCaptions, setFailedCaptions] = useState([]);  // 失败的文案记录
+  const [failedScores, setFailedScores] = useState([]);  // 失败的评分记录
   const [sortBy, setSortBy] = useState('filename');
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -171,6 +172,11 @@ function App() {
           return;
         } else if (status.status === 'failed') {
           message.error(`评分失败: ${status.error_message}`);
+          setFailedScores(prev => [{
+            imageId,
+            error: status.error_message || '评分失败',
+            time: new Date().toLocaleTimeString()
+          }, ...prev].slice(0, 20));
           return;
         }
         
@@ -438,14 +444,33 @@ function App() {
                   生成文案 {failedCaptions.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedCaptions.length}</Tag>}
                 </Button>
               </Dropdown>
-              <Button 
-                type="primary" 
-                icon={<ThunderboltOutlined />}
-                disabled={selectedImages.length === 0}
-                onClick={handleBatchScore}
-              >
-                批量评分
-              </Button>
+              <Dropdown menu={{
+                items: [
+                  ...(failedScores.length > 0 ? [
+                    { key: 'failed_header', label: <Text type="danger">评分失败 ({failedScores.length})</Text>, disabled: true },
+                    ...failedScores.map((fs, idx) => ({
+                      key: `fs_${idx}`,
+                      label: (
+                        <Space size="small">
+                          <Text style={{ fontSize: 12 }} ellipsis title={`ID: ${fs.imageId}`}>{displayImages.find(i => i.id === fs.imageId)?.filename || `ID: ${fs.imageId}`}</Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>{fs.time}</Text>
+                          <Text type="danger" style={{ fontSize: 11 }} ellipsis>{fs.error}</Text>
+                        </Space>
+                      ),
+                      onClick: () => handleScore(fs.imageId)
+                    })),
+                    { key: 'retry_all_scores', label: '全部重新评分', onClick: () => {
+                      failedScores.forEach(fs => handleScore(fs.imageId));
+                    }},
+                    { type: 'divider' },
+                  ] : []),
+                  { key: 'batch_score', label: selectedImages.length > 0 ? `批量评分 (${selectedImages.length}张)` : '批量评分', onClick: () => handleBatchScore(), disabled: selectedImages.length === 0 }
+                ]
+              }}>
+                <Button type="primary" icon={<ThunderboltOutlined />}>
+                  批量评分 {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedScores.length}</Tag>}
+                </Button>
+              </Dropdown>
             </Space>
           </div>
 
