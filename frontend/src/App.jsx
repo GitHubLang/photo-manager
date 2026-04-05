@@ -33,21 +33,23 @@ function App() {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
-  
+
   // 左侧菜单
   const [activeMenu, setActiveMenu] = useState('folder');
   const [menuCollapsed, setMenuCollapsed] = useState(false);
-  
+
   // 评分记录
   const [scoreTasks, setScoreTasks] = useState([]);
   const [scoreTasksTotal, setScoreTasksTotal] = useState(0);
+  const [scoreTasksPage, setScoreTasksPage] = useState(1);
   const [scoreTasksLoading, setScoreTasksLoading] = useState(false);
   const [scoreTaskFilter, setScoreTaskFilter] = useState('all');
   const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
-  
+
   // 文案历史
   const [captionHistory, setCaptionHistory] = useState([]);
   const [captionHistoryTotal, setCaptionHistoryTotal] = useState(0);
+  const [captionHistoryPage, setCaptionHistoryPage] = useState(1);
   const [captionHistoryLoading, setCaptionHistoryLoading] = useState(false);
   const [captionKeyword, setCaptionKeyword] = useState('');
   const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
@@ -57,8 +59,8 @@ function App() {
     fetchFolders();
     fetchModels();
   }, []);
-  
-  // 加载上次浏览位置（fetchFolders 完成后调用）
+
+  // 加载上次浏览位置(fetchFolders 完成后调用)
   const fetchAppState = async (currentFolders) => {
     try {
       const res = await fetch(`${API_BASE}/app-state`);
@@ -74,7 +76,7 @@ function App() {
       console.error('加载浏览位置失败');
     }
   };
-  
+
   // 保存浏览位置
   const saveAppState = async (folderPath) => {
     try {
@@ -87,24 +89,25 @@ function App() {
       console.error('保存浏览位置失败');
     }
   };
-  
+
   // 获取评分记录
-  const fetchScoreTasks = async (status) => {
+  const fetchScoreTasks = async (status, page = 1) => {
     setScoreTasksLoading(true);
     try {
-      const params = new URLSearchParams({ page_size: 100 });
+      const params = new URLSearchParams({ page, page_size: 20 });
       if (status && status !== 'all') params.set('status', status);
       const res = await fetch(`${API_BASE}/score-tasks?${params}`);
       const data = await res.json();
       setScoreTasks(data.tasks || []);
       setScoreTasksTotal(data.total || 0);
+      setScoreTasksPage(page);
     } catch (err) {
       message.error('加载评分记录失败');
     } finally {
       setScoreTasksLoading(false);
     }
   };
-  
+
   // 重试评分
   const retryScoreTasks = async (imageIds) => {
     if (!imageIds || imageIds.length === 0) return;
@@ -121,18 +124,19 @@ function App() {
       message.error('重试失败');
     }
   };
-  
+
   // 获取文案历史
-  const fetchCaptionHistory = async (keyword, setType) => {
+  const fetchCaptionHistory = async (keyword, setType, page = 1) => {
     setCaptionHistoryLoading(true);
     try {
-      const params = new URLSearchParams({ page_size: 50 });
+      const params = new URLSearchParams({ page, page_size: 20 });
       if (keyword) params.set('keyword', keyword);
       if (setType) params.set('set_type', setType);
       const res = await fetch(`${API_BASE}/caption/history?${params}`);
       const data = await res.json();
       setCaptionHistory(data.captions || []);
       setCaptionHistoryTotal(data.total || 0);
+      setCaptionHistoryPage(page);
     } catch (err) {
       message.error('加载文案历史失败');
     } finally {
@@ -170,7 +174,7 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/folders/scan-all`, { method: 'POST' });
       const data = await res.json();
-      message.success(`扫描完成：新增 ${data.added} 张，跳过 ${data.skipped} 张`);
+      message.success(`扫描完成:新增 ${data.added} 张,跳过 ${data.skipped} 张`);
       if (selectedFolder) {
         loadImages(selectedFolder);
       }
@@ -196,7 +200,7 @@ function App() {
       });
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
       const data = await res.json();
-      
+
       if (append) {
         setImages(prev => [...prev, ...(data.images || [])]);
       } else {
@@ -214,7 +218,7 @@ function App() {
     }
   };
 
-  // 加载更多图片（滚动到底部）
+  // 加载更多图片(滚动到底部)
   const loadMore = () => {
     if (currentPage < totalPages && !loadingMore) {
       loadImages(selectedFolder, currentPage + 1, true);
@@ -239,7 +243,7 @@ function App() {
     }
   };
 
-  // 评分图片（异步，不等待结果）
+  // 评分图片(异步,不等待结果)
   const handleScore = async (imageId) => {
     try {
       const res = await fetch(`${API_BASE}/images/score`, {
@@ -249,7 +253,7 @@ function App() {
       });
       const data = await res.json();
       if (data.tasks?.length > 0) {
-        message.success('评分任务已创建，请在图片上查看进度');
+        message.success('评分任务已创建,请在图片上查看进度');
         // 开始轮询状态
         pollScoreStatus(imageId);
       } else {
@@ -266,13 +270,13 @@ function App() {
     const poll = async () => {
       if (attempts >= maxAttempts) return;
       attempts++;
-      
+
       try {
         const res = await fetch(`${API_BASE}/images/score/status/${imageId}`);
         const status = await res.json();
-        
+
         if (status.status === 'completed') {
-          // 评分完成，刷新图片
+          // 评分完成,刷新图片
           if (selectedFolder) loadImages(selectedFolder);
           return;
         } else if (status.status === 'failed') {
@@ -284,19 +288,19 @@ function App() {
           }, ...prev].slice(0, 20));
           return;
         }
-        
+
         // 继续轮询
         setTimeout(poll, 2000);
       } catch (err) {
-        // 忽略错误，继续轮询
+        // 忽略错误,继续轮询
         setTimeout(poll, 5000);
       }
     };
-    
+
     poll();
   };
 
-  // 批量评分（异步）
+  // 批量评分(异步)
   const handleBatchScore = async () => {
     if (selectedImages.length === 0) {
       message.warning('请先选择图片');
@@ -309,8 +313,8 @@ function App() {
         body: JSON.stringify({ image_ids: selectedImages, model: selectedModel })
       });
       const data = await res.json();
-      message.success(`${selectedImages.length} 个评分任务已创建，后台处理中...`);
-      
+      message.success(`${selectedImages.length} 个评分任务已创建,后台处理中...`);
+
       // 开始轮询所有任务的完成状态
       setSelectedImages([]);
       data.tasks?.forEach(task => {
@@ -360,14 +364,14 @@ function App() {
       const res = await fetch(`${API_BASE}/caption/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          date: folderName, 
-          image_ids: imgIds, 
-          set_type: setType 
+        body: JSON.stringify({
+          date: folderName,
+          image_ids: imgIds,
+          set_type: setType
         })
       });
       const data = await res.json();
-      
+
       if (!res.ok) {
         const errMsg = data.detail || data.error || `请求失败 (${res.status})`;
         message.error(errMsg);
@@ -384,7 +388,7 @@ function App() {
         setGeneratedCaption({ ...data.caption, setType });
         setCaptionModalVisible(true);
       } else {
-        const errMsg = data.error || '生成失败，请检查是否已评分的图片';
+        const errMsg = data.error || '生成失败,请检查是否已评分的图片';
         message.error(errMsg);
         setFailedCaptions(prev => [{
           key: `${setType}_${Date.now()}`,
@@ -395,7 +399,7 @@ function App() {
         }, ...prev].slice(0, 10));
       }
     } catch (err) {
-      message.error('网络错误，请检查后端服务是否运行');
+      message.error('网络错误,请检查后端服务是否运行');
     } finally {
       setLoading(false);
     }
@@ -405,7 +409,7 @@ function App() {
   const treeData = folders.map(f => ({
     title: (
       <span>
-        <FolderOutlined /> {f.name} 
+        <FolderOutlined /> {f.name}
         <Tag style={{ marginLeft: 8 }}>{f.imageCount}</Tag>
       </span>
     ),
@@ -415,7 +419,7 @@ function App() {
     imageCount: f.imageCount
   }));
 
-  // 图片列表（搜索结果或文件夹图片）
+  // 图片列表(搜索结果或文件夹图片)
   const displayImages = searchResults !== null ? searchResults : images;
 
   const getScoreColor = (score) => {
@@ -438,8 +442,8 @@ function App() {
           <CameraOutlined /> 摄影素材管理系统
         </Title>
         <Space>
-          <Search 
-            placeholder="搜索文件名、描述、标签..." 
+          <Search
+            placeholder="搜索文件名、描述、标签..."
             allowClear
             style={{ width: 300 }}
             onSearch={handleSearch}
@@ -469,7 +473,7 @@ function App() {
             selectedKeys={[activeMenu]}
             onClick={({ key }) => {
               if (key === activeMenu && activeMenu !== 'folder') {
-                // 点击已选中的非文件夹菜单，收回面板
+                // 点击已选中的非文件夹菜单,收回面板
                 setActiveMenu('folder');
               } else {
                 setActiveMenu(key);
@@ -497,18 +501,18 @@ function App() {
                 </div>
               )}
             </Menu.SubMenu>
-            
+
             <Menu.Item key="scores" icon={<StarOutlined />}>
               评分记录
               {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 8 }}>{failedScores.length}</Tag>}
             </Menu.Item>
-            
+
             <Menu.Item key="captions" icon={<FileTextOutlined />}>
               文案历史
             </Menu.Item>
           </Menu>
         </Sider>
-        
+
         {/* 评分记录面板 */}
         {activeMenu === 'scores' && !menuCollapsed && (
           <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
@@ -530,6 +534,7 @@ function App() {
               <Button size="small" onClick={() => setSelectedScoreTaskIds(scoreTasks.map(t => t.image_id))}>
                 全选
               </Button>
+              <Text type="secondary" style={{ fontSize: 11 }}>共{scoreTasksTotal}条</Text>
             </Space>
             <Spin spinning={scoreTasksLoading}>
               {scoreTasks.length === 0 ? (
@@ -537,7 +542,7 @@ function App() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(() => {
-                    // 按 image_id 去重，每张图片只显示一条
+                    // 按 image_id 去重,每张图片只显示一条
                     const seen = new Set();
                     const deduped = scoreTasks.filter(task => {
                       if (scoreTaskFilter === 'failed' && task.status === 'failed') {
@@ -551,7 +556,7 @@ function App() {
                     <Card key={task.id} size="small" hoverable
                       style={{ opacity: task.status === 'failed' ? 1 : 0.6 }}
                       cover={task.file_path ? (
-                        <img 
+                        <img
                           src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
                           alt={task.filename}
                           style={{ height: 60, objectFit: 'cover' }}
@@ -559,8 +564,8 @@ function App() {
                       ) : null}
                       onClick={() => {
                         if (task.status === 'failed') {
-                          setSelectedScoreTaskIds(prev => 
-                            prev.includes(task.image_id) 
+                          setSelectedScoreTaskIds(prev =>
+                            prev.includes(task.image_id)
                               ? prev.filter(id => id !== task.image_id)
                               : [...prev, task.image_id]
                           );
@@ -594,6 +599,13 @@ function App() {
                 </div>
               )}
             </Spin>
+            <div style={{ textAlign: 'center', marginTop: 8 }}>
+              <Space>
+                <Button size="small" disabled={scoreTasksPage <= 1} onClick={() => fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage - 1)}>上页</Button>
+                <Text type="secondary" style={{ fontSize: 11 }}>{scoreTasksPage}</Text>
+                <Button size="small" disabled={scoreTasks.length < 20} onClick={() => fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage + 1)}>下页</Button>
+              </Space>
+            </div>
           </div>
         )}
 
@@ -629,7 +641,7 @@ function App() {
                   {captionHistory.map(cap => (
                     <Card key={cap.id} size="small" hoverable
                       cover={cap.cover_filename ? (
-                        <img 
+                        <img
                           src={`${API_BASE}/image/thumbnail/${encodeURIComponent(cap.cover_filename)}?size=100`}
                           alt={cap.caption_title}
                           style={{ height: 60, objectFit: 'cover' }}
@@ -645,7 +657,7 @@ function App() {
                           content: cap.caption_body,
                           hashtags: cap.hashtags
                         });
-                        // 从已加载图片中找，没有则去后端查
+                        // 从已加载图片中找,没有则去后端查
                         const found = parsedIds.map(id => displayImages.find(img => img.id === id)).filter(Boolean);
                         if (found.length === parsedIds.length) {
                           setCaptionModalImages(found);
@@ -675,6 +687,14 @@ function App() {
                 </div>
               )}
             </Spin>
+            <div style={{ textAlign: 'center', marginTop: 8 }}>
+              <Space>
+                <Button size="small" disabled={captionHistoryPage <= 1} onClick={() => fetchCaptionHistory(captionKeyword, captionTypeFilter, captionHistoryPage - 1)}>上页</Button>
+                <Text type="secondary" style={{ fontSize: 11 }}>{captionHistoryPage}</Text>
+                <Button size="small" disabled={captionHistory.length < 20} onClick={() => fetchCaptionHistory(captionKeyword, captionTypeFilter, captionHistoryPage + 1)}>下页</Button>
+                <Text type="secondary" style={{ fontSize: 11 }}>共{captionHistoryTotal}条</Text>
+              </Space>
+            </div>
           </div>
         )}
 
@@ -793,22 +813,22 @@ function App() {
                           setSelectedImage({ ...img, imageUrl });
                           setPreviewVisible(true);
                         }}>
-                          <img 
+                          <img
                             src={`${API_BASE}/image/thumbnail/${encodeURIComponent(img.file_path)}?size=400`}
                             alt={img.filename}
                           />
                           <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : '待评分'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
-                            <div className="image-score" 
+                            <div className="image-score"
                               style={{ backgroundColor: getScoreColor(img.total_score) }}
                             >
                               {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '待评分'}
                             </div>
                           </Tooltip>
-                          <div className="image-check" 
+                          <div className="image-check"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedImages(prev => 
-                                prev.includes(img.id) 
+                              setSelectedImages(prev =>
+                                prev.includes(img.id)
                                   ? prev.filter(id => id !== img.id)
                                   : [...prev, img.id]
                               );
@@ -824,7 +844,7 @@ function App() {
                         </Tooltip>,
                       ]}
                     >
-                      <Card.Meta 
+                      <Card.Meta
                         title={<Text ellipsis>{img.filename}</Text>}
                         description={
                           <div>
@@ -862,13 +882,13 @@ function App() {
       >
         {selectedImage && (
           <div className="image-preview">
-            <Image 
+            <Image
               src={selectedImage.imageUrl}
               alt={selectedImage.filename}
               style={{ maxHeight: '50vh', objectFit: 'contain' }}
             />
             <Divider />
-            
+
             {/* 基本信息和评分 */}
             <Row gutter={16}>
               <Col span={8}>
@@ -890,7 +910,7 @@ function App() {
                 )}
               </Col>
             </Row>
-            
+
             {/* 详细评分分析 */}
             {selectedImage.impact_analysis && (
               <>
@@ -920,7 +940,7 @@ function App() {
                 </Row>
               </>
             )}
-            
+
             {/* 图片描述 */}
             {selectedImage.description && (
               <>
@@ -929,7 +949,7 @@ function App() {
                 <p>{selectedImage.description}</p>
               </>
             )}
-            
+
             {/* 标签 */}
             {selectedImage.tags && (
               <div>
