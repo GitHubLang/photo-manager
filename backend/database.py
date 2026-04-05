@@ -143,6 +143,17 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
     
+    # 创建应用状态表（存储浏览位置等）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS app_state (
+            id INT PRIMARY KEY DEFAULT 1,
+            last_folder_path VARCHAR(500),
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    # 初始化一条记录
+    cursor.execute("INSERT IGNORE INTO app_state (id) VALUES (1)")
+    
     init_conn.commit()
     cursor.close()
     init_conn.close()

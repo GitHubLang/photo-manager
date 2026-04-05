@@ -115,3 +115,53 @@ async def create_daily_report(date_str: str):
             "caption": douyin_caption.get("caption") if douyin_caption else None
         }
     }
+
+
+@router.get("/caption/history")
+async def get_caption_history_all(
+    keyword: Optional[str] = Query(None, description="按图片ID或文案内容搜索"),
+    set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu", "weibo"]),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    """获取文案历史（不按日期分组）"""
+    where_clauses = []
+    params = []
+    
+    if set_type:
+        where_clauses.append("set_type = %s")
+        params.append(set_type)
+    
+    if keyword:
+        # 搜索文案内容、标题或图片ID
+        where_clauses.append(
+            "(caption_body LIKE %s OR caption_title LIKE %s OR image_ids LIKE %s)"
+        )
+        pattern = f"%{keyword}%"
+        params.extend([pattern, pattern, pattern])
+    
+    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+    
+    # 获取总数
+    count_sql = f"SELECT COUNT(*) as total FROM photo_sets WHERE {where_sql}"
+    total = execute_query(count_sql, params)[0]['total']
+    
+    # 获取分页数据
+    offset = (page - 1) * page_size
+    query_sql = f"""
+        SELECT ps.*, i.filename as cover_filename
+        FROM photo_sets ps
+        LEFT JOIN images i ON ps.cover_image_id = i.id
+        WHERE {where_sql}
+        ORDER BY ps.created_at DESC
+        LIMIT %s OFFSET %s
+    """
+    params.extend([page_size, offset])
+    results = execute_query(query_sql, params)
+    
+    return {
+        "captions": results,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }

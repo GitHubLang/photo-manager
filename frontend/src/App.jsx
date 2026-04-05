@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip } from 'antd';
-import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined } from '@ant-design/icons';
+import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip, Menu, Checkbox, Popconfirm } from 'antd';
+import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
 import './App.css';
 
 const { Sider, Content } = Layout;
@@ -24,20 +24,119 @@ function App() {
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
-  const [failedCaptions, setFailedCaptions] = useState([]);  // 失败的文案记录
-  const [failedScores, setFailedScores] = useState([]);  // 失败的评分记录
+  const [failedCaptions, setFailedCaptions] = useState([]);
+  const [failedScores, setFailedScores] = useState([]);
   const [sortBy, setSortBy] = useState('filename');
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
+  
+  // 左侧菜单
+  const [activeMenu, setActiveMenu] = useState('folder');
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
+  
+  // 评分记录
+  const [scoreTasks, setScoreTasks] = useState([]);
+  const [scoreTasksTotal, setScoreTasksTotal] = useState(0);
+  const [scoreTasksLoading, setScoreTasksLoading] = useState(false);
+  const [scoreTaskFilter, setScoreTaskFilter] = useState('failed');
+  const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
+  
+  // 文案历史
+  const [captionHistory, setCaptionHistory] = useState([]);
+  const [captionHistoryTotal, setCaptionHistoryTotal] = useState(0);
+  const [captionHistoryLoading, setCaptionHistoryLoading] = useState(false);
+  const [captionKeyword, setCaptionKeyword] = useState('');
+  const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
 
   // 加载目录树和模型列表
   useEffect(() => {
     fetchFolders();
     fetchModels();
+    // 加载上次浏览位置
+    fetchAppState();
   }, []);
+  
+  // 加载上次浏览位置
+  const fetchAppState = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/app-state`);
+      const data = await res.json();
+      if (data.last_folder_path) {
+        loadImages(data.last_folder_path);
+        setSelectedFolder(data.last_folder_path);
+      }
+    } catch (err) {
+      console.error('加载浏览位置失败');
+    }
+  };
+  
+  // 保存浏览位置
+  const saveAppState = async (folderPath) => {
+    try {
+      await fetch(`${API_BASE}/app-state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ last_folder_path: folderPath })
+      });
+    } catch (err) {
+      console.error('保存浏览位置失败');
+    }
+  };
+  
+  // 获取评分记录
+  const fetchScoreTasks = async (status) => {
+    setScoreTasksLoading(true);
+    try {
+      const params = new URLSearchParams({ page_size: 100 });
+      if (status && status !== 'all') params.set('status', status);
+      const res = await fetch(`${API_BASE}/score-tasks?${params}`);
+      const data = await res.json();
+      setScoreTasks(data.tasks || []);
+      setScoreTasksTotal(data.total || 0);
+    } catch (err) {
+      message.error('加载评分记录失败');
+    } finally {
+      setScoreTasksLoading(false);
+    }
+  };
+  
+  // 重试评分
+  const retryScoreTasks = async (imageIds) => {
+    if (!imageIds || imageIds.length === 0) return;
+    try {
+      await fetch(`${API_BASE}/score-tasks/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(imageIds)
+      });
+      message.success(`已提交 ${imageIds.length} 个评分任务`);
+      setSelectedScoreTaskIds([]);
+      fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter);
+    } catch (err) {
+      message.error('重试失败');
+    }
+  };
+  
+  // 获取文案历史
+  const fetchCaptionHistory = async (keyword, setType) => {
+    setCaptionHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({ page_size: 50 });
+      if (keyword) params.set('keyword', keyword);
+      if (setType) params.set('set_type', setType);
+      const res = await fetch(`${API_BASE}/caption/history?${params}`);
+      const data = await res.json();
+      setCaptionHistory(data.captions || []);
+      setCaptionHistoryTotal(data.total || 0);
+    } catch (err) {
+      message.error('加载文案历史失败');
+    } finally {
+      setCaptionHistoryLoading(false);
+    }
+  };
 
   // 获取可用模型列表
   const fetchModels = async () => {
@@ -101,6 +200,7 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
+      saveAppState(folderPath);
     } catch (err) {
       message.error('加载图片失败');
     } finally {
@@ -357,22 +457,177 @@ function App() {
       </div>
 
       <Layout>
-        {/* 左侧目录 */}
-        <Sider width={280} className="folder-sider">
-          <div className="sider-header">
-            <Text strong>文件夹</Text>
-          </div>
-          <Tree
-            treeData={treeData}
-            onSelect={(keys, info) => {
-              if (info.node.path) {
-                loadImages(info.node.path);
-                setSelectedImages([]);
-              }
+        {/* 左侧可折叠菜单 */}
+        <Sider width={260} collapsible collapsed={menuCollapsed} onCollapse={setMenuCollapsed} className="folder-sider">
+          <Menu
+            mode="inline"
+            selectedKeys={[activeMenu]}
+            onClick={({ key }) => {
+              setActiveMenu(key);
+              if (key === 'scores') fetchScoreTasks(scoreTaskFilter === 'all' ? null : 'failed');
+              if (key === 'captions') fetchCaptionHistory(captionKeyword, captionTypeFilter);
             }}
-            showIcon={false}
-          />
+            style={{ height: '100%', overflowY: 'auto' }}
+          >
+            <Menu.SubMenu key="folder" icon={<FolderOutlined />} title="文件夹">
+              {!menuCollapsed && (
+                <div style={{ padding: '8px 12px' }}>
+                  <Tree
+                    treeData={treeData}
+                    onSelect={(keys, info) => {
+                      if (info.node.path) {
+                        loadImages(info.node.path);
+                        setSelectedImages([]);
+                        setActiveMenu('folder');
+                      }
+                    }}
+                    showIcon={false}
+                  />
+                </div>
+              )}
+            </Menu.SubMenu>
+            
+            <Menu.Item key="scores" icon={<StarOutlined />}>
+              评分记录
+              {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 8 }}>{failedScores.length}</Tag>}
+            </Menu.Item>
+            
+            <Menu.Item key="captions" icon={<FileTextOutlined />}>
+              文案历史
+            </Menu.Item>
+          </Menu>
         </Sider>
+        
+        {/* 评分记录面板 */}
+        {activeMenu === 'scores' && (
+          <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 16, overflowY: 'auto', background: '#fff' }}>
+            <Space style={{ marginBottom: 12 }}>
+              <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : 'failed'); }} style={{ width: 100 }} size="small">
+                <Select.Option value="failed">失败</Select.Option>
+                <Select.Option value="all">全部</Select.Option>
+              </Select>
+              <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>
+                重试({selectedScoreTaskIds.length})
+              </Button>
+              <Button size="small" onClick={() => { setSelectedScoreTaskIds(scoreTasks.map(t => t.image_id)); }}>
+                全选
+              </Button>
+            </Space>
+            <Spin spinning={scoreTasksLoading}>
+              {scoreTasks.length === 0 ? (
+                <Empty description="暂无记录" />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {scoreTasks.map(task => (
+                    <Card key={task.id} size="small" hoverable
+                      style={{ opacity: task.status === 'failed' ? 1 : 0.6 }}
+                      cover={task.file_path ? (
+                        <img 
+                          src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
+                          alt={task.filename}
+                          style={{ height: 60, objectFit: 'cover' }}
+                        />
+                      ) : null}
+                      onClick={() => {
+                        if (task.status === 'failed') {
+                          setSelectedScoreTaskIds(prev => 
+                            prev.includes(task.image_id) 
+                              ? prev.filter(id => id !== task.image_id)
+                              : [...prev, task.image_id]
+                          );
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {task.status === 'failed' && (
+                          <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
+                          <div>
+                            <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : 'default'} style={{ fontSize: 10 }}>
+                              {task.status}
+                            </Tag>
+                          </div>
+                          {task.error_message && (
+                            <Text type="danger" style={{ fontSize: 10 }} ellipsis>{task.error_message}</Text>
+                          )}
+                        </div>
+                        {task.status === 'failed' && (
+                          <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>
+                            重试
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Spin>
+          </div>
+        )}
+        
+        {/* 文案历史面板 */}
+        {activeMenu === 'captions' && (
+          <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 16, overflowY: 'auto', background: '#fff' }}>
+            <Space style={{ marginBottom: 12 }}>
+              <Input.Search
+                placeholder="搜索图片ID、文案..."
+                value={captionKeyword}
+                onChange={e => setCaptionKeyword(e.target.value)}
+                onSearch={v => fetchCaptionHistory(v, captionTypeFilter)}
+                style={{ width: 160 }}
+                size="small"
+              />
+              <Select value={captionTypeFilter} onChange={v => { setCaptionTypeFilter(v); fetchCaptionHistory(captionKeyword, v); }} style={{ width: 90 }} size="small" allowClear placeholder="类型">
+                <Select.Option value="douyin">抖音</Select.Option>
+                <Select.Option value="xiaohongshu">小红书</Select.Option>
+              </Select>
+            </Space>
+            <Spin spinning={captionHistoryLoading}>
+              {captionHistory.length === 0 ? (
+                <Empty description="暂无文案" />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {captionHistory.map(cap => (
+                    <Card key={cap.id} size="small" hoverable
+                      cover={cap.cover_filename ? (
+                        <img 
+                          src={`${API_BASE}/image/thumbnail/${encodeURIComponent(cap.cover_filename)}?size=100`}
+                          alt={cap.caption_title}
+                          style={{ height: 60, objectFit: 'cover' }}
+                          onError={e => { e.target.style.display = 'none'; }}
+                        />
+                      ) : null}
+                      onClick={() => {
+                        const parsedIds = cap.image_ids ? JSON.parse(cap.image_ids) : [];
+                        setGeneratedCaption({
+                          ...cap,
+                          setType: cap.set_type,
+                          content: cap.caption_body
+                        });
+                        setCaptionModalVisible(true);
+                      }}
+                    >
+                      <div>
+                        <Space style={{ marginBottom: 4 }}>
+                          <Tag color={cap.set_type === 'douyin' ? 'blue' : 'green'} style={{ fontSize: 10 }}>
+                            {cap.set_type === 'douyin' ? '抖音' : '小红书'}
+                          </Tag>
+                          <Text type="secondary" style={{ fontSize: 10 }}>{cap.date}</Text>
+                        </Space>
+                        <Text strong style={{ fontSize: 13 }}>{cap.caption_title || '(无标题)'}</Text>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                          {cap.image_ids ? `${JSON.parse(cap.image_ids).length}张图片` : ''}
+                        </Text>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Spin>
+          </div>
+        )}
 
         {/* 右侧内容 */}
         <Content className="content-area" onScroll={(e) => {
