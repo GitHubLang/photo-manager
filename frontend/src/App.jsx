@@ -24,6 +24,7 @@ function App() {
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]);
+  const [failedCaptions, setFailedCaptions] = useState([]);  // 失败的文案记录
   const [sortBy, setSortBy] = useState('filename');
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -236,8 +237,9 @@ function App() {
   };
 
   // 生成文案
-  const handleGenerateCaption = async (setType) => {
-    if (selectedImages.length === 0) {
+  const handleGenerateCaption = async (setType, overrideImageIds) => {
+    const imgIds = overrideImageIds ?? selectedImages;
+    if (imgIds.length === 0) {
       message.warning('请先选择图片');
       return;
     }
@@ -249,21 +251,37 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           date: folderName, 
-          image_ids: selectedImages, 
+          image_ids: imgIds, 
           set_type: setType 
         })
       });
       const data = await res.json();
       
       if (!res.ok) {
-        // 后端返回错误（400/500等），从 detail 字段取错误信息
-        message.error(data.detail || data.error || `请求失败 (${res.status})`);
+        const errMsg = data.detail || data.error || `请求失败 (${res.status})`;
+        message.error(errMsg);
+        setFailedCaptions(prev => [{
+          key: `${setType}_${Date.now()}`,
+          setType,
+          imageIds: [...imgIds],
+          error: errMsg,
+          time: new Date().toLocaleTimeString()
+        }, ...prev].slice(0, 10));
       } else if (data.success && data.caption) {
+        // 成功后从失败列表移除同类型
+        setFailedCaptions(prev => prev.filter(fc => fc.setType !== setType));
         setGeneratedCaption({ ...data.caption, setType });
         setCaptionModalVisible(true);
       } else {
-        // success=false 或 caption 字段缺失
-        message.error(data.error || '生成失败，请检查是否已评分的图片');
+        const errMsg = data.error || '生成失败，请检查是否已评分的图片';
+        message.error(errMsg);
+        setFailedCaptions(prev => [{
+          key: `${setType}_${Date.now()}`,
+          setType,
+          imageIds: [...imgIds],
+          error: errMsg,
+          time: new Date().toLocaleTimeString()
+        }, ...prev].slice(0, 10));
       }
     } catch (err) {
       message.error('网络错误，请检查后端服务是否运行');
@@ -391,12 +409,33 @@ function App() {
               )}
               <Dropdown menu={{
                 items: [
+                  ...(failedCaptions.length > 0 ? [
+                    { type: 'divider' },
+                    { key: 'failed_header', label: <Text type="danger">失败记录 ({failedCaptions.length})</Text>, disabled: true },
+                    ...failedCaptions.map(fc => ({
+                      key: fc.key,
+                      label: (
+                        <Space size="small">
+                          <Tag color={fc.setType === 'douyin' ? 'blue' : 'green'} style={{ margin: 0 }}>
+                            {fc.setType === 'douyin' ? '抖音' : '小红书'}
+                          </Tag>
+                          <Text type="secondary" style={{ fontSize: 11 }}>{fc.time}</Text>
+                          <Text type="danger" style={{ fontSize: 11 }} ellipsis title={fc.error}>{fc.error}</Text>
+                        </Space>
+                      ),
+                      onClick: () => handleGenerateCaption(fc.setType, fc.imageIds)
+                    })),
+                    { key: 'retry_all', label: '全部重新生成', onClick: () => {
+                      failedCaptions.forEach(fc => handleGenerateCaption(fc.setType, fc.imageIds));
+                    }},
+                    { type: 'divider' },
+                  ] : []),
                   { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
                   { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') }
                 ]
               }}>
                 <Button disabled={selectedImages.length === 0}>
-                  生成文案
+                  生成文案 {failedCaptions.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedCaptions.length}</Tag>}
                 </Button>
               </Dropdown>
               <Button 
