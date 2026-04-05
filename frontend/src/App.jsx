@@ -94,7 +94,7 @@ function App() {
   const fetchScoreTasks = async (status, page = 1) => {
     setScoreTasksLoading(true);
     try {
-      const params = new URLSearchParams({ page, page_size: 50 });
+      const params = new URLSearchParams({ page, page_size: 20 });
       if (status && status !== 'all') params.set('status', status);
       const res = await fetch(`${API_BASE}/score-tasks?${params}`);
       const data = await res.json();
@@ -112,17 +112,12 @@ function App() {
   const retryScoreTasks = async (imageIds) => {
     if (!imageIds || imageIds.length === 0) return;
     try {
-      const res = await fetch(`${API_BASE}/score-tasks/retry`, {
+      await fetch(`${API_BASE}/score-tasks/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(imageIds)
       });
-      const data = await res.json();
-      if (data.success) {
-        message.success(`已提交 ${imageIds.length} 个评分任务`);
-      } else {
-        message.error(data.error || '重试失败');
-      }
+      message.success(`已提交 ${imageIds.length} 个评分任务`);
       setSelectedScoreTaskIds([]);
       fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter);
     } catch (err) {
@@ -528,10 +523,9 @@ function App() {
               </Button>
             </div>
             <Space style={{ marginBottom: 10 }}>
-              <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v, 1); }} style={{ width: 90 }} size="small">
+              <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
                 <Select.Option value="all">全部</Select.Option>
                 <Select.Option value="failed">失败</Select.Option>
-                <Select.Option value="processing">处理中</Select.Option>
                 <Select.Option value="completed">成功</Select.Option>
               </Select>
               <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>
@@ -548,59 +542,60 @@ function App() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(() => {
-                    // 按 image_id 去重，每张图片只显示一条
+                    // 按 image_id 去重,每张图片只显示一条
                     const seen = new Set();
                     const deduped = scoreTasks.filter(task => {
-                      if (seen.has(task.image_id)) return false;
-                      seen.add(task.image_id);
+                      if (scoreTaskFilter === 'failed' && task.status === 'failed') {
+                        if (seen.has(task.image_id)) return false;
+                        seen.add(task.image_id);
+                        return true;
+                      }
                       return true;
                     });
-                    return deduped.map(task => {
-                      const canRetry = task.status !== 'completed';
-                      return (
-                      <Card key={task.id} size="small" hoverable={canRetry}
-                        style={{ opacity: canRetry ? 1 : 0.6 }}
-                        cover={task.file_path ? (
-                          <img
-                            src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
-                            alt={task.filename}
-                            style={{ height: 60, objectFit: 'cover' }}
-                          />
-                        ) : null}
-                        onClick={() => {
-                          if (canRetry) {
-                            setSelectedScoreTaskIds(prev =>
-                              prev.includes(task.image_id)
-                                ? prev.filter(id => id !== task.image_id)
-                                : [...prev, task.image_id]
-                            );
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {canRetry && (
-                            <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
-                            <div>
-                              <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : task.status === 'processing' ? 'orange' : 'default'} style={{ fontSize: 10 }}>
-                                {task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status === 'completed' ? '成功' : task.status}
+                    return deduped.map(task => (
+                    <Card key={task.id} size="small" hoverable
+                      style={{ opacity: task.status === 'failed' ? 1 : 0.6 }}
+                      cover={task.file_path ? (
+                        <img
+                          src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
+                          alt={task.filename}
+                          style={{ height: 60, objectFit: 'cover' }}
+                        />
+                      ) : null}
+                      onClick={() => {
+                        if (task.status === 'failed') {
+                          setSelectedScoreTaskIds(prev =>
+                            prev.includes(task.image_id)
+                              ? prev.filter(id => id !== task.image_id)
+                              : [...prev, task.image_id]
+                          );
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {task.status === 'failed' && (
+                          <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
+                          <div>
+                            <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : 'default'} style={{ fontSize: 10 }}>
+                              {task.status}
                             </Tag>
                           </div>
                           {task.error_message && (
                             <Text type="danger" style={{ fontSize: 10 }} ellipsis>{task.error_message}</Text>
                           )}
                         </div>
-                        {canRetry && (
+                        {task.status === 'failed' && (
                           <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>
                             重试
                           </Button>
                         )}
                       </div>
                     </Card>
-                    );
-                    })}
+                  ))}
+                  )}
                 </div>
               )}
             </Spin>
@@ -886,12 +881,15 @@ function App() {
         centered
       >
         {selectedImage && (
-          <div className="image-preview">
-            <Image
-              src={selectedImage.imageUrl}
-              alt={selectedImage.filename}
-              style={{ maxHeight: '50vh', objectFit: 'contain' }}
-            />
+          <div className="image-preview" style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+              <Image
+                src={selectedImage.imageUrl}
+                alt={selectedImage.filename}
+                style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }}
+                preview={true}
+              />
+            </div>
             <Divider />
 
             {/* 基本信息和评分 */}
@@ -905,14 +903,12 @@ function App() {
               </Col>
               <Col span={16}>
                 <Title level={5}>综合评分: {selectedImage.total_score ? `⭐ ${selectedImage.total_score.toFixed(1)}` : '待评分'}</Title>
-                {!selectedImage.total_score && (
-                  <Button type="primary" onClick={() => {
-                    handleScore(selectedImage.id);
-                    setPreviewVisible(false);
-                  }}>
-                    发起评分
-                  </Button>
-                )}
+                <Button type="primary" onClick={() => {
+                  handleScore(selectedImage.id);
+                  setPreviewVisible(false);
+                }}>
+                  {selectedImage.total_score ? '重新评分' : '发起评分'}
+                </Button>
               </Col>
             </Row>
 
