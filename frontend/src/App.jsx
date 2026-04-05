@@ -526,6 +526,8 @@ function App() {
               <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
                 <Select.Option value="all">全部</Select.Option>
                 <Select.Option value="failed">失败</Select.Option>
+                <Select.Option value="processing">处理中</Select.Option>
+                <Select.Option value="pending">待处理</Select.Option>
                 <Select.Option value="completed">成功</Select.Option>
               </Select>
               <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>
