@@ -1,0 +1,123 @@
+.app-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.folder-sider {
+  background: #fff;
+  overflow-y: auto;
+  border-right: 1px solid #f0f0f0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sider-header {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.content-area {
+  padding: 16px 24px;
+  background: #f5f5f5;
+  overflow-y: auto;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.image-grid {
+  padding-bottom: 24px;
+}
+
+.image-card {
+  transition: all 0.3s;
+}
+
+.image-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.image-card.selected {
+  border: 2px solid #1890ff;
+}
+
+.image-cover {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.image-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.image-cover:hover img {
+  transform: scale(1.05);
+}
+
+.image-score {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.image-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.image-preview p {
+  margin: 4px 0;
+}
+
+.theme-content, .caption-content {
+  padding: 8px 0;
+}
+
+.caption-content p {
+  font-size: 15px;
+  line-height: 1.8;
+}

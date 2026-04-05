@@ -1,0 +1,407 @@
+"""
+图片相关 API
+"""
+from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import date
+from PIL import Image as PILImage, ImageOps
+
+from database import execute_query
+from services.image_scanner import scan_folders, index_folder, scan_folder_images
+from services.llm_scorer import score_and_describe_image
+from config import PHOTO_ROOT
+
+router = APIRouter(prefix="/api", tags=["images"])
+
+
+class ScoreRequest(BaseModel):
+    image_ids: List[int]
+    model: str = "local"
+
+
+class FolderScanRequest(BaseModel):
+    folder_path: str
+
+
+@router.get("/folders")
+async def get_folders():
+    """获取目录树"""
+    folders = scan_folders()
+    return {"folders": folders}
+
+
+@router.get("/folders/{folder_path:path}/images")
+async def get_folder_images(
+    folder_path: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort_by: str = Query("filename", enum=["filename", "total_score", "file_size", "created_at"]),
+    sort_order: str = Query("asc", enum=["asc", "desc"]),
+    min_score: Optional[float] = Query(None, ge=0, le=100),
+    search: Optional[str] = None
+):
+    """获取指定文件夹的图片列表"""
+    # 修复路径分隔符（URL 中的 / 转为 \\）
+    folder_path = folder_path.replace('/', '\\')
+    
+    # 构建查询
+    where_clauses = ["i.folder_path = %s"]
+    params = [folder_path]
+    
+    if min_score is not None:
+        where_clauses.append("s.total_score >= %s")
+        params.append(min_score)
+    
+    if search:
+        where_clauses.append("(i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)")
+        search_pattern = f"%{search}%"
+        params.extend([search_pattern, search_pattern, search_pattern])
+    
+    where_sql = " AND ".join(where_clauses)
+    sort_column = {
+        "filename": "i.filename",
+        "total_score": "s.total_score",
+        "file_size": "i.file_size",
+        "created_at": "i.created_at"
+    }.get(sort_by, "i.filename")
+    sort_dir = "DESC" if sort_order == "desc" else "ASC"
+    
+    # 获取总数
+    count_sql = f"""
+        SELECT COUNT(*) as total 
+        FROM images i 
+        LEFT JOIN image_scores s ON i.id = s.image_id
+        LEFT JOIN image_descriptions d ON i.id = d.image_id
+        WHERE {where_sql}
+    """
+    total = execute_query(count_sql, params)[0]['total']
+    
+    # 获取分页数据 - 获取每张图片的最新评分
+    offset = (page - 1) * page_size
+    query_sql = f"""
+        SELECT i.*, 
+               s.total_score, 
+               s.impact_score, s.impact_analysis, s.impact_suggestion,
+               s.composition_score, s.composition_analysis, s.composition_suggestion,
+               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
+               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
+               s.color_score, s.color_analysis, s.color_suggestion,
+               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
+               d.description, d.tags
+        FROM images i 
+        LEFT JOIN image_scores s ON s.id = (
+            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
+        )
+        LEFT JOIN image_descriptions d ON d.id = (
+            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
+        )
+        WHERE {where_sql}
+        ORDER BY {sort_column} {sort_dir}
+        LIMIT %s OFFSET %s
+    """
+    params.extend([page_size, offset])
+    
+    images = execute_query(query_sql, params)
+    
+    return {
+        "images": images,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size
+    }
+
+
+@router.get("/images/{image_id}")
+async def get_image(image_id: int):
+    """获取单张图片详情"""
+    image = execute_query("""
+        SELECT i.*, 
+               s.total_score, 
+               s.impact_score, s.impact_analysis, s.impact_suggestion,
+               s.composition_score, s.composition_analysis, s.composition_suggestion,
+               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
+               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
+               s.color_score, s.color_analysis, s.color_suggestion,
+               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
+               d.description, d.tags
+        FROM images i 
+        LEFT JOIN image_scores s ON i.id = s.image_id
+        LEFT JOIN image_descriptions d ON i.id = d.image_id
+        WHERE i.id = %s
+    """, (image_id,))
+    
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return image[0]
+
+
+@router.get("/image/thumbnail/{path:path}")
+async def thumbnail_image(path: str, size: int = Query(400, ge=100, le=1200)):
+    """生成并缓存缩略图"""
+    import urllib.parse
+    import hashlib
+    decoded_path = urllib.parse.unquote(path)
+    
+    # 安全检查
+    from pathlib import Path
+    image_path = Path(decoded_path)
+    root = Path(PHOTO_ROOT)
+    
+    if not str(image_path).startswith(str(root)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # 生成缩略图缓存路径
+    cache_dir = Path(r"D:\MySoftware\photo-manager\thumbnail_cache")
+    cache_dir.mkdir(exist_ok=True)
+    
+    # 用原图路径的hash作为缓存文件名
+    path_hash = hashlib.md5(str(image_path).encode()).hexdigest()
+    cache_file = cache_dir / f"{path_hash}_{size}.jpg"
+    
+    # 如果缓存不存在，生成缩略图
+    if not cache_file.exists():
+        try:
+            with PILImage.open(image_path) as img:
+                img = ImageOps.exif_transpose(img)
+                img.thumbnail((size, size), PILImage.LANCZOS)
+                img.save(cache_file, 'JPEG', quality=85, optimize=True)
+        except Exception as e:
+            # 如果缩略图生成失败，返回原图
+            return FileResponse(decoded_path)
+    
+    return FileResponse(str(cache_file))
+
+
+@router.get("/image/proxy/{path:path}")
+async def proxy_image(path: str):
+    """代理图片访问，防止路径泄露"""
+    import urllib.parse
+    decoded_path = urllib.parse.unquote(path)
+    
+    # 安全检查：确保路径在允许的目录下
+    from pathlib import Path
+    image_path = Path(decoded_path)
+    root = Path(PHOTO_ROOT)
+    
+    if not str(image_path).startswith(str(root)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(decoded_path)
+
+
+@router.post("/folders/scan")
+async def scan_new_folder(req: FolderScanRequest):
+    """扫描并索引指定文件夹"""
+    result = index_folder(req.folder_path)
+    return result
+
+
+@router.post("/folders/scan-all")
+async def scan_all():
+    """扫描并索引所有文件夹"""
+    from services.image_scanner import index_all_folders
+    result = index_all_folders()
+    return result
+
+
+@router.post("/images/score")
+async def score_images(req: ScoreRequest):
+    """创建评分任务（异步，不等待结果）"""
+    from datetime import datetime
+    import threading
+    
+    task_ids = []
+    
+    for image_id in req.image_ids:
+        # 检查图片是否存在
+        image_data = execute_query(
+            "SELECT id, file_path FROM images WHERE id = %s",
+            (image_id,)
+        )
+        if not image_data:
+            continue
+        
+        # 创建任务记录
+        task_id = execute_query(
+            """INSERT INTO score_tasks (image_id, status, model) 
+               VALUES (%s, 'pending', %s)""",
+            (image_id, req.model),
+            fetch=False
+        )
+        task_ids.append({"image_id": image_id, "task_id": task_id})
+    
+    # 启动后台处理（单次，不是持续运行）
+    def process_tasks():
+        from database import get_connection
+        from services.llm_scorer import score_and_describe_image
+        import time
+        
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        while True:
+            # 取一个待处理任务
+            cursor.execute(
+                """SELECT id, image_id, model FROM score_tasks 
+                   WHERE status = 'pending' LIMIT 1"""
+            )
+            task = cursor.fetchone()
+            if not task:
+                break  # 没有待处理任务
+            
+            # 更新状态为处理中
+            cursor.execute(
+                "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
+                (task['id'],)
+            )
+            conn.commit()
+            
+            # 获取图片路径
+            cursor.execute(
+                "SELECT file_path FROM images WHERE id = %s",
+                (task['image_id'],)
+            )
+            img = cursor.fetchone()
+            if not img:
+                cursor.execute(
+                    "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
+                    (task['id'],)
+                )
+                conn.commit()
+                continue
+            
+            try:
+                # 调用评分（这个会调用 LLM）
+                result = score_and_describe_image(
+                    task['image_id'],
+                    img['file_path'],
+                    task['model']
+                )
+                
+                if result.get('scored') or result.get('described'):
+                    cursor.execute(
+                        """UPDATE score_tasks SET status = 'completed', 
+                           completed_at = NOW() WHERE id = %s""",
+                        (task['id'],)
+                    )
+                else:
+                    cursor.execute(
+                        """UPDATE score_tasks SET status = 'failed', 
+                           error_message = 'LLM call failed' WHERE id = %s""",
+                        (task['id'],)
+                    )
+            except Exception as e:
+                cursor.execute(
+                    """UPDATE score_tasks SET status = 'failed', 
+                       error_message = %s WHERE id = %s""",
+                    (str(e), task['id'])
+                )
+            
+            conn.commit()
+        
+        cursor.close()
+        conn.close()
+    
+    # 启动后台线程处理任务
+    thread = threading.Thread(target=process_tasks, daemon=True)
+    thread.start()
+    
+    return {"message": "评分任务已创建", "tasks": task_ids}
+
+
+@router.get("/images/score/status/{image_id}")
+async def get_score_status(image_id: int):
+    """获取图片评分状态"""
+    result = execute_query(
+        """SELECT status, error_message, completed_at 
+           FROM score_tasks WHERE image_id = %s 
+           ORDER BY id DESC LIMIT 1""",
+        (image_id,)
+    )
+    if result:
+        return result[0]
+    return {"status": "not_found"}
+
+
+@router.get("/images/score/results/{image_id}")
+async def get_score_results(image_id: int):
+    """获取图片评分结果"""
+    result = execute_query(
+        """SELECT i.*, 
+               s.total_score, 
+               s.impact_score, s.impact_analysis, s.impact_suggestion,
+               s.composition_score, s.composition_analysis, s.composition_suggestion,
+               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
+               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
+               s.color_score, s.color_analysis, s.color_suggestion,
+               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
+               d.description, d.tags
+        FROM images i 
+        LEFT JOIN image_scores s ON i.id = s.image_id
+        LEFT JOIN image_descriptions d ON i.id = d.image_id
+        WHERE i.id = %s""",
+        (image_id,)
+    )
+    if result:
+        return result[0]
+    return None
+
+
+@router.get("/search")
+async def search_images(
+    keyword: str = Query(..., min_length=1),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100)
+):
+    """全局搜索图片"""
+    pattern = f"%{keyword}%"
+    
+    count_sql = """
+        SELECT COUNT(*) as total 
+        FROM images i 
+        LEFT JOIN image_scores s ON i.id = s.image_id
+        LEFT JOIN image_descriptions d ON i.id = d.image_id
+        WHERE i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s
+    """
+    total = execute_query(count_sql, (pattern, pattern, pattern))[0]['total']
+    
+    offset = (page - 1) * page_size
+    query_sql = """
+        SELECT i.*, 
+               s.total_score, 
+               s.impact_score, s.impact_analysis, s.impact_suggestion,
+               s.composition_score, s.composition_analysis, s.composition_suggestion,
+               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
+               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
+               s.color_score, s.color_analysis, s.color_suggestion,
+               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
+               d.description, d.tags
+        FROM images i 
+        LEFT JOIN image_scores s ON s.id = (
+            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
+        )
+        LEFT JOIN image_descriptions d ON d.id = (
+            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
+        )
+        WHERE i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s
+        ORDER BY s.total_score DESC
+        LIMIT %s OFFSET %s
+    """
+    images = execute_query(query_sql, (pattern, pattern, pattern, page_size, offset))
+    
+    return {
+        "images": images,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
