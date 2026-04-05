@@ -503,79 +503,95 @@ async def get_score_tasks(
 
 @router.post("/score-tasks/retry")
 async def retry_score_tasks(image_ids: List[int]):
-    """重新评分指定图片，创建新任务记录"""
-    import threading
+    """重新评分指定图片，成功后把所有该图片的任务都标记为completed"""
     task_ids = []
     for image_id in image_ids:
-        task_id = execute_query(
-            """INSERT INTO score_tasks (image_id, status, model, created_at) 
-               VALUES (%s, 'pending', 'local', NOW())""",
+        # 把该图片所有非completed的任务先标记为pending（重置）
+        execute_query(
+            """UPDATE score_tasks SET status = 'pending', error_message = NULL 
+               WHERE image_id = %s AND status IN ('failed', 'processing')""",
             (image_id,),
             fetch=False
         )
+        # 如果没有需要重置的（非failed/processing），则创建新任务
+        existing = execute_query(
+            "SELECT id FROM score_tasks WHERE image_id = %s AND status = 'pending'",
+            (image_id,)
+        )
+        if not existing:
+            # 全是completed，说明之前已成功，直接跳过（不允许重跑成功的）
+            continue
+        task_id = existing[0]['id']
         task_ids.append({"image_id": image_id, "task_id": task_id})
     
+    if not task_ids:
+        return {"success": False, "error": "所选图片已完成评分，无法重跑"}
+    
     # 启动3个worker并行处理
-    def process_one_task():
+    def process_tasks_worker():
         from database import get_connection
         from services.llm_scorer import score_and_describe_image
         
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute(
-                """SELECT id, image_id, model FROM score_tasks 
-                   WHERE status = 'pending' LIMIT 1"""
-            )
-            task = cursor.fetchone()
-            if not task:
-                return False
-            
-            cursor.execute("UPDATE score_tasks SET status = 'processing' WHERE id = %s", (task['id'],))
-            conn.commit()
-            
-            cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
-            img = cursor.fetchone()
-            if not img:
+            while True:
                 cursor.execute(
-                    "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
+                    """SELECT id, image_id, model FROM score_tasks 
+                       WHERE status = 'pending' LIMIT 1"""
+                )
+                task = cursor.fetchone()
+                if not task:
+                    break
+                
+                cursor.execute(
+                    "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
                     (task['id'],)
                 )
                 conn.commit()
-                return True
-            
-            score_semaphore.acquire()
-            try:
-                result = score_and_describe_image(task['image_id'], img['file_path'], task['model'])
-                if result.get('scored') or result.get('described'):
+                
+                cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
+                img = cursor.fetchone()
+                if not img:
                     cursor.execute(
-                        """UPDATE score_tasks SET status = 'completed', 
-                           completed_at = NOW() WHERE id = %s""",
+                        "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
                         (task['id'],)
                     )
-                else:
+                    conn.commit()
+                    continue
+                
+                score_semaphore.acquire()
+                try:
+                    result = score_and_describe_image(task['image_id'], img['file_path'], task['model'])
+                    if result.get('scored') or result.get('described'):
+                        # 成功后，把该图片所有任务都标记为completed
+                        cursor.execute(
+                            """UPDATE score_tasks SET status = 'completed', 
+                               completed_at = NOW() WHERE image_id = %s""",
+                            (task['image_id'],)
+                        )
+                    else:
+                        cursor.execute(
+                            """UPDATE score_tasks SET status = 'failed', 
+                               error_message = 'LLM call failed' WHERE id = %s""",
+                            (task['id'],)
+                        )
+                except Exception as e:
                     cursor.execute(
                         """UPDATE score_tasks SET status = 'failed', 
-                           error_message = 'LLM call failed' WHERE id = %s""",
-                        (task['id'],)
+                           error_message = %s WHERE id = %s""",
+                        (str(e), task['id'])
                     )
-            except Exception as e:
-                cursor.execute(
-                    """UPDATE score_tasks SET status = 'failed', 
-                       error_message = %s WHERE id = %s""",
-                    (str(e), task['id'])
-                )
-            finally:
-                score_semaphore.release()
-            
-            conn.commit()
-            return True
+                finally:
+                    score_semaphore.release()
+                
+                conn.commit()
         finally:
             cursor.close()
             conn.close()
     
     for _ in range(3):
-        t = threading.Thread(target=process_one_task, daemon=True)
+        t = threading.Thread(target=process_tasks_worker, daemon=True)
         t.start()
     
-    return {"tasks": task_ids}
+    return {"success": True, "tasks": task_ids}
