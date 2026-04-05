@@ -555,8 +555,8 @@ function App() {
                       return true;
                     });
                     return deduped.map(task => (
-                    <Card key={task.id} size="small" hoverable
-                      style={{ opacity: task.status === 'failed' ? 1 : 0.6 }}
+                    <Card key={task.id} size="small" hoverable={task.status !== 'completed'}
+                      style={{ opacity: task.status !== 'completed' ? 1 : 0.6 }}
                       cover={task.file_path ? (
                         <img
                           src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
@@ -565,7 +565,7 @@ function App() {
                         />
                       ) : null}
                       onClick={() => {
-                        if (task.status === 'failed') {
+                        if (task.status !== 'completed') {
                           setSelectedScoreTaskIds(prev =>
                             prev.includes(task.image_id)
                               ? prev.filter(id => id !== task.image_id)
@@ -575,21 +575,19 @@ function App() {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {task.status === 'failed' && (
+                        {task.status !== 'completed' && (
                           <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
-                          <div>
-                            <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : 'default'} style={{ fontSize: 10 }}>
-                              {task.status}
-                            </Tag>
-                          </div>
+                          <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : task.status === 'processing' ? 'orange' : 'blue'} style={{ fontSize: 10 }}>
+                            {task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status === 'completed' ? '成功' : task.status}
+                          </Tag>
                           {task.error_message && (
                             <Text type="danger" style={{ fontSize: 10 }} ellipsis>{task.error_message}</Text>
                           )}
                         </div>
-                        {task.status === 'failed' && (
+                        {task.status !== 'completed' && (
                           <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>
                             重试
                           </Button>
