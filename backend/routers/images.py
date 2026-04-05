@@ -12,6 +12,10 @@ from database import execute_query
 from services.image_scanner import scan_folders, index_folder, scan_folder_images
 from services.llm_scorer import score_and_describe_image
 from config import PHOTO_ROOT
+import threading
+
+# 并发限制：最多同时处理2个评分任务
+score_semaphore = threading.Semaphore(2)
 
 router = APIRouter(prefix="/api", tags=["images"])
 
@@ -280,6 +284,8 @@ async def score_images(req: ScoreRequest):
                 conn.commit()
                 continue
             
+            # 获取信号量（限制并发数）
+            score_semaphore.acquire()
             try:
                 # 调用评分（这个会调用 LLM）
                 result = score_and_describe_image(
@@ -306,6 +312,8 @@ async def score_images(req: ScoreRequest):
                        error_message = %s WHERE id = %s""",
                     (str(e), task['id'])
                 )
+            finally:
+                score_semaphore.release()  # 释放信号量
             
             conn.commit()
         

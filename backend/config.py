@@ -21,6 +21,7 @@ DB_CONFIG = {
 DATABASE_NAME = os.getenv("DB_NAME", "photo_manager_db")
 
 # 本地 LLM 配置
+# 可用模型: qwen2.5-9b (文本), lmstudio-community/gemma-4-26b-a4b (视觉), lmstudio-community/gemma-4-e4b-it (视觉)
 LOCAL_LLM_API = os.getenv("LOCAL_LLM_API", "http://YOUR_LOCAL_LLM_URL")
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5-9b")
 

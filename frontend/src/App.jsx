@@ -300,10 +300,11 @@ function App() {
           <Select 
             value={selectedModel} 
             onChange={setSelectedModel}
-            style={{ width: 160 }}
+            style={{ width: 200 }}
           >
-            <Select.Option value="local">本地 Gemma</Select.Option>
-            <Select.Option value="minimax">MiniMax</Select.Option>
+            <Select.Option value="local">本地 Qwen2.5-9B</Select.Option>
+            <Select.Option value="minimax">MiniMax Vision</Select.Option>
+            <Select.Option value="local-gemma">本地 Gemma-4-E4B-IT</Select.Option>
           </Select>
           <Button icon={<ScanOutlined />} onClick={handleScanAll}>
             扫描
@@ -471,6 +472,7 @@ function App() {
             <Row gutter={16}>
               <Col span={8}>
                 <Title level={5}>基本信息</Title>
+                <p>ID: {selectedImage.id}</p>
                 <p>文件名: {selectedImage.filename}</p>
                 <p>尺寸: {selectedImage.width}x{selectedImage.height}</p>
                 <p>方向: {selectedImage.orientation}</p>

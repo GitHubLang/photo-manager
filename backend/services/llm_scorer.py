@@ -84,7 +84,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
     """调用支持 Vision 的 LLM"""
     image_b64 = encode_image_for_llm(image_path)
     
-    if model == "local":
+    if model.startswith("local"):
         api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
         model_name = LOCAL_LLM_MODEL
         messages = [
@@ -121,7 +121,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         result = response.json()
         print(f"MiniMax Vision API response: {result}")
         
-        if model == "local":
+        if model.startswith("local"):
             return result["choices"][0]["message"]["content"]
         else:
             # MiniMax Vision API 返回格式
