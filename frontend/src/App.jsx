@@ -791,7 +791,7 @@ function App() {
                   { key: 'batch_score', label: selectedImages.length > 0 ? `批量评分 (${selectedImages.length}张)` : '批量评分', onClick: () => handleBatchScore(), disabled: selectedImages.length === 0 }
                 ]
               }}>
-                <Button type="primary" icon={<ThunderboltOutlined />}>
+                <Button type="primary" icon={<ThunderboltOutlined />} disabled={selectedImages.length === 0}>
                   批量评分 {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedScores.length}</Tag>}
                 </Button>
               </Dropdown>
