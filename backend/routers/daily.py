@@ -4,12 +4,11 @@
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date
 
 from database import execute_query
 from services.daily_theme import (
-    generate_daily_theme, 
-    recommend_photo_set, 
+    generate_daily_theme,
+    recommend_photo_set,
     generate_caption
 )
 
@@ -64,12 +63,59 @@ async def create_caption(req: CaptionRequest):
     return result
 
 
+@router.get("/caption/history")
+async def get_caption_history_all(
+    keyword: Optional[str] = Query(None, description="按图片ID或文案内容搜索"),
+    set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu", "weibo"]),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    """获取文案历史（不按日期分组）"""
+    where_clauses = []
+    params = []
+
+    if set_type:
+        where_clauses.append("set_type = %s")
+        params.append(set_type)
+
+    if keyword:
+        where_clauses.append(
+            "(caption_body LIKE %s OR caption_title LIKE %s OR image_ids LIKE %s)"
+        )
+        pattern = f"%{keyword}%"
+        params.extend([pattern, pattern, pattern])
+
+    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+    count_sql = f"SELECT COUNT(*) as total FROM photo_sets WHERE {where_sql}"
+    total = execute_query(count_sql, params)[0]['total']
+
+    offset = (page - 1) * page_size
+    query_sql = f"""
+        SELECT ps.*, i.filename as cover_filename
+        FROM photo_sets ps
+        LEFT JOIN images i ON ps.cover_image_id = i.id
+        WHERE {where_sql}
+        ORDER BY ps.created_at DESC
+        LIMIT %s OFFSET %s
+    """
+    params.extend([page_size, offset])
+    results = execute_query(query_sql, params)
+
+    return {
+        "captions": results,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
 @router.get("/caption/history/{date_str}")
-async def get_caption_history(
+async def get_caption_history_by_date(
     date_str: str,
     set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu", "weibo"])
 ):
-    """获取历史生成的文案"""
+    """按日期获取文案"""
     if set_type:
         sql = "SELECT * FROM photo_sets WHERE date = %s AND set_type = %s ORDER BY created_at DESC"
         results = execute_query(sql, (date_str, set_type))
@@ -82,27 +128,24 @@ async def get_caption_history(
 @router.post("/daily-report/{date_str}")
 async def create_daily_report(date_str: str):
     """一键生成当日完整报告（主题+推荐+文案）"""
-    # 1. 生成主题
     theme_result = generate_daily_theme(date_str)
     if not theme_result.get("success"):
         return {"success": False, "error": "主题生成失败", "details": theme_result}
-    
-    # 2. 推荐图片组
+
     xiaohongshu_set = recommend_photo_set(date_str, "xiaohongshu")
     douyin_set = recommend_photo_set(date_str, "douyin")
-    
-    # 3. 生成文案
+
     douyin_caption = None
     xiaohongshu_caption = None
-    
+
     if xiaohongshu_set.get("success") and xiaohongshu_set.get("selected_images"):
         image_ids = [img['id'] for img in xiaohongshu_set["selected_images"]]
         xiaohongshu_caption = generate_caption(date_str, image_ids, "xiaohongshu")
-    
+
     if douyin_set.get("success") and douyin_set.get("selected_images"):
         image_ids = [img['id'] for img in douyin_set["selected_images"]]
         douyin_caption = generate_caption(date_str, image_ids, "douyin")
-    
+
     return {
         "success": True,
         "theme": theme_result.get("theme"),
@@ -114,54 +157,4 @@ async def create_daily_report(date_str: str):
             "images": douyin_set.get("selected_images", []),
             "caption": douyin_caption.get("caption") if douyin_caption else None
         }
-    }
-
-
-@router.get("/caption/history")
-async def get_caption_history_all(
-    keyword: Optional[str] = Query(None, description="按图片ID或文案内容搜索"),
-    set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu", "weibo"]),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
-):
-    """获取文案历史（不按日期分组）"""
-    where_clauses = []
-    params = []
-    
-    if set_type:
-        where_clauses.append("set_type = %s")
-        params.append(set_type)
-    
-    if keyword:
-        # 搜索文案内容、标题或图片ID
-        where_clauses.append(
-            "(caption_body LIKE %s OR caption_title LIKE %s OR image_ids LIKE %s)"
-        )
-        pattern = f"%{keyword}%"
-        params.extend([pattern, pattern, pattern])
-    
-    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-    
-    # 获取总数
-    count_sql = f"SELECT COUNT(*) as total FROM photo_sets WHERE {where_sql}"
-    total = execute_query(count_sql, params)[0]['total']
-    
-    # 获取分页数据
-    offset = (page - 1) * page_size
-    query_sql = f"""
-        SELECT ps.*, i.filename as cover_filename
-        FROM photo_sets ps
-        LEFT JOIN images i ON ps.cover_image_id = i.id
-        WHERE {where_sql}
-        ORDER BY ps.created_at DESC
-        LIMIT %s OFFSET %s
-    """
-    params.extend([page_size, offset])
-    results = execute_query(query_sql, params)
-    
-    return {
-        "captions": results,
-        "total": total,
-        "page": page,
-        "page_size": page_size
     }
