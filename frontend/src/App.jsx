@@ -359,6 +359,15 @@ function App() {
               {selectedImages.length > 0 && (
                 <Tag color="blue">{selectedImages.length} 张已选</Tag>
               )}
+              <Button size="small" onClick={() => {
+                if (selectedImages.length === displayImages.length) {
+                  setSelectedImages([]);
+                } else {
+                  setSelectedImages(displayImages.map(img => img.id));
+                }
+              }}>
+                {selectedImages.length === displayImages.length ? '取消全选' : '全选'}
+              </Button>
             </Space>
             <Space>
               <Select value={sortBy} onChange={(v) => { setSortBy(v); if (selectedFolder) loadImages(selectedFolder, 1); }} style={{ width: 120 }}>
@@ -595,11 +604,11 @@ function App() {
             <Title level={4}>{generatedCaption.title}</Title>
             <Divider />
             <p style={{ whiteSpace: 'pre-wrap' }}>
-              {generatedCaption.content || generatedCaption.description}
+              {generatedCaption.content || generatedCaption.description || generatedCaption.text || generatedCaption.caption || '(无内容)'}
             </p>
             <Divider />
             <div>
-              {generatedCaption.hashtags?.split(' ').map((tag, i) => (
+              {(generatedCaption.hashtags || '').split(/[\s,]+/).filter(Boolean).map((tag, i) => (
                 <Tag key={i} color="blue">{tag}</Tag>
               ))}
             </div>
@@ -607,7 +616,7 @@ function App() {
             <Button 
               icon={<CopyOutlined />} 
               onClick={() => copyToClipboard(
-                `${generatedCaption.title}\n\n${generatedCaption.content || generatedCaption.description}\n\n${generatedCaption.hashtags}`
+                `${generatedCaption.title}\n\n${generatedCaption.content || generatedCaption.description || generatedCaption.text || generatedCaption.caption || ''}\n\n${generatedCaption.hashtags || ''}`
               )}
             >
               复制文案
