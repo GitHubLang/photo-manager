@@ -413,3 +413,85 @@ async def search_images(
         "page": page,
         "page_size": page_size
     }
+
+
+@router.get("/app-state")
+async def get_app_state():
+    """获取应用状态（如上次浏览位置）"""
+    result = execute_query("SELECT last_folder_path, updated_at FROM app_state WHERE id = 1")
+    if result:
+        return result[0]
+    return {"last_folder_path": None}
+
+
+class AppStateUpdate(BaseModel):
+    last_folder_path: Optional[str] = None
+
+
+@router.post("/app-state")
+async def update_app_state(state: AppStateUpdate):
+    """更新应用状态"""
+    if state.last_folder_path is not None:
+        execute_query(
+            "UPDATE app_state SET last_folder_path = %s WHERE id = 1",
+            (state.last_folder_path,),
+            fetch=False
+        )
+    return {"success": True}
+
+
+@router.get("/score-tasks")
+async def get_score_tasks(
+    status: Optional[str] = Query(None, enum=["pending", "processing", "completed", "failed"]),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100)
+):
+    """获取评分任务列表，支持按状态筛选"""
+    where_sql = "WHERE 1=1"
+    params = []
+    
+    if status:
+        where_sql += " AND t.status = %s"
+        params.append(status)
+    
+    # 获取总数
+    count_sql = f"SELECT COUNT(*) as total FROM score_tasks t {where_sql}"
+    total = execute_query(count_sql, params)[0]['total']
+    
+    # 获取分页数据
+    offset = (page - 1) * page_size
+    query_sql = f"""
+        SELECT t.id, t.image_id, t.status, t.model, t.error_message, 
+               t.created_at, t.completed_at,
+               i.filename, i.file_path, i.width, i.height
+        FROM score_tasks t
+        LEFT JOIN images i ON t.image_id = i.id
+        {where_sql}
+        ORDER BY t.created_at DESC
+        LIMIT %s OFFSET %s
+    """
+    params.extend([page_size, offset])
+    tasks = execute_query(query_sql, params)
+    
+    return {
+        "tasks": tasks,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
+@router.post("/score-tasks/retry")
+async def retry_score_tasks(image_ids: List[int]):
+    """重新评分指定图片"""
+    from datetime import datetime
+    task_ids = []
+    for image_id in image_ids:
+        task_id = execute_query(
+            """INSERT INTO score_tasks (image_id, status, model, error_message, created_at) 
+               VALUES (%s, 'pending', 'local', NULL, NOW())""",
+            (image_id,),
+            fetch=False
+        )
+        task_ids.append({"image_id": image_id, "task_id": task_id})
+    return {"tasks": task_ids}
