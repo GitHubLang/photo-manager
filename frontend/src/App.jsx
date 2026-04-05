@@ -254,14 +254,19 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      
+      if (!res.ok) {
+        // 后端返回错误（400/500等），从 detail 字段取错误信息
+        message.error(data.detail || data.error || `请求失败 (${res.status})`);
+      } else if (data.success && data.caption) {
         setGeneratedCaption({ ...data.caption, setType });
         setCaptionModalVisible(true);
       } else {
-        message.error(data.error || '生成失败');
+        // success=false 或 caption 字段缺失
+        message.error(data.error || '生成失败，请检查是否已评分的图片');
       }
     } catch (err) {
-      message.error('生成文案失败');
+      message.error('网络错误，请检查后端服务是否运行');
     } finally {
       setLoading(false);
     }
