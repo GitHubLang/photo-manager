@@ -14,8 +14,8 @@ from services.llm_scorer import score_and_describe_image
 from config import PHOTO_ROOT
 import threading
 
-# 并发限制：最多同时处理2个评分任务
-score_semaphore = threading.Semaphore(2)
+# 并发限制：最多同时处理3个评分任务
+score_semaphore = threading.Semaphore(3)
 
 router = APIRouter(prefix="/api", tags=["images"])
 
@@ -271,16 +271,16 @@ async def score_images(req: ScoreRequest):
         )
         task_ids.append({"image_id": image_id, "task_id": task_id})
     
-    # 启动后台处理（单次，不是持续运行）
-    def process_tasks():
+    # 启动后台处理（3个worker并行）
+    def process_one_task():
+        """单个worker：抢一个pending任务处理"""
         from database import get_connection
         from services.llm_scorer import score_and_describe_image
-        import time
         
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        while True:
+        try:
             # 取一个待处理任务
             cursor.execute(
                 """SELECT id, image_id, model FROM score_tasks 
@@ -288,7 +288,7 @@ async def score_images(req: ScoreRequest):
             )
             task = cursor.fetchone()
             if not task:
-                break  # 没有待处理任务
+                return False
             
             # 更新状态为处理中
             cursor.execute(
@@ -298,10 +298,7 @@ async def score_images(req: ScoreRequest):
             conn.commit()
             
             # 获取图片路径
-            cursor.execute(
-                "SELECT file_path FROM images WHERE id = %s",
-                (task['image_id'],)
-            )
+            cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
             img = cursor.fetchone()
             if not img:
                 cursor.execute(
@@ -309,18 +306,12 @@ async def score_images(req: ScoreRequest):
                     (task['id'],)
                 )
                 conn.commit()
-                continue
+                return True
             
-            # 获取信号量（限制并发数）
+            # 信号量控制3个LLM并发
             score_semaphore.acquire()
             try:
-                # 调用评分（这个会调用 LLM）
-                result = score_and_describe_image(
-                    task['image_id'],
-                    img['file_path'],
-                    task['model']
-                )
-                
+                result = score_and_describe_image(task['image_id'], img['file_path'], task['model'])
                 if result.get('scored') or result.get('described'):
                     cursor.execute(
                         """UPDATE score_tasks SET status = 'completed', 
@@ -340,16 +331,23 @@ async def score_images(req: ScoreRequest):
                     (str(e), task['id'])
                 )
             finally:
-                score_semaphore.release()  # 释放信号量
+                score_semaphore.release()
             
             conn.commit()
-        
-        cursor.close()
-        conn.close()
+            return True
+        finally:
+            cursor.close()
+            conn.close()
     
-    # 启动后台线程处理任务
-    thread = threading.Thread(target=process_tasks, daemon=True)
-    thread.start()
+    def process_all_tasks():
+        """主线程：持续派发任务直到全部完成"""
+        while process_one_task():
+            pass  # 继续处理下一个
+    
+    # 启动3个worker线程
+    for _ in range(3):
+        t = threading.Thread(target=process_one_task, daemon=True)
+        t.start()
     
     return {"message": "评分任务已创建", "tasks": task_ids}
 
@@ -522,28 +520,23 @@ async def retry_score_tasks(image_ids: List[int]):
         )
         task_ids.append({"image_id": image_id, "task_id": task_id})
     
-    # 启动后台处理线程
-    def process_tasks():
+    # 启动3个worker并行处理
+    def process_one_task():
         from database import get_connection
         from services.llm_scorer import score_and_describe_image
-        import time
         
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        
-        while True:
+        try:
             cursor.execute(
                 """SELECT id, image_id, model FROM score_tasks 
                    WHERE status = 'pending' LIMIT 1"""
             )
             task = cursor.fetchone()
             if not task:
-                break
+                return False
             
-            cursor.execute(
-                "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
-                (task['id'],)
-            )
+            cursor.execute("UPDATE score_tasks SET status = 'processing' WHERE id = %s", (task['id'],))
             conn.commit()
             
             cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
@@ -554,7 +547,7 @@ async def retry_score_tasks(image_ids: List[int]):
                     (task['id'],)
                 )
                 conn.commit()
-                continue
+                return True
             
             score_semaphore.acquire()
             try:
@@ -581,10 +574,13 @@ async def retry_score_tasks(image_ids: List[int]):
                 score_semaphore.release()
             
             conn.commit()
-        
-        cursor.close()
-        conn.close()
+            return True
+        finally:
+            cursor.close()
+            conn.close()
     
-    thread = threading.Thread(target=process_tasks, daemon=True)
-    thread.start()
+    for _ in range(3):
+        t = threading.Thread(target=process_one_task, daemon=True)
+        t.start()
+    
     return {"tasks": task_ids}
