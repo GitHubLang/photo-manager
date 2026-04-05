@@ -118,6 +118,33 @@ async def get_folder_images(
     }
 
 
+@router.get("/images/batch")
+async def get_images_batch(
+    ids: str = Query(..., description="逗号分隔的图片ID列表")
+):
+    """批量获取图片信息"""
+    id_list = [int(x.strip()) for x in ids.split(',') if x.strip().isdigit()]
+    if not id_list:
+        return {"images": []}
+    placeholders = ','.join(['%s'] * len(id_list))
+    images = execute_query(
+        f"""
+        SELECT i.id, i.filename, i.file_path, i.width, i.height, i.file_size,
+               s.total_score, d.description, d.tags
+        FROM images i
+        LEFT JOIN image_scores s ON s.id = (
+            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
+        )
+        LEFT JOIN image_descriptions d ON d.id = (
+            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
+        )
+        WHERE i.id IN ({placeholders})
+        """,
+        tuple(id_list)
+    )
+    return {"images": images}
+
+
 @router.get("/images/{image_id}")
 async def get_image(image_id: int):
     """获取单张图片详情"""
@@ -483,15 +510,81 @@ async def get_score_tasks(
 
 @router.post("/score-tasks/retry")
 async def retry_score_tasks(image_ids: List[int]):
-    """重新评分指定图片"""
-    from datetime import datetime
+    """重新评分指定图片，创建新任务记录"""
+    import threading
     task_ids = []
     for image_id in image_ids:
         task_id = execute_query(
-            """INSERT INTO score_tasks (image_id, status, model, error_message, created_at) 
-               VALUES (%s, 'pending', 'local', NULL, NOW())""",
+            """INSERT INTO score_tasks (image_id, status, model, created_at) 
+               VALUES (%s, 'pending', 'local', NOW())""",
             (image_id,),
             fetch=False
         )
         task_ids.append({"image_id": image_id, "task_id": task_id})
+    
+    # 启动后台处理线程
+    def process_tasks():
+        from database import get_connection
+        from services.llm_scorer import score_and_describe_image
+        import time
+        
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        while True:
+            cursor.execute(
+                """SELECT id, image_id, model FROM score_tasks 
+                   WHERE status = 'pending' LIMIT 1"""
+            )
+            task = cursor.fetchone()
+            if not task:
+                break
+            
+            cursor.execute(
+                "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
+                (task['id'],)
+            )
+            conn.commit()
+            
+            cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
+            img = cursor.fetchone()
+            if not img:
+                cursor.execute(
+                    "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
+                    (task['id'],)
+                )
+                conn.commit()
+                continue
+            
+            score_semaphore.acquire()
+            try:
+                result = score_and_describe_image(task['image_id'], img['file_path'], task['model'])
+                if result.get('scored') or result.get('described'):
+                    cursor.execute(
+                        """UPDATE score_tasks SET status = 'completed', 
+                           completed_at = NOW() WHERE id = %s""",
+                        (task['id'],)
+                    )
+                else:
+                    cursor.execute(
+                        """UPDATE score_tasks SET status = 'failed', 
+                           error_message = 'LLM call failed' WHERE id = %s""",
+                        (task['id'],)
+                    )
+            except Exception as e:
+                cursor.execute(
+                    """UPDATE score_tasks SET status = 'failed', 
+                       error_message = %s WHERE id = %s""",
+                    (str(e), task['id'])
+                )
+            finally:
+                score_semaphore.release()
+            
+            conn.commit()
+        
+        cursor.close()
+        conn.close()
+    
+    thread = threading.Thread(target=process_tasks, daemon=True)
+    thread.start()
     return {"tasks": task_ids}

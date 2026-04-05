@@ -23,6 +23,7 @@ function App() {
   const [dailyTheme, setDailyTheme] = useState(null);
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [generatedCaption, setGeneratedCaption] = useState(null);
+  const [captionModalImages, setCaptionModalImages] = useState([]);  // 文案详情弹窗中的图片列表
   const [selectedImages, setSelectedImages] = useState([]);
   const [failedCaptions, setFailedCaptions] = useState([]);
   const [failedScores, setFailedScores] = useState([]);
@@ -533,7 +534,18 @@ function App() {
                 <Empty description="暂无记录" />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {scoreTasks.map(task => (
+                  {(() => {
+                    // 按 image_id 去重，每张图片只显示一条
+                    const seen = new Set();
+                    const deduped = scoreTasks.filter(task => {
+                      if (scoreTaskFilter === 'failed' && task.status === 'failed') {
+                        if (seen.has(task.image_id)) return false;
+                        seen.add(task.image_id);
+                        return true;
+                      }
+                      return true;
+                    });
+                    return deduped.map(task => (
                     <Card key={task.id} size="small" hoverable
                       style={{ opacity: task.status === 'failed' ? 1 : 0.6 }}
                       cover={task.file_path ? (
@@ -576,12 +588,13 @@ function App() {
                       </div>
                     </Card>
                   ))}
+                  )}
                 </div>
               )}
             </Spin>
           </div>
         )}
-        
+
         {/* 文案历史面板 */}
         {/* 文案历史面板 */}
         {activeMenu === 'captions' && !menuCollapsed && (
@@ -628,6 +641,16 @@ function App() {
                           setType: cap.set_type,
                           content: cap.caption_body
                         });
+                        // 从已加载图片中找，没有则去后端查
+                        const found = parsedIds.map(id => displayImages.find(img => img.id === id)).filter(Boolean);
+                        if (found.length === parsedIds.length) {
+                          setCaptionModalImages(found);
+                        } else {
+                          fetch(`${API_BASE}/images/batch?ids=${parsedIds.join(',')}`)
+                            .then(r => r.json())
+                            .then(d => setCaptionModalImages(d.images || []))
+                            .catch(() => setCaptionModalImages([]));
+                        }
                         setCaptionModalVisible(true);
                       }}
                     >
@@ -940,14 +963,42 @@ function App() {
       {/* 文案弹窗 */}
       <Modal
         open={captionModalVisible}
-        onCancel={() => setCaptionModalVisible(false)}
+        onCancel={() => { setCaptionModalVisible(false); setCaptionModalImages([]); }}
         footer={null}
-        width={600}
+        width={660}
         title={generatedCaption?.setType === 'douyin' ? '抖音文案' : '小红书文案'}
       >
         {generatedCaption && (
           <div className="caption-content">
-            <Title level={4}>{generatedCaption.title}</Title>
+            {/* 朋友圈风格图片网格 */}
+            {captionModalImages.length > 0 && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginBottom: 16 }}>
+                  {captionModalImages.map((img, idx) => (
+                    <div
+                      key={img.id}
+                      style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden', background: '#f0f0f0', cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelectedImage({
+                          ...img,
+                          imageUrl: `${API_BASE}/image/proxy/${encodeURIComponent(img.file_path)}`
+                        });
+                        setPreviewVisible(true);
+                      }}
+                    >
+                      <img
+                        src={`${API_BASE}/image/thumbnail/${encodeURIComponent(img.file_path)}?size=300`}
+                        alt={img.filename}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => { e.target.style.opacity = 0; }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <Divider style={{ margin: '12px 0' }} />
+              </>
+            )}
+            <Title level={4}>{generatedCaption.title || '(无标题)'}</Title>
             <Divider />
             <p style={{ whiteSpace: 'pre-wrap' }}>
               {generatedCaption.content || generatedCaption.description || generatedCaption.text || generatedCaption.caption || '(无内容)'}
@@ -959,10 +1010,10 @@ function App() {
               ))}
             </div>
             <Divider />
-            <Button 
-              icon={<CopyOutlined />} 
+            <Button
+              icon={<CopyOutlined />}
               onClick={() => copyToClipboard(
-                `${generatedCaption.title}\n\n${generatedCaption.content || generatedCaption.description || generatedCaption.text || generatedCaption.caption || ''}\n\n${generatedCaption.hashtags || ''}`
+                `${generatedCaption.title || ''}\n\n${generatedCaption.content || generatedCaption.description || generatedCaption.text || generatedCaption.caption || ''}\n\n${generatedCaption.hashtags || ''}`
               )}
             >
               复制文案
