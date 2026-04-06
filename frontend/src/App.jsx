@@ -309,18 +309,23 @@ function App() {
       const data = await res.json();
       if (data.images) {
         const contentEl = contentRef.current;
-        // 保存当前 scrollTop
-        const savedScrollTop = contentEl ? contentEl.scrollTop : 0;
+        // 测量 prepend 前可视区域底部距内容底部的距离
+        const scrollTopBefore = contentEl ? contentEl.scrollTop : 0;
+        const clientHeight = contentEl ? contentEl.clientHeight : 0;
+        const scrollHeightBefore = contentEl ? contentEl.scrollHeight : 0;
+        const bottomBoundary = scrollHeightBefore - scrollTopBefore - clientHeight;
         
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
         
-        // 等 DOM 更新后恢复相同 scrollTop
+        // DOM 更新后，用相同的底部边界恢复滚动位置
         requestAnimationFrame(() => {
           if (contentEl) {
-            contentEl.scrollTop = savedScrollTop;
+            const scrollHeightAfter = contentEl.scrollHeight;
+            const newScrollTop = Math.max(0, scrollHeightAfter - clientHeight - bottomBoundary);
+            contentEl.scrollTop = newScrollTop;
           }
         });
       }
