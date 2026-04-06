@@ -311,15 +311,22 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
+        // 保存滚动位置和当前内容高度
+        const scrollBefore = contentRef.current ? contentRef.current.scrollTop : 0;
+        const heightBefore = contentRef.current ? contentRef.current.scrollHeight : 0;
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         // 追踪已加载的页号
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
-        // 加载完上一页后滚动到顶部（用户向上翻到了更早的页）
-        if (contentRef.current) {
-          contentRef.current.scrollTop = 0;
-        }
+        // 等 DOM 更新后恢复相对滚动位置（prepend后scrollTop要增加 prepend的高度）
+        requestAnimationFrame(() => {
+          if (contentRef.current) {
+            const heightAfter = contentRef.current.scrollHeight;
+            const prependHeight = heightAfter - heightBefore;
+            contentRef.current.scrollTop = scrollBefore + prependHeight;
+          }
+        });
       }
     } catch (err) {
       console.error('加载上一页失败', err);
@@ -804,11 +811,11 @@ function App() {
         {/* 右侧内容 */}
         <Content className="content-area" ref={contentRef} onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.target;
-          // 向下滚到底部，加载下一页
-          if (scrollHeight - scrollTop - clientHeight < 200) {
+          // 向下滚到真正接近底部时才加载下一页（阈值增大到600px）
+          if (scrollHeight - scrollTop - clientHeight < 600) {
             loadNextPage();
           }
-          // 向上滚到顶部，加载上一页（scrollTop<50px 才触发，防止页面加载时误触发）
+          // 向上滚到很顶部（scrollTop<50px）才加载上一页
           if (scrollTop < 50 && currentPage > 1) {
             loadPrevPage();
           }
