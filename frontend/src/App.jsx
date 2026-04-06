@@ -388,8 +388,10 @@ function App() {
         const status = await res.json();
 
         if (status.status === 'completed') {
-          // 评分完成,刷新图片
-          if (selectedFolder) loadImages(selectedFolder);
+          // 评分完成,重新加载当前页
+          if (selectedFolder) {
+            loadImages(selectedFolder, currentPage);
+          }
           return;
         } else if (status.status === 'failed') {
           message.error(`评分失败: ${status.error_message}`);
