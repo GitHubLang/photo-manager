@@ -308,12 +308,25 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
+        // 记录 prepended 前的可见区域第一个元素
+        const content = contentRef.current;
+        const firstVisible = content ? content.querySelector('.image-item') : null;
+        const originalTop = firstVisible ? firstVisible.getBoundingClientRect().top : null;
+        
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
-        // 追踪已加载的页号
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
-        // 不干预滚动，加载完用户自然在当前位置
+        
+        // DOM 更新后，用 marker 把可视区拉回原位
+        requestAnimationFrame(() => {
+          if (firstVisible && originalTop !== null && content) {
+            const currentTop = firstVisible.getBoundingClientRect().top;
+            if (currentTop !== originalTop) {
+              content.scrollTop += (currentTop - originalTop);
+            }
+          }
+        });
       }
     } catch (err) {
       console.error('加载上一页失败', err);
