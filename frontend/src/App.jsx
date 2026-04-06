@@ -388,10 +388,16 @@ function App() {
         const status = await res.json();
 
         if (status.status === 'completed') {
-          // 评分完成,重新加载当前页
-          if (selectedFolder) {
-            loadImages(selectedFolder, currentPage);
-          }
+          // 评分完成,直接更新这张图的分数到页面
+          fetch(`${API_BASE}/images/score/results/${imageId}`)
+            .then(res => res.json())
+            .then(updatedImage => {
+              if (updatedImage && updatedImage.id) {
+                setImages(prev => prev.map(img => 
+                  img.id === imageId ? { ...img, ...updatedImage } : img
+                ));
+              }
+            });
           return;
         } else if (status.status === 'failed') {
           message.error(`评分失败: ${status.error_message}`);
