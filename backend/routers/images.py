@@ -15,7 +15,7 @@ from config import PHOTO_ROOT
 import threading
 
 # 并发限制：最多同时处理3个评分任务
-score_semaphore = threading.Semaphore(3)
+score_semaphore = threading.Semaphore(20)
 
 router = APIRouter(prefix="/api", tags=["images"])
 
@@ -254,13 +254,13 @@ async def score_images(req: ScoreRequest):
     task_ids = []
     
     for image_id in req.image_ids:
-        # 检查图片是否存在
-        image_data = execute_query(
-            "SELECT id, file_path FROM images WHERE id = %s",
+        # 检查是否有待处理/进行中的任务，避免重复创建
+        existing = execute_query(
+            "SELECT id FROM score_tasks WHERE image_id = %s AND status IN ('pending', 'processing')",
             (image_id,)
         )
-        if not image_data:
-            continue
+        if existing:
+            continue  # 该图片已有任务在排队，跳过
         
         # 创建任务记录
         task_id = execute_query(
