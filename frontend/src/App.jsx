@@ -410,7 +410,7 @@ function App() {
         }
 
         // 继续轮询
-        setTimeout(poll, 2000);
+        setTimeout(poll, 10000);
       } catch (err) {
         // 忽略错误,继续轮询
         setTimeout(poll, 5000);
