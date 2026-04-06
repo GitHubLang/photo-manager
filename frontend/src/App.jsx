@@ -76,10 +76,10 @@ function App() {
           const savedPage = data.last_page || 1;
           const savedSortBy = data.last_sort_by || 'filename';
           const savedSortOrder = data.last_sort_order || 'asc';
-          const savedScrollTop = data.last_scroll_top || 0;
           setSortBy(savedSortBy);
           setSortOrder(savedSortOrder);
-          loadImages(matched.path, savedPage, false, savedScrollTop, savedSortBy, savedSortOrder);
+          // 直接加载到目标页（不重建前面的页）
+          loadImages(matched.path, savedPage, false, savedSortBy, savedSortOrder);
         }
       }
     } catch (err) {
@@ -89,7 +89,6 @@ function App() {
 
   // 保存浏览位置
   const saveAppState = async (folderPath, page = 1, sortByVal = sortBy, sortOrderVal = sortOrder) => {
-    const scrollTop = contentRef.current ? contentRef.current.scrollTop : 0;
     try {
       await fetch(`${API_BASE}/app-state`, {
         method: 'POST',
@@ -98,8 +97,7 @@ function App() {
           last_folder_path: folderPath,
           last_page: page,
           last_sort_by: sortByVal,
-          last_sort_order: sortOrderVal,
-          last_scroll_top: scrollTop
+          last_sort_order: sortOrderVal
         })
       });
     } catch (err) {
@@ -204,11 +202,10 @@ function App() {
   };
 
   // 加载文件夹图片
-  // restoringScrollTop: 可选，刷新恢复时要从头加载并滚动到此位置（单位px）
-  const loadImages = async (folderPath, page = 1, append = false, restoringScrollTop = null, restoringSortBy = null, restoringSortOrder = null) => {
+  // restoringSortBy/restoreSortOrder: 可选，恢复时使用指定的排序参数
+  const loadImages = async (folderPath, page = 1, append = false, restoringSortBy = null, restoringSortOrder = null) => {
     const effectiveSortBy = restoringSortBy !== null ? restoringSortBy : sortBy;
     const effectiveSortOrder = restoringSortOrder !== null ? restoringSortOrder : sortOrder;
-    const isRestoring = restoringScrollTop !== null;
 
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
@@ -231,20 +228,7 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
-
-      if (isRestoring) {
-        // 刷新恢复：加载第1页后滚动到保存的位置（滚动位置对应目标页）
-        saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
-        // 等 DOM 更新后滚动
-        setTimeout(() => {
-          if (contentRef.current) {
-            contentRef.current.scrollTo({ top: restoringScrollTop, behavior: 'instant' });
-          }
-        }, 100);
-      } else {
-        // 普通切换
-        saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
-      }
+      saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
     } catch (err) {
       message.error('加载图片失败');
     } finally {
