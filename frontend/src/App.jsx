@@ -256,6 +256,9 @@ function App() {
       // API 完成后才允许正常保存（恢复模式不保存，恢复完手动保存一次）
       if (isRestoringRef.current) {
         isRestoringRef.current = false;
+        // 恢复完毕后，等待用户首次滚动再解锁 scroll 事件（1秒保护窗口）
+        scrollBusyRef.current = true;
+        setTimeout(() => { scrollBusyRef.current = false; }, 1000);
         saveAppState(folderPath, page);
       }
     }
@@ -308,19 +311,15 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
-        // 保存滚动位置，加载完恢复相对位置
-        const scrollBefore = contentRef.current ? contentRef.current.scrollTop : 0;
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         // 追踪已加载的页号
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
-        // 等 DOM 更新后恢复滚动位置
-        requestAnimationFrame(() => {
-          if (contentRef.current) {
-            contentRef.current.scrollTop = scrollBefore;
-          }
-        });
+        // 加载完上一页后滚动到顶部（用户向上翻到了更早的页）
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+        }
       }
     } catch (err) {
       console.error('加载上一页失败', err);
