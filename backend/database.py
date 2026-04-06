@@ -8,7 +8,7 @@ from config import DB_CONFIG, DATABASE_NAME
 # 创建连接池
 pool = pooling.MySQLConnectionPool(
     pool_name="photo_pool",
-    pool_size=5,
+    pool_size=20,
     **DB_CONFIG
 )
 
