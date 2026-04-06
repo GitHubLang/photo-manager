@@ -254,13 +254,32 @@ async def score_images(req: ScoreRequest):
     task_ids = []
     
     for image_id in req.image_ids:
-        # 检查是否有待处理/进行中的任务，避免重复创建
+        # 先检查是否有正在处理中的任务（超过2分钟视为卡住）
+        processing = execute_query(
+            "SELECT id, created_at FROM score_tasks WHERE image_id = %s AND status = 'processing'",
+            (image_id,)
+        )
+        if processing:
+            task = processing[0]
+            created_at = task['created_at']
+            from datetime import datetime, timedelta
+            if datetime.now() - created_at > timedelta(minutes=2):
+                # 处理超过2分钟认为卡住了，标记失败
+                execute_query(
+                    "UPDATE score_tasks SET status = 'failed', error_message = '处理超时自动重置' WHERE id = %s",
+                    (task['id'],)
+                )
+            else:
+                # 还在2分钟内，跳过不重复评分
+                continue
+        
+        # 检查是否有待处理的任务
         existing = execute_query(
-            "SELECT id FROM score_tasks WHERE image_id = %s AND status IN ('pending', 'processing')",
+            "SELECT id FROM score_tasks WHERE image_id = %s AND status = 'pending'",
             (image_id,)
         )
         if existing:
-            continue  # 该图片已有任务在排队，跳过
+            continue  # 该图片已有待处理任务，跳过
         
         # 创建任务记录
         task_id = execute_query(
