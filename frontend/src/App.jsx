@@ -260,6 +260,7 @@ function App() {
 
   // 加载下一页（向下滚到底部触发）
   const loadNextPage = () => {
+    if (isRestoringRef.current) return;
     if (currentPage < totalPages && !loadingMore) {
       const nextPage = currentPage + 1;
       if (!loadedPages.includes(nextPage)) {
@@ -270,6 +271,7 @@ function App() {
 
   // 加载上一页（向上滚到顶部触发）
   const loadPrevPage = () => {
+    if (isRestoringRef.current) return;
     if (currentPage > 1 && !loadingMore) {
       const prevPage = currentPage - 1;
       if (!loadedPages.includes(prevPage)) {
