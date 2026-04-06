@@ -282,21 +282,22 @@ async def score_images(req: ScoreRequest):
         
         try:
             while True:
-                # 取一个待处理任务
+                # 原子claim：只会有一个worker能成功更新状态，其他会得到rowcount=0
                 cursor.execute(
-                    """SELECT id, image_id, model FROM score_tasks 
+                    """UPDATE score_tasks SET status = 'processing' 
                        WHERE status = 'pending' LIMIT 1"""
+                )
+                conn.commit()
+                if cursor.rowcount == 0:
+                    break  # 没有待处理任务，退出
+                
+                # 获取刚被claim的任务
+                cursor.execute(
+                    "SELECT id, image_id, model FROM score_tasks WHERE status = 'processing' LIMIT 1"
                 )
                 task = cursor.fetchone()
                 if not task:
-                    break  # 没有待处理任务，退出
-                
-                # 更新状态为处理中
-                cursor.execute(
-                    "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
-                    (task['id'],)
-                )
-                conn.commit()
+                    break
                 
                 # 获取图片路径
                 cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
@@ -557,19 +558,21 @@ async def retry_score_tasks(image_ids: List[int]):
         cursor = conn.cursor(dictionary=True)
         try:
             while True:
+                # 原子claim：只会有一个worker能成功更新状态
                 cursor.execute(
-                    """SELECT id, image_id, model FROM score_tasks 
+                    """UPDATE score_tasks SET status = 'processing' 
                        WHERE status = 'pending' LIMIT 1"""
+                )
+                conn.commit()
+                if cursor.rowcount == 0:
+                    break
+                
+                cursor.execute(
+                    "SELECT id, image_id, model FROM score_tasks WHERE status = 'processing' LIMIT 1"
                 )
                 task = cursor.fetchone()
                 if not task:
                     break
-                
-                cursor.execute(
-                    "UPDATE score_tasks SET status = 'processing' WHERE id = %s",
-                    (task['id'],)
-                )
-                conn.commit()
                 
                 cursor.execute("SELECT file_path FROM images WHERE id = %s", (task['image_id'],))
                 img = cursor.fetchone()
