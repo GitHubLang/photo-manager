@@ -56,8 +56,8 @@ function App() {
 
   // 内容区 ref（用于双向滚动加载和位置恢复）
   const contentRef = useRef(null);
-  // 已加载的页范围（minPageLoaded, maxPageLoaded），用于双向滚动判断
-  const pageRangeRef = useRef({ min: 0, max: 0 });
+  // 已加载的页号集合（用 Set 追踪哪些页已加载，防止重复）
+  const loadedPagesSet = useRef(new Set());
   // 是否处于恢复模式
   const isRestoringRef = useRef(false);
   // 滚动事件是否正在处理中（防止抖动）
@@ -229,14 +229,12 @@ function App() {
 
       if (append) {
         setImages(prev => [...prev, ...(data.images || [])]);
-        // 更新已加载页范围
-        pageRangeRef.current.max = Math.max(pageRangeRef.current.max, data.page);
-        pageRangeRef.current.min = Math.min(pageRangeRef.current.min, data.page);
+        // 追踪已加载的页号
+        loadedPagesSet.current.add(data.page);
       } else {
         setImages(data.images || []);
-        // 普通加载，重置范围
-        pageRangeRef.current.min = data.page;
-        pageRangeRef.current.max = data.page;
+        // 普通加载（切换文件夹），重置
+        loadedPagesSet.current = new Set([data.page]);
       }
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
@@ -262,8 +260,13 @@ function App() {
   const loadNextPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     // 已在最后一页，不加载
-    if (pageRangeRef.current.max >= totalPages) return;
-    const nextPage = pageRangeRef.current.max + 1;
+    if (loadedPagesSet.current.has(totalPages)) return;
+    // 找出下一个未加载的页
+    let nextPage = currentPage + 1;
+    while (loadedPagesSet.current.has(nextPage) && nextPage <= totalPages) {
+      nextPage++;
+    }
+    if (nextPage > totalPages) return;
     scrollBusyRef.current = true;
     loadImages(selectedFolder, nextPage, true);
     setTimeout(() => { scrollBusyRef.current = false; }, 300);
@@ -273,8 +276,13 @@ function App() {
   const loadPrevPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     // 已在第一页，不加载
-    if (pageRangeRef.current.min <= 1) return;
-    const prevPage = pageRangeRef.current.min - 1;
+    if (loadedPagesSet.current.has(1)) return;
+    // 找出上一个未加载的页（从 currentPage-1 往前找）
+    let prevPage = currentPage - 1;
+    while (loadedPagesSet.current.has(prevPage) && prevPage > 1) {
+      prevPage--;
+    }
+    if (prevPage < 1) return;
     scrollBusyRef.current = true;
     loadImagesPrev(prevPage);
     setTimeout(() => { scrollBusyRef.current = false; }, 300);
@@ -297,9 +305,8 @@ function App() {
         const scrollBefore = contentRef.current ? contentRef.current.scrollTop : 0;
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
-        // 更新已加载页范围
-        pageRangeRef.current.min = Math.min(pageRangeRef.current.min, data.page);
-        pageRangeRef.current.max = Math.max(pageRangeRef.current.max, data.page);
+        // 追踪已加载的页号
+        loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
         // 等 DOM 更新后恢复滚动位置
         requestAnimationFrame(() => {
