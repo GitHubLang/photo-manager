@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip, Menu, Checkbox, Popconfirm } from 'antd';
 import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
 import './App.css';
@@ -54,6 +54,11 @@ function App() {
   const [captionKeyword, setCaptionKeyword] = useState('');
   const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
 
+  // 内容区 ref（用于双向滚动加载和位置恢复）
+  const contentRef = useRef(null);
+  // 记录已加载的页（用于双向滚动加载）
+  const [loadedPages, setLoadedPages] = useState([]);
+
   // 加载目录树和模型列表
   useEffect(() => {
     fetchFolders();
@@ -73,10 +78,11 @@ function App() {
           const savedPage = data.last_page || 1;
           const savedSortBy = data.last_sort_by || 'filename';
           const savedSortOrder = data.last_sort_order || 'asc';
+          const savedScrollTop = data.last_scroll_top || 0;
           setSortBy(savedSortBy);
           setSortOrder(savedSortOrder);
-          // 加载到目标页（会预加载前面的页，这样向上滚也能看到）
-          loadImages(matched.path, 1, false, savedPage);
+          // 加载到目标页，然后滚动到保存的位置
+          loadImages(matched.path, savedPage, false, savedScrollTop);
         }
       }
     } catch (err) {
@@ -85,7 +91,8 @@ function App() {
   };
 
   // 保存浏览位置
-  const saveAppState = async (folderPath, page = 1, sortByVal = sortBy, sortOrderVal = sortOrder) => {
+  const saveAppState = async (folderPath, page = 1) => {
+    const scrollTop = contentRef.current ? contentRef.current.scrollTop : 0;
     try {
       await fetch(`${API_BASE}/app-state`, {
         method: 'POST',
@@ -93,8 +100,9 @@ function App() {
         body: JSON.stringify({
           last_folder_path: folderPath,
           last_page: page,
-          last_sort_by: sortByVal,
-          last_sort_order: sortOrderVal
+          last_sort_by: sortBy,
+          last_sort_order: sortOrder,
+          last_scroll_top: scrollTop
         })
       });
     } catch (err) {
@@ -199,8 +207,8 @@ function App() {
   };
 
   // 加载文件夹图片
-  // restorePage: 可选，刷新恢复时加载到这一页（会预加载1~N-1页，这样向上滚也能看到）
-  const loadImages = async (folderPath, page = 1, append = false, restorePage = null) => {
+  // restoreScroll: 可选，刷新恢复时滚动到此像素位置
+  const loadImages = async (folderPath, page = 1, append = false, restoreScroll = null) => {
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
     setSearchResults(null);
@@ -216,25 +224,23 @@ function App() {
 
       if (append) {
         setImages(prev => [...prev, ...(data.images || [])]);
+        setLoadedPages(prev => prev.includes(page) ? prev : [...prev, page]);
       } else {
         setImages(data.images || []);
+        setLoadedPages([page]);
       }
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
+      saveAppState(folderPath, page);
 
-      // 刷新恢复模式：先预加载1~N-1页（追加到列表），最后加载第N页显示
-      if (restorePage !== null && restorePage > 1 && page === 1) {
-        // 预加载第2页到第restorePage-1页
-        for (let p = 2; p < restorePage; p++) {
-          // eslint-disable-next-line no-await-in-loop
-          await loadImagesPage(folderPath, p);
-        }
-        // 加载目标页（追加到列表后面）
-        await loadImagesPage(folderPath, restorePage);
-        saveAppState(folderPath, restorePage);
-      } else if (restorePage === null) {
-        saveAppState(folderPath, page);
+      // 刷新恢复：加载目标页后滚动到保存的像素位置
+      if (restoreScroll !== null && restoreScroll !== undefined) {
+        setTimeout(() => {
+          if (contentRef.current) {
+            contentRef.current.scrollTop = restoreScroll;
+          }
+        }, 100);
       }
     } catch (err) {
       message.error('加载图片失败');
@@ -244,23 +250,53 @@ function App() {
     }
   };
 
-  // 内部方法：加载指定页（追加到列表，不更新totalPages/currentPage）
-  const loadImagesPage = async (folderPath, page) => {
-    const params = new URLSearchParams({
-      page: page,
-      page_size: 50,
-      sort_by: sortBy,
-      sort_order: sortOrder
-    });
-    const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
-    const data = await res.json();
-    setImages(prev => [...prev, ...(data.images || [])]);
+  // 加载下一页（向下滚到底部触发）
+  const loadNextPage = () => {
+    if (currentPage < totalPages && !loadingMore) {
+      const nextPage = currentPage + 1;
+      if (!loadedPages.includes(nextPage)) {
+        loadImages(selectedFolder, nextPage, true);
+      }
+    }
   };
 
-  // 加载更多图片(滚动到底部)
-  const loadMore = () => {
-    if (currentPage < totalPages && !loadingMore) {
-      loadImages(selectedFolder, currentPage + 1, true);
+  // 加载上一页（向上滚到顶部触发）
+  const loadPrevPage = () => {
+    if (currentPage > 1 && !loadingMore) {
+      const prevPage = currentPage - 1;
+      if (!loadedPages.includes(prevPage)) {
+        // 向上加载时需要拼接在前面
+        loadImagesPrev(prevPage);
+      }
+    }
+  };
+
+  // 加载指定页并追加到列表前面（用于向上翻页）
+  const loadImagesPrev = async (page) => {
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({
+        page: page,
+        page_size: 50,
+        sort_by: sortBy,
+        sort_order: sortOrder
+      });
+      const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
+      const data = await res.json();
+      if (data.images) {
+        setImages(prev => [...(data.images), ...prev]);
+        setCurrentPage(page);
+        setLoadedPages(prev => [...prev, page]);
+        saveAppState(selectedFolder, page);
+        // 滚动到顶部
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+        }
+      }
+    } catch (err) {
+      console.error('加载上一页失败', err);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -738,10 +774,15 @@ function App() {
         )}
 
         {/* 右侧内容 */}
-        <Content className="content-area" onScroll={(e) => {
+        <Content className="content-area" ref={contentRef} onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.target;
+          // 向下滚到底部，加载下一页
           if (scrollHeight - scrollTop - clientHeight < 200) {
-            loadMore();
+            loadNextPage();
+          }
+          // 向上滚到顶部，加载上一页
+          if (scrollTop < 50 && currentPage > 1) {
+            loadPrevPage();
           }
         }}>
           {/* 操作栏 */}
