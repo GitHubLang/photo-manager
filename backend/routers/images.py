@@ -295,15 +295,16 @@ async def score_images(req: ScoreRequest):
     
     # 为每个任务启动一个worker线程（最多3个并发，由信号量控制）
     for tid in task_ids:
-        # 闭包陷阱：必须用默认参数捕获循环变量，否则所有线程都用最后一个值
         def process_one(task_id=tid['task_id'], image_id=tid['image_id'], model=req.model):
             from database import get_connection
             from services.llm_scorer import score_and_describe_image
             
+            # 先获取信号量，才能更新状态为processing
+            score_semaphore.acquire()
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
             try:
-                # 直接根据task_id更新（不需要抢任务）
+                # 更新状态为processing（只有拿到信号量的线程才能更新）
                 cursor.execute(
                     """UPDATE score_tasks SET status = 'processing' 
                        WHERE id = %s AND status = 'pending'""",
@@ -311,7 +312,7 @@ async def score_images(req: ScoreRequest):
                 )
                 conn.commit()
                 if cursor.rowcount == 0:
-                    return  # 任务不存在或已被处理
+                    return  # 任务不存在或已被其他线程处理
                 
                 # 获取图片路径
                 cursor.execute("SELECT file_path FROM images WHERE id = %s", (image_id,))
@@ -324,33 +325,30 @@ async def score_images(req: ScoreRequest):
                     conn.commit()
                     return
                 
-                # 信号量控制LLM并发数
-                score_semaphore.acquire()
-                try:
-                    result = score_and_describe_image(image_id, img['file_path'], model)
-                    if result.get('scored') or result.get('described'):
-                        cursor.execute(
-                            """UPDATE score_tasks SET status = 'completed', 
-                               completed_at = NOW() WHERE id = %s""",
-                            (task_id,)
-                        )
-                    else:
-                        cursor.execute(
-                            """UPDATE score_tasks SET status = 'failed', 
-                               error_message = 'LLM call failed' WHERE id = %s""",
-                            (task_id,)
-                        )
-                except Exception as e:
+                # 调用LLM评分（此时信号量已限制并发数为4）
+                result = score_and_describe_image(image_id, img['file_path'], model)
+                if result.get('scored') or result.get('described'):
+                    cursor.execute(
+                        """UPDATE score_tasks SET status = 'completed', 
+                           completed_at = NOW() WHERE id = %s""",
+                        (task_id,)
+                    )
+                else:
                     cursor.execute(
                         """UPDATE score_tasks SET status = 'failed', 
-                           error_message = %s WHERE id = %s""",
-                        (str(e), task_id)
+                           error_message = 'LLM call failed' WHERE id = %s""",
+                        (task_id,)
                     )
-                finally:
-                    score_semaphore.release()
-                
+                conn.commit()
+            except Exception as e:
+                cursor.execute(
+                    """UPDATE score_tasks SET status = 'failed', 
+                       error_message = %s WHERE id = %s""",
+                    (str(e), task_id)
+                )
                 conn.commit()
             finally:
+                score_semaphore.release()
                 cursor.close()
                 conn.close()
         
