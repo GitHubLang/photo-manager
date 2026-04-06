@@ -253,7 +253,9 @@ function App() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
-      // API 完成后才允许正常保存（恢复模式不保存，恢复完手动保存一次）
+      // API 完成后解锁滚动
+      scrollBusyRef.current = false;
+      // 恢复模式保存
       if (isRestoringRef.current) {
         isRestoringRef.current = false;
         saveAppState(folderPath, page);
@@ -264,9 +266,7 @@ function App() {
   // 加载下一页（向下滚到底部触发）
   const loadNextPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
-    // 已在最后一页，不加载
     if (loadedPagesSet.current.has(totalPages)) return;
-    // 找出下一个未加载且不在加载中的页
     let nextPage = currentPage + 1;
     while ((loadedPagesSet.current.has(nextPage) || loadingPagesSet.current.has(nextPage)) && nextPage <= totalPages) {
       nextPage++;
@@ -274,16 +274,15 @@ function App() {
     if (nextPage > totalPages) return;
     scrollBusyRef.current = true;
     loadingPagesSet.current.add(nextPage);
-    loadImages(selectedFolder, nextPage, true);
-    setTimeout(() => { scrollBusyRef.current = false; }, 500);
+    requestAnimationFrame(() => {
+      loadImages(selectedFolder, nextPage, true);
+    });
   };
 
   // 加载上一页（向上滚到顶部触发）
   const loadPrevPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
-    // 已在第一页，不加载
     if (loadedPagesSet.current.has(1)) return;
-    // 找出上一个未加载且不在加载中的页（从 currentPage-1 往前找）
     let prevPage = currentPage - 1;
     while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
       prevPage--;
@@ -291,8 +290,9 @@ function App() {
     if (prevPage < 1) return;
     scrollBusyRef.current = true;
     loadingPagesSet.current.add(prevPage);
-    loadImagesPrev(prevPage);
-    setTimeout(() => { scrollBusyRef.current = false; }, 500);
+    requestAnimationFrame(() => {
+      loadImagesPrev(prevPage);
+    });
   };
 
   // 加载指定页并追加到列表前面（用于向上翻页）
@@ -319,6 +319,7 @@ function App() {
       console.error('加载上一页失败', err);
     } finally {
       setLoadingMore(false);
+      scrollBusyRef.current = false;
     }
   };
 
