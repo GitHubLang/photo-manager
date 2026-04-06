@@ -376,14 +376,18 @@ function App() {
         pollScoreStatus(imageId);
       } else if (data.error?.includes('已存在')) {
         message.warning(data.error);
+        // 已存在的情况下也要清理
+        scoringRef.current.delete(imageId);
+        setScoringVersion(v => v + 1);
       } else {
         message.error('创建评分任务失败');
+        scoringRef.current.delete(imageId);
+        setScoringVersion(v => v + 1);
       }
     } catch (err) {
       message.error('评分请求失败');
-    } finally {
       scoringRef.current.delete(imageId);
-      setScoringVersion(v => v + 1);  // 触发UI更新
+      setScoringVersion(v => v + 1);
     }
   };
 
@@ -408,6 +412,11 @@ function App() {
                   img.id === imageId ? { ...img, ...updatedImage } : img
                 ));
               }
+            })
+            .finally(() => {
+              // 清理评分中状态
+              scoringRef.current.delete(imageId);
+              setScoringVersion(v => v + 1);
             });
           return;
         } else if (status.status === 'failed') {
@@ -417,6 +426,8 @@ function App() {
             error: status.error_message || '评分失败',
             time: new Date().toLocaleTimeString()
           }, ...prev].slice(0, 20));
+          scoringRef.current.delete(imageId);
+          setScoringVersion(v => v + 1);
           return;
         }
 
