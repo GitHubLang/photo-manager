@@ -308,10 +308,24 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
+        const contentEl = contentRef.current;
+        const firstItem = contentEl ? contentEl.querySelector('.image-item') : null;
+        const rectBefore = firstItem ? firstItem.getBoundingClientRect().top : null;
+        
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
+        
+        requestAnimationFrame(() => {
+          if (firstItem && rectBefore !== null && contentEl) {
+            const rectAfter = firstItem.getBoundingClientRect().top;
+            const delta = rectAfter - rectBefore;
+            if (delta !== 0) {
+              contentEl.scrollTop = contentEl.scrollTop - delta;
+            }
+          }
+        });
       }
     } catch (err) {
       console.error('加载上一页失败', err);
