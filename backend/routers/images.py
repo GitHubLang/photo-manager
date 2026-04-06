@@ -262,15 +262,18 @@ async def score_images(req: ScoreRequest):
         if processing:
             task = processing[0]
             created_at = task['created_at']
-            from datetime import datetime, timedelta
-            if datetime.now() - created_at > timedelta(minutes=2):
-                # 处理超过2分钟认为卡住了，标记失败
-                execute_query(
-                    "UPDATE score_tasks SET status = 'failed', error_message = '处理超时自动重置' WHERE id = %s",
-                    (task['id'],)
-                )
-            else:
-                # 还在2分钟内，跳过不重复评分
+            from datetime import datetime, timedelta, timezone
+            try:
+                now = datetime.now(timezone.utc).astimezone() if created_at.tzinfo else datetime.now()
+                age = now - created_at
+                if age > timedelta(minutes=2):
+                    execute_query(
+                        "UPDATE score_tasks SET status = 'failed', error_message = '处理超时自动重置' WHERE id = %s",
+                        (task['id'],)
+                    )
+                else:
+                    continue
+            except Exception:
                 continue
         
         # 检查是否有待处理的任务
@@ -292,7 +295,8 @@ async def score_images(req: ScoreRequest):
     
     # 为每个任务启动一个worker线程（最多3个并发，由信号量控制）
     for tid in task_ids:
-        def process_one(task_id: int, image_id: int, model: str):
+        # 闭包陷阱：必须用默认参数捕获循环变量，否则所有线程都用最后一个值
+        def process_one(task_id=tid['task_id'], image_id=tid['image_id'], model=req.model):
             from database import get_connection
             from services.llm_scorer import score_and_describe_image
             
@@ -559,7 +563,8 @@ async def retry_score_tasks(image_ids: List[int]):
     
     # 为每个任务启动一个worker线程
     for tid in task_ids:
-        def process_one(task_id: int, image_id: int):
+        # 闭包陷阱：必须用默认参数捕获循环变量
+        def process_one(task_id=tid['task_id'], image_id=tid['image_id']):
             from database import get_connection
             from services.llm_scorer import score_and_describe_image
             
