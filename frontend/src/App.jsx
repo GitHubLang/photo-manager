@@ -73,18 +73,9 @@ function App() {
       const res = await fetch(`${API_BASE}/app-state`);
       const data = await res.json();
       if (data.last_folder_path) {
-        // 优先用完整路径匹配，失败则用文件夹名匹配
-        let matched = null;
-        try {
-          const decodedPath = decodeURIComponent(data.last_folder_path);
-          matched = currentFolders.find(f => f.path === decodedPath);
-        } catch {
-          // 解码失败（路径已损坏），用文件夹名匹配
-        }
-        if (!matched) {
-          const folderName = data.last_folder_path.split(/[/\\]/).pop();
-          matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
-        }
+        // 统一用反斜杠分割取文件夹名进行匹配（避免路径格式差异）
+        const folderName = data.last_folder_path.split(/[/\\]/).pop();
+        const matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
         if (matched) {
           const savedPage = data.last_page || 1;
           const savedSortBy = data.last_sort_by || 'filename';
