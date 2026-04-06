@@ -795,7 +795,7 @@ function App() {
         )}
 
         {/* 右侧内容 */}
-        <Content className="content-area" ref={contentRef} onScroll={(e) => {
+        <Content className="content-area" ref={contentRef} style={{ overflowAnchor: 'none' }} onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.target;
           // 向下滚到真正接近底部时才加载下一页（阈值增大到600px）
           if (scrollHeight - scrollTop - clientHeight < 600) {
