@@ -308,10 +308,21 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
+        const contentEl = contentRef.current;
+        // 保存当前 scrollTop
+        const savedScrollTop = contentEl ? contentEl.scrollTop : 0;
+        
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         loadedPagesSet.current.add(data.page);
         saveAppState(selectedFolder, page);
+        
+        // 等 DOM 更新后恢复相同 scrollTop
+        requestAnimationFrame(() => {
+          if (contentEl) {
+            contentEl.scrollTop = savedScrollTop;
+          }
+        });
       }
     } catch (err) {
       console.error('加载上一页失败', err);
