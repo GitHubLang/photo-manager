@@ -56,10 +56,12 @@ function App() {
 
   // 内容区 ref（用于双向滚动加载和位置恢复）
   const contentRef = useRef(null);
-  // 记录已加载的页（用于双向滚动加载）
-  const [loadedPages, setLoadedPages] = useState([]);
-  // 是否处于恢复模式（恢复时不保存 scrollTop）
+  // 记录已加载的页数量（用 ref 确保 scroll 事件同步读取）
+  const loadedPagesRef = useRef(0);
+  // 是否处于恢复模式
   const isRestoringRef = useRef(false);
+  // 滚动事件是否正在处理中（防止抖动）
+  const scrollBusyRef = useRef(false);
 
   // 加载目录树和模型列表
   useEffect(() => {
@@ -227,10 +229,10 @@ function App() {
 
       if (append) {
         setImages(prev => [...prev, ...(data.images || [])]);
-        setLoadedPages(prev => prev.includes(page) ? prev : [...prev, page]);
+        loadedPagesRef.current += 1;
       } else {
         setImages(data.images || []);
-        setLoadedPages([page]);
+        loadedPagesRef.current = 1;
       }
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
@@ -254,24 +256,25 @@ function App() {
 
   // 加载下一页（向下滚到底部触发）
   const loadNextPage = () => {
-    if (isRestoringRef.current) return;
-    if (currentPage < totalPages && !loadingMore) {
-      const nextPage = currentPage + 1;
-      if (!loadedPages.includes(nextPage)) {
-        loadImages(selectedFolder, nextPage, true);
-      }
+    if (isRestoringRef.current || scrollBusyRef.current) return;
+    if (loadedPagesRef.current < totalPages && !loadingMore) {
+      const nextPage = loadedPagesRef.current + 1;
+      scrollBusyRef.current = true;
+      loadImages(selectedFolder, nextPage, true);
+      setTimeout(() => { scrollBusyRef.current = false; }, 300);
     }
   };
 
   // 加载上一页（向上滚到顶部触发）
   const loadPrevPage = () => {
-    if (isRestoringRef.current) return;
-    if (currentPage > 1 && !loadingMore) {
-      const prevPage = currentPage - 1;
-      if (!loadedPages.includes(prevPage)) {
-        // 向上加载时需要拼接在前面
-        loadImagesPrev(prevPage);
-      }
+    if (isRestoringRef.current || scrollBusyRef.current) return;
+    const pagesLoaded = Math.ceil(images.length / 50);
+    if (pagesLoaded < currentPage && !loadingMore) {
+      // 当前加载的页数少于当前页码，说明还有更早的页没加载
+      const prevPage = pagesLoaded;
+      scrollBusyRef.current = true;
+      loadImagesPrev(prevPage);
+      setTimeout(() => { scrollBusyRef.current = false; }, 300);
     }
   };
 
@@ -288,16 +291,18 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
-        // 保存当前滚动位置，加载完后再恢复（避免突然跳到最顶部）
+        // 保存滚动位置，加载完恢复相对位置
         const scrollBefore = contentRef.current ? contentRef.current.scrollTop : 0;
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
-        setLoadedPages(prev => [...prev, page]);
+        loadedPagesRef.current += 1;
         saveAppState(selectedFolder, page);
-        // 等 DOM 更新后恢复滚动位置（内容顶部多了50张图的位置）
-        if (contentRef.current) {
-          contentRef.current.scrollTop = scrollBefore + (data.images.length * 280);
-        }
+        // 等 DOM 更新后恢复滚动位置
+        requestAnimationFrame(() => {
+          if (contentRef.current) {
+            contentRef.current.scrollTop = scrollBefore;
+          }
+        });
       }
     } catch (err) {
       console.error('加载上一页失败', err);
