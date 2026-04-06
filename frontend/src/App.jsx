@@ -254,10 +254,18 @@ function App() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
-      // API 完成后才允许正常保存（restoreScroll 模式下用 data.page 确保保存正确的页码）
-      if (restoreScroll !== null && restoreScroll !== undefined && isRestoringRef.current) {
+      // API 完成后才允许正常保存
+      if (isRestoringRef.current) {
         isRestoringRef.current = false;
         saveAppState(folderPath, page);
+        // DOM 更新完成后滚动
+        if (restoreScroll !== null && restoreScroll !== undefined) {
+          setTimeout(() => {
+            if (contentRef.current) {
+              contentRef.current.scrollTop = restoreScroll;
+            }
+          }, 0);
+        }
       }
     }
   };
