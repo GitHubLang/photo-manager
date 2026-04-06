@@ -75,8 +75,8 @@ function App() {
           const savedSortOrder = data.last_sort_order || 'asc';
           setSortBy(savedSortBy);
           setSortOrder(savedSortOrder);
-          // 直接加载到目标页（不重建前面的页）
-          loadImages(matched.path, savedPage, false, savedSortBy, savedSortOrder);
+          // 加载到目标页（会预加载前面的页，这样向上滚也能看到）
+          loadImages(matched.path, 1, false, savedPage);
         }
       }
     } catch (err) {
@@ -199,7 +199,8 @@ function App() {
   };
 
   // 加载文件夹图片
-  const loadImages = async (folderPath, page = 1, append = false) => {
+  // restorePage: 可选，刷新恢复时加载到这一页（会预加载1~N-1页，这样向上滚也能看到）
+  const loadImages = async (folderPath, page = 1, append = false, restorePage = null) => {
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
     setSearchResults(null);
@@ -221,13 +222,39 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
-      saveAppState(folderPath, page);
+
+      // 刷新恢复模式：先预加载1~N-1页（追加到列表），最后加载第N页显示
+      if (restorePage !== null && restorePage > 1 && page === 1) {
+        // 预加载第2页到第restorePage-1页
+        for (let p = 2; p < restorePage; p++) {
+          // eslint-disable-next-line no-await-in-loop
+          await loadImagesPage(folderPath, p);
+        }
+        // 加载目标页（追加到列表后面）
+        await loadImagesPage(folderPath, restorePage);
+        saveAppState(folderPath, restorePage);
+      } else if (restorePage === null) {
+        saveAppState(folderPath, page);
+      }
     } catch (err) {
       message.error('加载图片失败');
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
+  };
+
+  // 内部方法：加载指定页（追加到列表，不更新totalPages/currentPage）
+  const loadImagesPage = async (folderPath, page) => {
+    const params = new URLSearchParams({
+      page: page,
+      page_size: 50,
+      sort_by: sortBy,
+      sort_order: sortOrder
+    });
+    const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
+    const data = await res.json();
+    setImages(prev => [...prev, ...(data.images || [])]);
   };
 
   // 加载更多图片(滚动到底部)
