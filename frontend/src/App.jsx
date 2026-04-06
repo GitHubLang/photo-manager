@@ -58,6 +58,8 @@ function App() {
   const contentRef = useRef(null);
   // 记录已加载的页（用于双向滚动加载）
   const [loadedPages, setLoadedPages] = useState([]);
+  // 是否处于恢复模式（恢复时不保存 scrollTop）
+  const isRestoringRef = useRef(false);
 
   // 加载目录树和模型列表
   useEffect(() => {
@@ -82,6 +84,7 @@ function App() {
           setSortBy(savedSortBy);
           setSortOrder(savedSortOrder);
           // 加载到目标页，然后滚动到保存的位置
+          isRestoringRef.current = true;
           loadImages(matched.path, savedPage, false, savedScrollTop);
         }
       }
@@ -232,7 +235,10 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
-      saveAppState(folderPath, page);
+      // 恢复模式不保存，让 fetchAppState 统一保存
+      if (!isRestoringRef.current) {
+        saveAppState(folderPath, page);
+      }
 
       // 刷新恢复：加载目标页后滚动到保存的像素位置
       if (restoreScroll !== null && restoreScroll !== undefined) {
@@ -240,6 +246,8 @@ function App() {
           if (contentRef.current) {
             contentRef.current.scrollTop = restoreScroll;
           }
+          // 恢复完毕后开启正常保存
+          isRestoringRef.current = false;
         }, 100);
       }
     } catch (err) {
@@ -284,13 +292,15 @@ function App() {
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(selectedFolder)}/images?${params}`);
       const data = await res.json();
       if (data.images) {
+        // 保存当前滚动位置，加载完后再恢复（避免突然跳到最顶部）
+        const scrollBefore = contentRef.current ? contentRef.current.scrollTop : 0;
         setImages(prev => [...(data.images), ...prev]);
         setCurrentPage(page);
         setLoadedPages(prev => [...prev, page]);
         saveAppState(selectedFolder, page);
-        // 滚动到顶部
+        // 等 DOM 更新后恢复滚动位置（内容顶部多了50张图的位置）
         if (contentRef.current) {
-          contentRef.current.scrollTop = 0;
+          contentRef.current.scrollTop = scrollBefore + (data.images.length * 280);
         }
       }
     } catch (err) {
