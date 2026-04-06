@@ -58,6 +58,8 @@ function App() {
   const contentRef = useRef(null);
   // 已加载的页号集合（用 Set 追踪哪些页已加载，防止重复）
   const loadedPagesSet = useRef(new Set());
+  // 正在加载的页号（防止 API 返回前重复触发加载）
+  const loadingPagesSet = useRef(new Set());
   // 是否处于恢复模式
   const isRestoringRef = useRef(false);
   // 滚动事件是否正在处理中（防止抖动）
@@ -231,10 +233,13 @@ function App() {
         setImages(prev => [...prev, ...(data.images || [])]);
         // 追踪已加载的页号
         loadedPagesSet.current.add(data.page);
+        // 标记加载完成
+        loadingPagesSet.current.delete(data.page);
       } else {
         setImages(data.images || []);
         // 普通加载（切换文件夹），重置
         loadedPagesSet.current = new Set([data.page]);
+        loadingPagesSet.current.clear();
       }
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
@@ -261,15 +266,16 @@ function App() {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     // 已在最后一页，不加载
     if (loadedPagesSet.current.has(totalPages)) return;
-    // 找出下一个未加载的页
+    // 找出下一个未加载且不在加载中的页
     let nextPage = currentPage + 1;
-    while (loadedPagesSet.current.has(nextPage) && nextPage <= totalPages) {
+    while ((loadedPagesSet.current.has(nextPage) || loadingPagesSet.current.has(nextPage)) && nextPage <= totalPages) {
       nextPage++;
     }
     if (nextPage > totalPages) return;
     scrollBusyRef.current = true;
+    loadingPagesSet.current.add(nextPage);
     loadImages(selectedFolder, nextPage, true);
-    setTimeout(() => { scrollBusyRef.current = false; }, 300);
+    setTimeout(() => { scrollBusyRef.current = false; }, 500);
   };
 
   // 加载上一页（向上滚到顶部触发）
@@ -277,15 +283,16 @@ function App() {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     // 已在第一页，不加载
     if (loadedPagesSet.current.has(1)) return;
-    // 找出上一个未加载的页（从 currentPage-1 往前找）
+    // 找出上一个未加载且不在加载中的页（从 currentPage-1 往前找）
     let prevPage = currentPage - 1;
-    while (loadedPagesSet.current.has(prevPage) && prevPage > 1) {
+    while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
       prevPage--;
     }
     if (prevPage < 1) return;
     scrollBusyRef.current = true;
+    loadingPagesSet.current.add(prevPage);
     loadImagesPrev(prevPage);
-    setTimeout(() => { scrollBusyRef.current = false; }, 300);
+    setTimeout(() => { scrollBusyRef.current = false; }, 500);
   };
 
   // 加载指定页并追加到列表前面（用于向上翻页）
