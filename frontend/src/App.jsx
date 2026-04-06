@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip, Menu, Checkbox, Popconfirm } from 'antd';
 import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
 import './App.css';
@@ -53,9 +53,6 @@ function App() {
   const [captionHistoryLoading, setCaptionHistoryLoading] = useState(false);
   const [captionKeyword, setCaptionKeyword] = useState('');
   const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
-
-  // 内容区 ref（用于恢复滚动位置）
-  const contentRef = useRef(null);
 
   // 加载目录树和模型列表
   useEffect(() => {
@@ -202,11 +199,7 @@ function App() {
   };
 
   // 加载文件夹图片
-  // restoringSortBy/restoreSortOrder: 可选，恢复时使用指定的排序参数
-  const loadImages = async (folderPath, page = 1, append = false, restoringSortBy = null, restoringSortOrder = null) => {
-    const effectiveSortBy = restoringSortBy !== null ? restoringSortBy : sortBy;
-    const effectiveSortOrder = restoringSortOrder !== null ? restoringSortOrder : sortOrder;
-
+  const loadImages = async (folderPath, page = 1, append = false) => {
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
     setSearchResults(null);
@@ -214,8 +207,8 @@ function App() {
       const params = new URLSearchParams({
         page: page,
         page_size: 50,
-        sort_by: effectiveSortBy,
-        sort_order: effectiveSortOrder
+        sort_by: sortBy,
+        sort_order: sortOrder
       });
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
       const data = await res.json();
@@ -228,7 +221,7 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
-      saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
+      saveAppState(folderPath, page);
     } catch (err) {
       message.error('加载图片失败');
     } finally {
@@ -718,7 +711,7 @@ function App() {
         )}
 
         {/* 右侧内容 */}
-        <Content className="content-area" ref={contentRef} onScroll={(e) => {
+        <Content className="content-area" onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.target;
           if (scrollHeight - scrollTop - clientHeight < 200) {
             loadMore();
