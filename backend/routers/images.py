@@ -15,7 +15,7 @@ from config import PHOTO_ROOT
 import threading
 
 # 并发限制：最多同时处理3个评分任务
-score_semaphore = threading.Semaphore(20)
+score_semaphore = threading.Semaphore(4)
 
 router = APIRouter(prefix="/api", tags=["images"])
 
