@@ -27,6 +27,10 @@ function App() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [failedCaptions, setFailedCaptions] = useState([]);
   const [failedScores, setFailedScores] = useState([]);
+  // 正在评分的图片ID集合
+  const scoringRef = useRef(new Set());
+  // 用于触发UI更新的state
+  const [scoringVersion, setScoringVersion] = useState(0);
   const [sortBy, setSortBy] = useState('filename');
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -357,6 +361,8 @@ function App() {
 
   // 评分图片(异步,不等待结果)
   const handleScore = async (imageId) => {
+    scoringRef.current.add(imageId);
+    setScoringVersion(v => v + 1);  // 触发UI更新显示"评分中"
     try {
       const res = await fetch(`${API_BASE}/images/score`, {
         method: 'POST',
@@ -368,11 +374,16 @@ function App() {
         message.success('评分任务已创建,请在图片上查看进度');
         // 开始轮询状态
         pollScoreStatus(imageId);
+      } else if (data.error?.includes('已存在')) {
+        message.warning(data.error);
       } else {
         message.error('创建评分任务失败');
       }
     } catch (err) {
       message.error('评分请求失败');
+    } finally {
+      scoringRef.current.delete(imageId);
+      setScoringVersion(v => v + 1);  // 触发UI更新
     }
   };
 
@@ -942,11 +953,11 @@ function App() {
                             src={`${API_BASE}/image/thumbnail/${encodeURIComponent(img.file_path)}?size=400`}
                             alt={img.filename}
                           />
-                          <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : '评分中'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
+                          <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : scoringRef.current.has(img.id) ? '评分中...' : '待评分'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
                             <div className="image-score"
                               style={{ backgroundColor: getScoreColor(img.total_score) }}
                             >
-                              {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '评分中'}
+                              {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : scoringRef.current.has(img.id) ? '评分中' : '待评分'}
                             </div>
                           </Tooltip>
                           <div className="image-check"
