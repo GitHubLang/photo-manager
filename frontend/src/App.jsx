@@ -68,8 +68,14 @@ function App() {
       if (data.last_folder_path) {
         const pathExists = currentFolders.some(f => f.path === data.last_folder_path);
         if (pathExists) {
-          setSelectedFolder(data.last_folder_path);
-          loadImages(data.last_folder_path);
+          const savedPage = data.last_page || 1;
+          const savedSortBy = data.last_sort_by || 'filename';
+          const savedSortOrder = data.last_sort_order || 'asc';
+          setSortBy(savedSortBy);
+          setSortOrder(savedSortOrder);
+
+          // 先加载第1页获取总页数，再加载到目标页
+          loadImages(data.last_folder_path, 1, false, savedPage, savedSortBy, savedSortOrder);
         }
       }
     } catch (err) {
@@ -78,12 +84,17 @@ function App() {
   };
 
   // 保存浏览位置
-  const saveAppState = async (folderPath) => {
+  const saveAppState = async (folderPath, page = 1, sortByVal = sortBy, sortOrderVal = sortOrder) => {
     try {
       await fetch(`${API_BASE}/app-state`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ last_folder_path: folderPath })
+        body: JSON.stringify({
+          last_folder_path: folderPath,
+          last_page: page,
+          last_sort_by: sortByVal,
+          last_sort_order: sortOrderVal
+        })
       });
     } catch (err) {
       console.error('保存浏览位置失败');
@@ -187,7 +198,13 @@ function App() {
   };
 
   // 加载文件夹图片
-  const loadImages = async (folderPath, page = 1, append = false) => {
+  // restorePage: 可选，指定要恢复到第几页（用于刷新后重建图片列表）
+  // restoreSortBy/restoreSortOrder: 可选，恢复时使用的排序参数
+  const loadImages = async (folderPath, page = 1, append = false, restorePage = null, restoreSortBy = null, restoreSortOrder = null) => {
+    const effectiveSortBy = restoreSortBy !== null ? restoreSortBy : sortBy;
+    const effectiveSortOrder = restoreSortOrder !== null ? restoreSortOrder : sortOrder;
+    const targetPage = restorePage || page;
+
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
     setSearchResults(null);
@@ -195,8 +212,8 @@ function App() {
       const params = new URLSearchParams({
         page: page,
         page_size: 50,
-        sort_by: sortBy,
-        sort_order: sortOrder
+        sort_by: effectiveSortBy,
+        sort_order: effectiveSortOrder
       });
       const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
       const data = await res.json();
@@ -209,13 +226,40 @@ function App() {
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
-      saveAppState(folderPath);
+
+      // 分页恢复：先加载第1页，再逐页加载到目标页（避免覆盖已加载的图片）
+      if (restorePage !== null && restorePage > 1 && page === 1) {
+        // 这是恢复流程的第一步（page=1），现在加载第2页到目标页
+        for (let p = 2; p <= restorePage; p++) {
+          // eslint-disable-next-line no-await-in-loop
+          await loadImagesPage(folderPath, p, effectiveSortBy, effectiveSortOrder);
+        }
+        saveAppState(folderPath, restorePage, effectiveSortBy, effectiveSortOrder);
+      } else if (restorePage === null) {
+        // 普通切换文件夹/排序，只保存当前页
+        saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
+      }
     } catch (err) {
       message.error('加载图片失败');
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
+  };
+
+  // 内部方法：加载指定页（不更新 totalPages 等状态，仅追加图片）
+  const loadImagesPage = async (folderPath, page, sortByVal, sortOrderVal) => {
+    const params = new URLSearchParams({
+      page: page,
+      page_size: 50,
+      sort_by: sortByVal,
+      sort_order: sortOrderVal
+    });
+    const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
+    const data = await res.json();
+    setImages(prev => [...prev, ...(data.images || [])]);
+    setCurrentPage(data.page);
+    setTotalPages(data.total_pages);
   };
 
   // 加载更多图片(滚动到底部)
