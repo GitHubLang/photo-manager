@@ -152,11 +152,17 @@ def init_database():
             last_page INT DEFAULT 1,
             last_sort_by VARCHAR(50) DEFAULT 'filename',
             last_sort_order VARCHAR(10) DEFAULT 'asc',
+            last_scroll_top INT DEFAULT 0,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
     # 迁移旧数据：确保新字段存在
-    for col, dtype in [('last_page', 'INT DEFAULT 1'), ('last_sort_by', "VARCHAR(50) DEFAULT 'filename'"), ('last_sort_order', "VARCHAR(10) DEFAULT 'asc'")]:
+    for col, dtype in [
+        ('last_page', 'INT DEFAULT 1'),
+        ('last_sort_by', "VARCHAR(50) DEFAULT 'filename'"),
+        ('last_sort_order', "VARCHAR(10) DEFAULT 'asc'"),
+        ('last_scroll_top', 'INT DEFAULT 0')
+    ]:
         cursor.execute(f"ALTER TABLE app_state ADD COLUMN IF NOT EXISTS {col} {dtype}")
     # 初始化一条记录
     cursor.execute("INSERT IGNORE INTO app_state (id) VALUES (1)")

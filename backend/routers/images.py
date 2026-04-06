@@ -438,10 +438,10 @@ async def search_images(
 @router.get("/app-state")
 async def get_app_state():
     """获取应用状态（如上次浏览位置）"""
-    result = execute_query("SELECT last_folder_path, last_page, last_sort_by, last_sort_order, updated_at FROM app_state WHERE id = 1")
+    result = execute_query("SELECT last_folder_path, last_page, last_sort_by, last_sort_order, last_scroll_top, updated_at FROM app_state WHERE id = 1")
     if result:
         return result[0]
-    return {"last_folder_path": None, "last_page": 1, "last_sort_by": "filename", "last_sort_order": "asc"}
+    return {"last_folder_path": None, "last_page": 1, "last_sort_by": "filename", "last_sort_order": "asc", "last_scroll_top": 0}
 
 
 class AppStateUpdate(BaseModel):
@@ -449,6 +449,7 @@ class AppStateUpdate(BaseModel):
     last_page: Optional[int] = None
     last_sort_by: Optional[str] = None
     last_sort_order: Optional[str] = None
+    last_scroll_top: Optional[int] = None
 
 
 @router.post("/app-state")
@@ -468,6 +469,9 @@ async def update_app_state(state: AppStateUpdate):
     if state.last_sort_order is not None:
         fields.append("last_sort_order = %s")
         params.append(state.last_sort_order)
+    if state.last_scroll_top is not None:
+        fields.append("last_scroll_top = %s")
+        params.append(state.last_scroll_top)
     if fields:
         execute_query(
             f"UPDATE app_state SET {', '.join(fields)} WHERE id = 1",
