@@ -241,13 +241,12 @@ function App() {
       }
 
       // 刷新恢复：加载目标页后滚动到保存的像素位置
+      // isRestoringRef 在 finally 块中设为 false（等 API 完成后才开启正常保存）
       if (restoreScroll !== null && restoreScroll !== undefined) {
         setTimeout(() => {
           if (contentRef.current) {
             contentRef.current.scrollTop = restoreScroll;
           }
-          // 恢复完毕后开启正常保存
-          isRestoringRef.current = false;
         }, 100);
       }
     } catch (err) {
@@ -255,6 +254,11 @@ function App() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      // API 完成后才允许正常保存（restoreScroll 模式下用 data.page 确保保存正确的页码）
+      if (restoreScroll !== null && restoreScroll !== undefined && isRestoringRef.current) {
+        isRestoringRef.current = false;
+        saveAppState(folderPath, page);
+      }
     }
   };
 
