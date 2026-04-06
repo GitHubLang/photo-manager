@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip, Menu, Checkbox, Popconfirm } from 'antd';
 import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
 import './App.css';
@@ -54,6 +54,9 @@ function App() {
   const [captionKeyword, setCaptionKeyword] = useState('');
   const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
 
+  // 内容区 ref（用于恢复滚动位置）
+  const contentRef = useRef(null);
+
   // 加载目录树和模型列表
   useEffect(() => {
     fetchFolders();
@@ -66,16 +69,17 @@ function App() {
       const res = await fetch(`${API_BASE}/app-state`);
       const data = await res.json();
       if (data.last_folder_path) {
-        const pathExists = currentFolders.some(f => f.path === data.last_folder_path);
-        if (pathExists) {
+        // 用文件夹名匹配，避免路径编码问题
+        const folderName = data.last_folder_path.split(/[/\\]/).pop();
+        const matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
+        if (matched) {
           const savedPage = data.last_page || 1;
           const savedSortBy = data.last_sort_by || 'filename';
           const savedSortOrder = data.last_sort_order || 'asc';
+          const savedScrollTop = data.last_scroll_top || 0;
           setSortBy(savedSortBy);
           setSortOrder(savedSortOrder);
-
-          // 先加载第1页获取总页数，再加载到目标页
-          loadImages(data.last_folder_path, 1, false, savedPage, savedSortBy, savedSortOrder);
+          loadImages(matched.path, savedPage, false, savedScrollTop, savedSortBy, savedSortOrder);
         }
       }
     } catch (err) {
@@ -85,6 +89,7 @@ function App() {
 
   // 保存浏览位置
   const saveAppState = async (folderPath, page = 1, sortByVal = sortBy, sortOrderVal = sortOrder) => {
+    const scrollTop = contentRef.current ? contentRef.current.scrollTop : 0;
     try {
       await fetch(`${API_BASE}/app-state`, {
         method: 'POST',
@@ -93,7 +98,8 @@ function App() {
           last_folder_path: folderPath,
           last_page: page,
           last_sort_by: sortByVal,
-          last_sort_order: sortOrderVal
+          last_sort_order: sortOrderVal,
+          last_scroll_top: scrollTop
         })
       });
     } catch (err) {
@@ -198,12 +204,11 @@ function App() {
   };
 
   // 加载文件夹图片
-  // restorePage: 可选，指定要恢复到第几页（用于刷新后重建图片列表）
-  // restoreSortBy/restoreSortOrder: 可选，恢复时使用的排序参数
-  const loadImages = async (folderPath, page = 1, append = false, restorePage = null, restoreSortBy = null, restoreSortOrder = null) => {
-    const effectiveSortBy = restoreSortBy !== null ? restoreSortBy : sortBy;
-    const effectiveSortOrder = restoreSortOrder !== null ? restoreSortOrder : sortOrder;
-    const targetPage = restorePage || page;
+  // restoringScrollTop: 可选，刷新恢复时要从头加载并滚动到此位置（单位px）
+  const loadImages = async (folderPath, page = 1, append = false, restoringScrollTop = null, restoringSortBy = null, restoringSortOrder = null) => {
+    const effectiveSortBy = restoringSortBy !== null ? restoringSortBy : sortBy;
+    const effectiveSortOrder = restoringSortOrder !== null ? restoringSortOrder : sortOrder;
+    const isRestoring = restoringScrollTop !== null;
 
     if (page === 1) setLoading(true);
     else setLoadingMore(true);
@@ -227,16 +232,17 @@ function App() {
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
 
-      // 分页恢复：先加载第1页，再逐页加载到目标页（避免覆盖已加载的图片）
-      if (restorePage !== null && restorePage > 1 && page === 1) {
-        // 这是恢复流程的第一步（page=1），现在加载第2页到目标页
-        for (let p = 2; p <= restorePage; p++) {
-          // eslint-disable-next-line no-await-in-loop
-          await loadImagesPage(folderPath, p, effectiveSortBy, effectiveSortOrder);
-        }
-        saveAppState(folderPath, restorePage, effectiveSortBy, effectiveSortOrder);
-      } else if (restorePage === null) {
-        // 普通切换文件夹/排序，只保存当前页
+      if (isRestoring) {
+        // 刷新恢复：加载第1页后滚动到保存的位置（滚动位置对应目标页）
+        saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
+        // 等 DOM 更新后滚动
+        setTimeout(() => {
+          if (contentRef.current) {
+            contentRef.current.scrollTo({ top: restoringScrollTop, behavior: 'instant' });
+          }
+        }, 100);
+      } else {
+        // 普通切换
         saveAppState(folderPath, page, effectiveSortBy, effectiveSortOrder);
       }
     } catch (err) {
@@ -245,21 +251,6 @@ function App() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
-
-  // 内部方法：加载指定页（不更新 totalPages 等状态，仅追加图片）
-  const loadImagesPage = async (folderPath, page, sortByVal, sortOrderVal) => {
-    const params = new URLSearchParams({
-      page: page,
-      page_size: 50,
-      sort_by: sortByVal,
-      sort_order: sortOrderVal
-    });
-    const res = await fetch(`${API_BASE}/folders/${encodeURIComponent(folderPath)}/images?${params}`);
-    const data = await res.json();
-    setImages(prev => [...prev, ...(data.images || [])]);
-    setCurrentPage(data.page);
-    setTotalPages(data.total_pages);
   };
 
   // 加载更多图片(滚动到底部)
@@ -743,7 +734,7 @@ function App() {
         )}
 
         {/* 右侧内容 */}
-        <Content className="content-area" onScroll={(e) => {
+        <Content className="content-area" ref={contentRef} onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.target;
           if (scrollHeight - scrollTop - clientHeight < 200) {
             loadMore();
