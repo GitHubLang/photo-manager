@@ -239,33 +239,15 @@ function App() {
       if (!isRestoringRef.current) {
         saveAppState(folderPath, page);
       }
-
-      // 刷新恢复：加载目标页后滚动到保存的像素位置
-      // isRestoringRef 在 finally 块中设为 false（等 API 完成后才开启正常保存）
-      if (restoreScroll !== null && restoreScroll !== undefined) {
-        setTimeout(() => {
-          if (contentRef.current) {
-            contentRef.current.scrollTop = restoreScroll;
-          }
-        }, 100);
-      }
     } catch (err) {
       message.error('加载图片失败');
     } finally {
       setLoading(false);
       setLoadingMore(false);
-      // API 完成后才允许正常保存
+      // API 完成后才允许正常保存（恢复模式不保存，恢复完手动保存一次）
       if (isRestoringRef.current) {
         isRestoringRef.current = false;
         saveAppState(folderPath, page);
-        // DOM 更新完成后滚动
-        if (restoreScroll !== null && restoreScroll !== undefined) {
-          setTimeout(() => {
-            if (contentRef.current) {
-              contentRef.current.scrollTop = restoreScroll;
-            }
-          }, 0);
-        }
       }
     }
   };
