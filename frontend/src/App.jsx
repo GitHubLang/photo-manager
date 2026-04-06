@@ -942,11 +942,11 @@ function App() {
                             src={`${API_BASE}/image/thumbnail/${encodeURIComponent(img.file_path)}?size=400`}
                             alt={img.filename}
                           />
-                          <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : '待评分'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
+                          <Tooltip title={`评分: ${img.total_score ? img.total_score.toFixed(1) : '评分中'}${img.score_count ? ` (${img.score_count}次)` : ''}`}>
                             <div className="image-score"
                               style={{ backgroundColor: getScoreColor(img.total_score) }}
                             >
-                              {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '待评分'}
+                              {img.total_score ? `⭐ ${img.total_score.toFixed(1)}` : '评分中'}
                             </div>
                           </Tooltip>
                           <div className="image-check"
