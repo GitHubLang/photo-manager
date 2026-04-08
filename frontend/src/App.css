@@ -1,123 +1,1109 @@
+/* ============================================
+   Photo Manager - Mobile First Responsive Design
+   Design Inspiration: Linear + Notion hybrid
+   ============================================ */
+
+/* ---- CSS Variables (Design Tokens) ---- */
+:root {
+  /* Colors - Dark theme for photo focus */
+  --bg-primary: #fafaf9;        /* Warm white page bg */
+  --bg-secondary: #ffffff;      /* Cards, surfaces */
+  --bg-tertiary: #f5f5f4;       /* Subtle gray sections */
+  --bg-dark: #141413;          /* Dark surfaces, image viewer */
+  
+  --text-primary: #1a1a1a;     /* Primary text */
+  --text-secondary: #6b6b6b;   /* Secondary text */
+  --text-tertiary: #9c9c9c;    /* Muted text */
+  --text-inverse: #fafaf9;     /* Text on dark */
+  
+  --accent: #10b981;           /* Emerald green - primary action */
+  --accent-hover: #059669;     /* Darker emerald */
+  --accent-light: #d1fae5;     /* Light emerald bg */
+  
+  --border: #e5e5e4;           /* Subtle warm border */
+  --border-hover: #d4d4d4;     /* Hover border */
+  
+  /* Spacing (8px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  
+  /* Touch targets */
+  --touch-target: 44px;
+}
+
+/* ============================================
+   Base Layout - Mobile First
+   ============================================ */
+
 .app-layout {
-  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
+
+/* ============================================
+   Top Toolbar - Mobile Optimized
+   ============================================ */
 
 .top-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: var(--space-2);
+  min-height: 56px;
+}
+
+.top-toolbar .ant-typography {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
-.folder-sider {
-  background: #fff;
-  overflow-y: auto;
-  border-right: 1px solid #f0f0f0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
+.top-toolbar .anticon-camera {
+  color: var(--accent);
+  margin-right: var(--space-2);
 }
 
-.sider-header {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+/* Mobile: compact search */
+.top-toolbar .ant-input-search {
+  flex: 1;
+  max-width: 200px;
 }
+
+.top-toolbar .ant-select {
+  display: none; /* Hide model select on mobile, use bottom tab */
+}
+
+.top-toolbar .ant-btn {
+  padding: 0 var(--space-3);
+  height: 36px;
+  font-size: 13px;
+}
+
+/* ============================================
+   Main Content Area
+   ============================================ */
+
+.layout-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ============================================
+   Sidebar - Desktop only
+   ============================================ */
+
+.folder-sider {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  height: 100%;
+  overflow-y: auto;
+  flex-shrink: 0;
+  transition: width var(--transition-normal);
+  position: relative;
+  z-index: 100;
+}
+
+.sider-collapsed {
+  width: 0 !important;
+  overflow: hidden;
+}
+
+/* ============================================
+   Bottom Tab Bar - Mobile Navigation
+   ============================================ */
+
+.bottom-tabs {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  z-index: 1000;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-tabs-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 56px;
+}
+
+.bottom-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2);
+  min-width: 64px;
+  min-height: var(--touch-target);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  border: none;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-tab-item.active {
+  color: var(--accent);
+}
+
+.bottom-tab-item:active {
+  opacity: 0.7;
+}
+
+.bottom-tab-item .anticon,
+.bottom-tab-item .anticon * {
+  font-size: 20px !important;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* ============================================
+   Content Area
+   ============================================ */
 
 .content-area {
-  padding: 16px 24px;
-  background: #f5f5f5;
+  flex: 1;
+  padding: var(--space-3);
+  background: var(--bg-tertiary);
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* Account for bottom tabs on mobile */
+  padding-bottom: calc(var(--space-3) + 64px + env(safe-area-inset-bottom));
 }
+
+.content-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.content-area::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+/* ============================================
+   Action Bar - Mobile Optimized
+   ============================================ */
 
 .action-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  gap: var(--space-2);
+  flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: var(--shadow-sm);
 }
+
+.action-bar .ant-space {
+  flex-wrap: nowrap;
+}
+
+.action-bar .ant-tag {
+  font-size: 12px;
+  padding: 0 6px;
+  line-height: 18px;
+}
+
+.action-bar .ant-btn {
+  height: 36px;
+  font-size: 13px;
+  padding: 0 var(--space-3);
+}
+
+/* Mobile: compact action bar */
+.action-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.action-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.action-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ============================================
+   Image Grid - Responsive
+   ============================================ */
 
 .image-grid {
-  padding-bottom: 24px;
+  padding-bottom: var(--space-3);
 }
+
+.image-grid .ant-row {
+  margin: 0 !important;
+}
+
+.image-grid .ant-col {
+  padding: var(--space-2) !important;
+}
+
+/* ============================================
+   Image Card - Touch Optimized
+   ============================================ */
 
 .image-card {
-  transition: all 0.3s;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+  border: 2px solid transparent !important;
+  transition: all var(--transition-fast);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
 }
 
-.image-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.image-card:active {
+  transform: scale(0.98);
 }
 
 .image-card.selected {
-  border: 2px solid #1890ff;
+  border-color: var(--accent) !important;
+}
+
+.image-card .ant-card-cover {
+  border-radius: 0;
+}
+
+.image-card .ant-card-body {
+  padding: var(--space-2) var(--space-3) !important;
 }
 
 .image-cover {
   position: relative;
-  height: 160px;
-  overflow: hidden;
   cursor: pointer;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bg-tertiary);
 }
 
 .image-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
+  transition: transform var(--transition-normal);
 }
 
-.image-cover:hover img {
-  transform: scale(1.05);
+.image-cover:active img {
+  transform: scale(1.02);
 }
 
 .image-score {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  bottom: var(--space-2);
+  right: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.7);
   color: #fff;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
 }
 
 .image-check {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 24px;
-  height: 24px;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
+  background: rgba(255,255,255,0.9);
+  border: 2px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all var(--transition-fast);
+  z-index: 2;
 }
 
-.image-preview p {
-  margin: 4px 0;
+.image-check.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
 }
 
-.theme-content, .caption-content {
-  padding: 8px 0;
+/* Scoring overlay */
+.image-scoring-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
 }
 
-.caption-content p {
-  font-size: 15px;
-  line-height: 1.8;
+/* ============================================
+   Folder Panel - Slide-in Drawer (Mobile)
+   ============================================ */
+
+.folder-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.folder-drawer.open {
+  pointer-events: auto;
+}
+
+.folder-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.folder-drawer.open .folder-drawer-backdrop {
+  opacity: 1;
+}
+
+.folder-drawer-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 85vw;
+  background: var(--bg-secondary);
+  transform: translateX(-100%);
+  transition: transform var(--transition-normal);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-drawer.open .folder-drawer-panel {
+  transform: translateX(0);
+}
+
+.folder-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.folder-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+/* ============================================
+   Scoring Panel - Slide-in (Mobile)
+   ============================================ */
+
+.score-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.score-panel.open {
+  pointer-events: auto;
+}
+
+.score-panel-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.score-panel.open .score-panel-backdrop {
+  opacity: 1;
+}
+
+.score-panel-content {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  transform: translateX(100%);
+  transition: transform var(--transition-normal);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.score-panel.open .score-panel-content {
+  transform: translateX(0);
+}
+
+/* ============================================
+   Caption Panel - Slide-in (Mobile)
+   ============================================ */
+
+.caption-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.caption-panel.open {
+  pointer-events: auto;
+}
+
+.caption-panel-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.caption-panel.open .caption-panel-backdrop {
+  opacity: 1;
+}
+
+.caption-panel-content {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  transform: translateX(100%);
+  transition: transform var(--transition-normal);
+  overflow-y: auto;
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+}
+
+.caption-panel.open .caption-panel-content {
+  transform: translateX(0);
+}
+
+/* ============================================
+   Modals - Mobile Full Screen
+   ============================================ */
+
+.mobile-fullscreen-modal .ant-modal-content {
+  border-radius: 0;
+  position: fixed;
+  inset: 0;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.mobile-fullscreen-modal .ant-modal-close {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
+}
+
+.mobile-fullscreen-modal .ant-modal-body {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4);
+  padding-top: calc(var(--space-4) + 40px);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+}
+
+/* Preview Modal */
+.preview-modal .ant-modal-content {
+  background: var(--bg-dark) !important;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.preview-modal .ant-modal-body {
+  padding: 0;
+}
+
+.preview-modal .ant-modal-close {
+  color: var(--text-inverse);
+  background: rgba(255,255,255,0.1);
+  border-radius: 50%;
+  top: var(--space-4);
+  right: var(--space-4);
+}
+
+/* ============================================
+   Image Preview - Full Screen
+   ============================================ */
+
+.image-preview-container {
+  background: var(--bg-dark);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-inverse);
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255,255,255,0.05);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.preview-image-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  overflow: hidden;
+}
+
+.preview-image-wrapper img {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.preview-info {
+  padding: var(--space-4);
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.preview-actions {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255,255,255,0.05);
+  position: sticky;
+  bottom: 0;
+}
+
+.preview-actions .ant-btn {
+  flex: 1;
+  height: var(--touch-target);
+  font-size: 14px;
+  border-radius: var(--radius-lg);
+}
+
+/* ============================================
+   Filter Bar - Mobile
+   ============================================ */
+
+.filter-bar {
+  display: none; /* Hidden on mobile, accessible via menu */
+}
+
+/* ============================================
+   Sort Selectors - Mobile Optimized
+   ============================================ */
+
+.ant-select {
+  font-size: 12px !important;
+}
+
+.ant-select-selector {
+  height: 32px !important;
+  padding: 0 var(--space-2) !important;
+}
+
+.ant-select-selection-item {
+  line-height: 30px !important;
+}
+
+/* ============================================
+   Search Input - Mobile
+   ============================================ */
+
+.ant-search-input .ant-input {
+  height: 36px;
+  font-size: 14px;
+}
+
+.ant-search-input .ant-input-search-button {
+  height: 36px !important;
+  width: 36px !important;
+}
+
+/* ============================================
+   Context Menu / Dropdown - Mobile
+   ============================================ */
+
+.ant-dropdown-menu {
+  border-radius: var(--radius-lg) !important;
+  padding: var(--space-2) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.ant-dropdown-menu-item {
+  padding: var(--space-3) var(--space-4) !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 14px !important;
+  min-height: var(--touch-target) !important;
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+
+.ant-empty {
+  padding: var(--space-12) var(--space-4);
+}
+
+.ant-empty-description {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* ============================================
+   Loading States
+   ============================================ */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================
+   Theme / Caption Modal Content
+   ============================================ */
+
+.theme-modal-content,
+.caption-modal-content {
+  padding: var(--space-4) 0;
+}
+
+.theme-modal-content h3,
+.caption-modal-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
+}
+
+.theme-modal-content p,
+.caption-modal-content p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   Tags & Badges - Mobile
+   ============================================ */
+
+.ant-tag {
+  font-size: 11px;
+  padding: 0 6px;
+  line-height: 18px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   Button Variants - Design System Style
+   ============================================ */
+
+.btn-primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+}
+
+.btn-ghost {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-md);
+}
+
+.btn-ghost:hover {
+  border-color: var(--border-hover) !important;
+  background: var(--bg-tertiary) !important;
+}
+
+/* ============================================
+   Card Component (Score Panel)
+   ============================================ */
+
+.panel-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* ============================================
+   Score Task Items (Mobile)
+   ============================================ */
+
+.score-task-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  min-height: var(--touch-target);
+  align-items: center;
+}
+
+.score-task-item img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   Caption History (Mobile)
+   ============================================ */
+
+.caption-history-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-2);
+  min-height: var(--touch-target);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border: 1px solid var(--border);
+}
+
+.caption-history-item:active {
+  background: var(--bg-tertiary);
+}
+
+.caption-history-item img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   FAB Button - Mobile Quick Actions
+   ============================================ */
+
+.fab-button {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50% !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-size: 24px !important;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent) !important;
+  border: none !important;
+  color: white !important;
+}
+
+.fab-button:active {
+  transform: scale(0.95);
+}
+
+/* Hidden FAB when no selection */
+.hide-on-mobile {
+  display: none !important;
+}
+
+.fab-button.hidden {
+  display: none;
+}
+
+/* ============================================
+   Pull to Refresh Indicator
+   ============================================ */
+
+.pull-indicator {
+  text-align: center;
+  padding: var(--space-3);
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* ============================================
+   Responsive Breakpoints
+   ============================================ */
+
+/* Tablet: 768px - 1024px */
+@media (min-width: 768px) {
+  .content-area {
+    padding: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+  
+  .action-bar {
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+  
+  .image-cover {
+    aspect-ratio: 1;
+  }
+  
+  .bottom-tabs {
+    display: none !important;
+  }
+  
+  .image-grid .ant-col {
+    padding: var(--space-3) !important;
+  }
+}
+
+/* Desktop: > 1024px */
+@media (min-width: 1024px) {
+  .top-toolbar {
+    padding: var(--space-4) var(--space-6);
+  }
+  
+  .top-toolbar .ant-input-search {
+    max-width: 300px;
+  }
+  
+  .top-toolbar .ant-select {
+    display: inline-flex;
+  }
+  
+  .content-area {
+    padding: var(--space-5) var(--space-6);
+  }
+  
+  .action-bar {
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+  
+  .image-grid .ant-col {
+    padding: var(--space-4) !important;
+  }
+  
+  .image-card .ant-card-body {
+    padding: var(--space-3) !important;
+  }
+}
+
+/* Mobile Only: < 768px */
+@media (max-width: 767px) {
+  /* Hide desktop sidebar on mobile */
+  .folder-sider {
+    display: none;
+  }
+  
+  /* Show bottom tabs on mobile */
+  .bottom-tabs {
+    display: block;
+  }
+  
+  /* Adjust action bar for mobile */
+  .action-bar {
+    margin-left: calc(-1 * var(--space-3));
+    margin-right: calc(-1 * var(--space-3));
+    border-radius: 0;
+  }
+  
+  .content-area {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* Hide filter bar elements on mobile, show compact version */
+  .action-bar .ant-select {
+    display: none;
+  }
+  
+  /* Full width cards on mobile */
+  .image-card {
+    border-radius: var(--radius-md) !important;
+  }
+  
+  /* Adjust grid for 2 columns on mobile */
+  .image-grid .ant-col {
+    padding: var(--space-2) !important;
+  }
+  
+  /* Hide some columns in action bar */
+  .action-bar .hide-mobile {
+    display: none !important;
+  }
+  
+  /* Show FAB for batch actions */
+  .fab-button {
+    display: flex;
+  }
+  
+  /* Modals: full screen on mobile */
+  .ant-modal {
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .ant-modal-content {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+    max-height: 90vh !important;
+  }
+  
+  /* Image preview: full screen */
+  .preview-modal .ant-modal {
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+  }
+  
+  .preview-modal .ant-modal-content {
+    border-radius: 0 !important;
+  }
+  
+  .preview-image-wrapper img {
+    max-height: 50vh;
+  }
+}
+
+/* ============================================
+   High DPI / Retina Optimizations
+   ============================================ */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .image-cover img {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
+/* ============================================
+   Safe Area Support (iPhone X and later)
+   ============================================ */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-tabs {
+    padding-bottom: 0;
+  }
+}
+
+/* ============================================
+   Dark Mode Support (Optional)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  /* Can be extended for dark mode support */
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) ease;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-normal) ease;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Tree, Input, Card, Row, Col, Spin, Empty, Button, Dropdown, Modal, message, Tabs, Tag, Select, Space, Typography, Image, Divider, Tooltip, Menu, Checkbox, Popconfirm } from 'antd';
-import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { FolderOutlined, FileImageOutlined, SearchOutlined, ScanOutlined, SettingOutlined, CameraOutlined, ThunderboltOutlined, MessageOutlined, CopyOutlined, CheckOutlined, StarOutlined, FileTextOutlined, MenuOutlined } from '@ant-design/icons';
 import './App.css';
 
 const { Sider, Content } = Layout;
@@ -58,6 +58,13 @@ function App() {
   const [captionKeyword, setCaptionKeyword] = useState('');
   const [captionTypeFilter, setCaptionTypeFilter] = useState(null);
 
+  // 移动端状态
+  const [isMobile, setIsMobile] = useState(false);
+  const [activeTab, setActiveTab] = useState('folder');
+  const [folderDrawerOpen, setFolderDrawerOpen] = useState(false);
+  const [scoreDrawerOpen, setScoreDrawerOpen] = useState(false);
+  const [captionDrawerOpen, setCaptionDrawerOpen] = useState(false);
+
   // 内容区 ref（用于双向滚动加载和位置恢复）
   const contentRef = useRef(null);
   // 已加载的页号集合（用 Set 追踪哪些页已加载，防止重复）
@@ -73,6 +80,14 @@ function App() {
   useEffect(() => {
     fetchFolders();
     fetchModels();
+  }, []);
+
+  // 移动端检测
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // 加载上次浏览位置(fetchFolders 完成后调用)
@@ -576,40 +591,181 @@ function App() {
     message.success('已复制到剪贴板');
   };
 
+  // 移动端底部 Tab 栏
+  const BottomTabBar = () => (
+    <div className="bottom-tabs">
+      <div className="bottom-tabs-inner">
+        <button className={`bottom-tab-item ${activeTab === 'folder' ? 'active' : ''}`} onClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); }}>
+          <FolderOutlined />
+          <span>文件夹</span>
+        </button>
+        <button className={`bottom-tab-item ${activeTab === 'scores' ? 'active' : ''}`} onClick={() => { setActiveTab('scores'); setScoreDrawerOpen(true); setFolderDrawerOpen(false); setCaptionDrawerOpen(false); fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter); }}>
+          <StarOutlined />
+          <span>评分</span>
+          {failedScores.length > 0 && <span className="tab-badge">{failedScores.length}</span>}
+        </button>
+        <button className={`bottom-tab-item ${activeTab === 'captions' ? 'active' : ''}`} onClick={() => { setActiveTab('captions'); setCaptionDrawerOpen(true); setFolderDrawerOpen(false); setScoreDrawerOpen(false); fetchCaptionHistory(captionKeyword, captionTypeFilter); }}>
+          <FileTextOutlined />
+          <span>文案</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  // 文件夹抽屉
+  const FolderDrawer = () => (
+    <div className={`folder-drawer ${folderDrawerOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setFolderDrawerOpen(false); }}>
+      <div className="folder-drawer-backdrop" onClick={() => setFolderDrawerOpen(false)} />
+      <div className="folder-drawer-panel">
+        <div className="folder-drawer-header">
+          <Text strong>选择文件夹</Text>
+          <Button type="text" size="small" onClick={() => setFolderDrawerOpen(false)}>关闭</Button>
+        </div>
+        <div className="folder-drawer-content">
+          <Tree treeData={treeData} selectedKeys={selectedFolder ? [selectedFolder] : []} onSelect={(keys, info) => { if (info.node.path) { loadImages(info.node.path); setSelectedImages([]); setActiveTab('folder'); setFolderDrawerOpen(false); } }} showIcon={false} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // 评分抽屉
+  const ScoreDrawer = () => (
+    <div className={`score-panel ${scoreDrawerOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setScoreDrawerOpen(false); }}>
+      <div className="score-panel-backdrop" onClick={() => setScoreDrawerOpen(false)} />
+      <div className="score-panel-content">
+        <div className="folder-drawer-header">
+          <Text strong>评分记录</Text>
+          <Button type="text" size="small" onClick={() => setScoreDrawerOpen(false)}>关闭</Button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+          <Space style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+            <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
+              <Select.Option value="all">全部</Select.Option>
+              <Select.Option value="failed">失败</Select.Option>
+            </Select>
+            <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>重试({selectedScoreTaskIds.length})</Button>
+          </Space>
+          <Spin spinning={scoreTasksLoading}>
+            {scoreTasks.length === 0 ? <Empty description="暂无记录" /> : scoreTasks.slice(0, 20).map(task => (
+              <Card key={task.id} size="small" hoverable style={{ marginBottom: 8, opacity: task.status !== 'completed' ? 1 : 0.6 }}
+                cover={task.file_path ? <img src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`} alt={task.filename} style={{ height: 60, objectFit: 'cover' }} /> : null}
+                onClick={() => { if (task.status !== 'completed') setSelectedScoreTaskIds(prev => prev.includes(task.image_id) ? prev.filter(id => id !== task.image_id) : [...prev, task.image_id]); }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {task.status !== 'completed' && <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
+                    <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : 'orange'} style={{ fontSize: 10 }}>{task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status}</Tag>
+                  </div>
+                  {task.status !== 'completed' && <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>重试</Button>}
+                </div>
+              </Card>
+            ))}
+          </Spin>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 文案抽屉
+  const CaptionDrawer = () => (
+    <div className={`caption-panel ${captionDrawerOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setCaptionDrawerOpen(false); }}>
+      <div className="caption-panel-backdrop" onClick={() => setCaptionDrawerOpen(false)} />
+      <div className="caption-panel-content">
+        <div className="folder-drawer-header">
+          <Text strong>文案记录</Text>
+          <Button type="text" size="small" onClick={() => setCaptionDrawerOpen(false)}>关闭</Button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+          <Space style={{ marginBottom: 10 }}>
+            <Input.Search placeholder="搜索..." value={captionKeyword} onChange={e => setCaptionKeyword(e.target.value)} onSearch={v => fetchCaptionHistory(v, captionTypeFilter)} style={{ width: 120 }} size="small" />
+            <Select value={captionTypeFilter} onChange={v => { setCaptionTypeFilter(v); fetchCaptionHistory(captionKeyword, v); }} style={{ width: 80 }} size="small" allowClear placeholder="类型">
+              <Select.Option value="douyin">抖音</Select.Option>
+              <Select.Option value="xiaohongshu">小红书</Select.Option>
+            </Select>
+          </Space>
+          <Spin spinning={captionHistoryLoading}>
+            {captionHistory.length === 0 ? <Empty description="暂无文案" /> : captionHistory.map(cap => (
+              <Card key={cap.id} size="small" hoverable style={{ marginBottom: 8 }}
+                cover={cap.cover_filename ? <img src={`${API_BASE}/image/thumbnail/${encodeURIComponent(cap.cover_filename)}?size=100`} alt={cap.caption_title} style={{ height: 60, objectFit: 'cover' }} /> : null}
+                onClick={() => { const parsedIds = cap.image_ids ? JSON.parse(cap.image_ids) : []; setGeneratedCaption({ ...cap, title: cap.caption_title, setType: cap.set_type, content: cap.caption_body, hashtags: cap.hashtags }); fetch(`${API_BASE}/images/batch?ids=${parsedIds.join(',')}`).then(r => r.json()).then(d => setCaptionModalImages(d.images || [])).catch(() => setCaptionModalImages([])); setCaptionModalVisible(true); setCaptionDrawerOpen(false); }}>
+                <Space style={{ marginBottom: 4 }}>
+                  <Tag color={cap.set_type === 'douyin' ? 'blue' : 'green'} style={{ fontSize: 10 }}>{cap.set_type === 'douyin' ? '抖音' : '小红书'}</Tag>
+                  <Text type="secondary" style={{ fontSize: 10 }}>{cap.date}</Text>
+                </Space>
+                <Text strong style={{ fontSize: 13 }}>{cap.caption_title || '(无标题)'}</Text>
+              </Card>
+            ))}
+          </Spin>
+        </div>
+      </div>
+    </div>
+  );
+
+  // FAB 按钮
+  const FABButton = () => {
+    if (!isMobile || selectedImages.length === 0) return null;
+    return (
+      <Dropdown menu={{ items: [
+        { key: 'batch_score', label: `批量评分 (${selectedImages.length})`, onClick: handleBatchScore },
+        { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
+        { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') },
+      ] }} trigger={['click']}>
+        <Button className="fab-button" type="primary"><ThunderboltOutlined /></Button>
+      </Dropdown>
+    );
+  };
+
   return (
     <Layout className="app-layout">
       {/* 顶部工具栏 */}
-      <div className="top-toolbar">
-        <Title level={4} style={{ margin: 0 }}>
-          <CameraOutlined /> 摄影素材管理系统
-        </Title>
-        <Space>
-          <Search
-            placeholder="搜索文件名、描述、标签..."
-            allowClear
-            style={{ width: 300 }}
-            onSearch={handleSearch}
-          />
-          <Select
-            value={selectedModel}
-            onChange={setSelectedModel}
-            style={{ width: 200 }}
-          >
-            {availableModels.map(m => (
-              <Select.Option key={m.id} value={m.id}>
-                {m.name}
-              </Select.Option>
-            ))}
-          </Select>
-          <Button icon={<ScanOutlined />} onClick={handleScanAll}>
-            扫描
-          </Button>
-        </Space>
-      </div>
+      {isMobile ? (
+        <div className="top-toolbar">
+          <Button type="text" icon={<MenuOutlined />} onClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); }} style={{ marginRight: 8, minWidth: 44, height: 44 }} />
+          <Title level={4} style={{ margin: 0, flex: 1 }}><CameraOutlined style={{ color: '#10b981', marginRight: 8 }} />摄影素材</Title>
+          <Button type="text" icon={<SearchOutlined />} onClick={() => message.info('移动端搜索开发中')} style={{ minWidth: 44, height: 44 }} />
+        </div>
+      ) : (
+        <div className="top-toolbar">
+          <Title level={4} style={{ margin: 0 }}>
+            <CameraOutlined /> 摄影素材管理系统
+          </Title>
+          <Space>
+            <Search
+              placeholder="搜索文件名、描述、标签..."
+              allowClear
+              style={{ width: 300 }}
+              onSearch={handleSearch}
+            />
+            <Select
+              value={selectedModel}
+              onChange={setSelectedModel}
+              style={{ width: 200 }}
+            >
+              {availableModels.map(m => (
+                <Select.Option key={m.id} value={m.id}>
+                  {m.name}
+                </Select.Option>
+              ))}
+            </Select>
+            <Button icon={<ScanOutlined />} onClick={handleScanAll}>
+              扫描
+            </Button>
+          </Space>
+        </div>
+      )}
+
+      {/* 移动端抽屉 */}
+      {isMobile && <FolderDrawer />}
+      {isMobile && <ScoreDrawer />}
+      {isMobile && <CaptionDrawer />}
+      {isMobile && <FABButton />}
+
+      {/* 底部 Tab 栏 */}
+      {isMobile && <BottomTabBar />}
 
       <Layout>
-        {/* 左侧可折叠菜单 */}
-        <Sider width={260} collapsible collapsed={menuCollapsed} onCollapse={setMenuCollapsed} className="folder-sider">
+        {/* 左侧可折叠菜单（桌面端） */}
+        <Sider width={260} collapsible collapsed={menuCollapsed} onCollapse={setMenuCollapsed} className={`folder-sider ${isMobile ? 'hide-on-mobile' : ''}`}>
           <Menu
             mode="inline"
             selectedKeys={[activeMenu]}
@@ -656,7 +812,7 @@ function App() {
         </Sider>
 
         {/* 评分记录面板 */}
-        {activeMenu === 'scores' && !menuCollapsed && (
+        {activeMenu === 'scores' && !menuCollapsed && !isMobile && (
           <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text strong>评分记录</Text>
@@ -753,7 +909,7 @@ function App() {
 
         {/* 文案记录面板 */}
         {/* 文案记录面板 */}
-        {activeMenu === 'captions' && !menuCollapsed && (
+        {activeMenu === 'captions' && !menuCollapsed && !isMobile && (
           <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text strong>文案记录</Text>
