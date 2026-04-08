@@ -220,33 +220,33 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
     if not images:
         return {"success": False, "error": "没有找到对应的图片"}
     
-    # 从图片的实际 folder_date 获取日期（优先使用传入的 date_str 作为候选）
+    # 从图片的实际 folder_date 获取日期
     actual_dates = [img['folder_date'] for img in images if img.get('folder_date')]
+    has_valid_date = False
     if actual_dates:
-        # 使用出现最多的日期
         from collections import Counter
         date_counter = Counter(actual_dates)
         effective_date = date_counter.most_common(1)[0][0]
-        # 格式化日期为字符串
         if hasattr(effective_date, 'strftime'):
-            effective_date = effective_date.strftime('%Y-%m-%d')
-    else:
-        effective_date = date_str  # 兜底使用传入的 date_str
+            effective_date_str = effective_date.strftime('%Y-%m-%d')
+        else:
+            effective_date_str = str(effective_date)
+        import re
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', effective_date_str):
+            has_valid_date = True
+            effective_date = effective_date_str
     
-    # 验证日期格式是否有效
-    import re
-    if not re.match(r'^\d{4}-\d{2}-\d{2}$', str(effective_date)):
-        return {
-            "success": False,
-            "error": f"所选图片没有有效的日期信息（文件夹需为日期格式如 2026-02-24），请尝试从其他文件夹选择图片后再试"
-        }
+    if not has_valid_date:
+        effective_date = '1970-01-01'  # 非日期文件夹用占位日期
     
-    # 获取主题信息（使用实际日期）
-    theme = execute_query(
-        "SELECT theme_title, theme_description, keywords FROM daily_themes WHERE date = %s",
-        (effective_date,)
-    )
-    theme_info = theme[0] if theme else {}
+    # 获取主题信息（仅当有有效日期时）
+    theme_info = {}
+    if has_valid_date:
+        theme = execute_query(
+            "SELECT theme_title, theme_description, keywords FROM daily_themes WHERE date = %s",
+            (effective_date,)
+        )
+        theme_info = theme[0] if theme else {}
     
     # 构建图片描述摘要
     photo_desc = "\n".join([
@@ -254,8 +254,11 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         for img in images
     ])
     
-    if set_type == "douyin":
-        prompt = f"""你是抖音内容创作者。请根据以下照片和主题信息，生成抖音文案。
+    # 根据是否有主题生成不同版本的 prompt
+    if has_valid_date:
+        # 有主题信息
+        if set_type == "douyin":
+            prompt = f"""你是抖音内容创作者。请根据以下照片和主题信息，生成抖音文案。
 
 照片描述：
 {photo_desc}
@@ -269,14 +272,40 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
     "description": "文案内容（100字以内，带适当emoji）",
     "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
 }}"""
-    else:
-        prompt = f"""你是小红书内容创作者。请根据以下照片和主题信息，生成小红书文案。
+        else:
+            prompt = f"""你是小红书内容创作者。请根据以下照片和主题信息，生成小红书文案。
 
 照片描述：
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
 关键词：{theme_info.get('keywords', '')}
+
+请生成以下JSON格式（只返回JSON）：
+{{
+    "title": "标题（有吸引力，带emoji）",
+    "content": "正文内容（带emoji，分段清晰，150字以内）",
+    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
+}}"""
+    else:
+        # 无主题信息（文件夹非日期格式）
+        if set_type == "douyin":
+            prompt = f"""你是抖音内容创作者。请根据以下照片内容，生成抖音文案。
+
+照片描述：
+{photo_desc}
+
+请生成以下JSON格式（只返回JSON）：
+{{
+    "title": "标题（30字以内，有吸引力）",
+    "description": "文案内容（100字以内，带适当emoji）",
+    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
+}}"""
+        else:
+            prompt = f"""你是小红书内容创作者。请根据以下照片内容，生成小红书文案。
+
+照片描述：
+{photo_desc}
 
 请生成以下JSON格式（只返回JSON）：
 {{
@@ -329,7 +358,8 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
             return {
                 "success": True,
                 "caption": caption_data,
-                "image_ids": image_ids
+                "image_ids": image_ids,
+                "has_theme": has_valid_date
             }
     except Exception as e:
         return {"success": False, "error": str(e)}
