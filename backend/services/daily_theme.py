@@ -210,17 +210,41 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
     
     placeholders = ",".join(["%s"] * len(image_ids))
     images = execute_query(f"""
-        SELECT i.filename, s.total_score, d.description, d.tags
+        SELECT i.filename, i.folder_date, s.total_score, d.description, d.tags
         FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
         WHERE i.id IN ({placeholders})
     """, tuple(image_ids))
     
-    # 获取主题信息
+    if not images:
+        return {"success": False, "error": "没有找到对应的图片"}
+    
+    # 从图片的实际 folder_date 获取日期（优先使用传入的 date_str 作为候选）
+    actual_dates = [img['folder_date'] for img in images if img.get('folder_date')]
+    if actual_dates:
+        # 使用出现最多的日期
+        from collections import Counter
+        date_counter = Counter(actual_dates)
+        effective_date = date_counter.most_common(1)[0][0]
+        # 格式化日期为字符串
+        if hasattr(effective_date, 'strftime'):
+            effective_date = effective_date.strftime('%Y-%m-%d')
+    else:
+        effective_date = date_str  # 兜底使用传入的 date_str
+    
+    # 验证日期格式是否有效
+    import re
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', str(effective_date)):
+        return {
+            "success": False,
+            "error": f"所选图片没有有效的日期信息（文件夹需为日期格式如 2026-02-24），请尝试从其他文件夹选择图片后再试"
+        }
+    
+    # 获取主题信息（使用实际日期）
     theme = execute_query(
         "SELECT theme_title, theme_description, keywords FROM daily_themes WHERE date = %s",
-        (date_str,)
+        (effective_date,)
     )
     theme_info = theme[0] if theme else {}
     
@@ -293,7 +317,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             execute_query(save_sql, (
-                date_str,
+                effective_date,
                 set_type,
                 cover_id,
                 caption_data.get("title", ""),
