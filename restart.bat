@@ -25,14 +25,14 @@ cd /d D:\MySoftware\photo-manager\backend
 start "photo-backend" cmd /c "python main.py"
 
 :: Start frontend
-echo [Start] Starting frontend...
+echo [Start] Starting frontend (with LAN access)...
 cd /d D:\MySoftware\photo-manager\frontend
-start "photo-frontend" cmd /c "npm run dev"
+start "photo-frontend" cmd /c "npm run dev -- --host"
 
 echo.
 echo ========================================
 echo   Restart complete
 echo   Backend: http://localhost:8000
-echo   Frontend: http://localhost:5173
+echo   Frontend: http://192.168.71.55:5173
 echo ========================================
 pause
