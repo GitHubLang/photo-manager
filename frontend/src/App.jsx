@@ -1188,6 +1188,9 @@ function App() {
                         </div>
                       }
                       actions={[
+                        <Tooltip title="评分" key="score">
+                          <MessageOutlined onClick={() => handleScore(img.id)} />
+                        </Tooltip>,
                         <Tooltip title="下载原图" key="download">
                           <DownloadOutlined onClick={() => {
                             const a = document.createElement('a');
@@ -1198,9 +1201,6 @@ function App() {
                             a.click();
                             document.body.removeChild(a);
                           }} />
-                        </Tooltip>,
-                        <Tooltip title="评分" key="score">
-                          <MessageOutlined onClick={() => handleScore(img.id)} />
                         </Tooltip>,
                       ]}
                     >
