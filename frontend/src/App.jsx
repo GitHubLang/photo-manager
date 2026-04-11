@@ -624,7 +624,7 @@ function App() {
   const BottomTabBar = () => (
     <div className="bottom-tabs">
       <div className="bottom-tabs-inner">
-        <button className={`bottom-tab-item ${activeTab === 'folder' ? 'active' : ''}`} onClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); }}>
+        <button className={`bottom-tab-item ${activeTab === 'folder' ? 'active' : ''}`} onClick={() => { setActiveTab('folder'); setFolderDrawerOpen(false); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); }}>
           <FolderOutlined />
           <span>文件夹</span>
         </button>
@@ -700,7 +700,7 @@ function App() {
     <div className={`caption-panel ${captionDrawerOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setCaptionDrawerOpen(false); }}>
       <div className="caption-panel-backdrop" onClick={() => setCaptionDrawerOpen(false)} />
       <div className="caption-panel-content">
-        <div className="folder-drawer-header">
+        <div className="folder-drawer-header caption-panel-header">
           <Text strong>文案记录</Text>
           <Button type="text" size="small" onClick={() => setCaptionDrawerOpen(false)}>关闭</Button>
         </div>
