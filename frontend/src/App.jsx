@@ -670,7 +670,7 @@ function App() {
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: 12 }} ref={scoreScrollRef} onScroll={e => { const { scrollTop, scrollHeight, clientHeight } = e.target; if (scrollHeight - scrollTop - clientHeight < 100 && !scoreTasksLoading && scoreTasks.length < scoreTasksTotal) fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage + 1, true); }}>
           <Space style={{ marginBottom: 10, flexWrap: 'wrap' }}>
-            <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small" getPopupContainer={() => document.body}>
+            <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
               <Select.Option value="all">全部</Select.Option>
               <Select.Option value="failed">失败</Select.Option>
             </Select>
