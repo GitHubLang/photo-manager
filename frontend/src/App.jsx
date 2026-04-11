@@ -1230,13 +1230,12 @@ function App() {
         centered
       >
         {selectedImage && (
-          <div className="image-preview" style={{ textAlign: 'center', overflow: 'auto', maxHeight: '70vh' }}>
+          <div className="image-preview" style={{ textAlign: 'center', overflow: 'auto', maxHeight: '75vh' }}>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
               <img
                 src={selectedImage.imageUrl}
                 alt={selectedImage.filename}
-                style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', touchAction: 'pan-x pan-y' }}
-                loading="lazy"
+                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
               />
             </div>
             <Divider />
