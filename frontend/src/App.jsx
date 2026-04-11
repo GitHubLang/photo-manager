@@ -1230,12 +1230,13 @@ function App() {
         centered
       >
         {selectedImage && (
-          <div className="image-preview" style={{ textAlign: 'center', overflow: 'auto', maxHeight: '75vh' }}>
+          <div className="image-preview" style={{ textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-              <img
+              <Image
                 src={selectedImage.imageUrl}
                 alt={selectedImage.filename}
-                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }}
+                preview={true}
               />
             </div>
             <Divider />
