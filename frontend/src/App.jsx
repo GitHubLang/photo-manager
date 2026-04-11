@@ -735,6 +735,13 @@ function App() {
     if (!isMobile || selectedImages.length === 0) return null;
     return (
       <Dropdown menu={{ items: [
+        { key: 'select_all', label: selectedImages.length === displayImages.length ? '取消全选' : '全选', onClick: () => {
+          if (selectedImages.length === displayImages.length) {
+            setSelectedImages([]);
+          } else {
+            setSelectedImages(displayImages.map(img => img.id));
+          }
+        }},
         { key: 'download', label: `下载原图 (${selectedImages.length})`, onClick: handleDownloadOriginal },
         { key: 'theme', label: '生成主题', onClick: handleGenerateTheme },
         { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },

@@ -990,6 +990,11 @@
   .folder-sider {
     display: none;
   }
+
+  /* Hide action bar on mobile - replaced by FAB */
+  .action-bar {
+    display: none;
+  }
   
   /* Show bottom tabs on mobile */
   .bottom-tabs {
