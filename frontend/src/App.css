@@ -638,9 +638,10 @@
 
 .preview-image-wrapper img {
   max-width: 100%;
-  max-height: 60vh;
+  max-height: 85vh;
   object-fit: contain;
   border-radius: var(--radius-md);
+  image-rendering: auto;
 }
 
 .preview-info {
