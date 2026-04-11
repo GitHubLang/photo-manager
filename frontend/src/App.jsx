@@ -670,7 +670,7 @@ function App() {
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: 12 }} ref={scoreScrollRef} onScroll={e => { const { scrollTop, scrollHeight, clientHeight } = e.target; if (scrollHeight - scrollTop - clientHeight < 100 && !scoreTasksLoading && scoreTasks.length < scoreTasksTotal) fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage + 1, true); }}>
           <Space style={{ marginBottom: 10, flexWrap: 'wrap' }}>
-            <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
+            <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small" getPopupContainer={() => document.body}>
               <Select.Option value="all">全部</Select.Option>
               <Select.Option value="failed">失败</Select.Option>
             </Select>
@@ -709,7 +709,7 @@ function App() {
         <div style={{ flex: 1, overflow: 'auto', padding: 12 }} ref={captionScrollRef} onScroll={e => { const { scrollTop, scrollHeight, clientHeight } = e.target; if (scrollHeight - scrollTop - clientHeight < 100 && !captionHistoryLoading && captionHistory.length < captionHistoryTotal) fetchCaptionHistory(captionKeyword, captionTypeFilter, captionHistoryPage + 1, true); }}>
           <Space style={{ marginBottom: 10 }}>
             <Input.Search placeholder="搜索..." value={captionKeyword} onChange={e => setCaptionKeyword(e.target.value)} onSearch={v => fetchCaptionHistory(v, captionTypeFilter)} style={{ width: 120 }} size="small" />
-            <Select value={captionTypeFilter} onChange={v => { setCaptionTypeFilter(v); fetchCaptionHistory(captionKeyword, v); }} style={{ width: 80 }} size="small" allowClear placeholder="类型">
+            <Select value={captionTypeFilter} onChange={v => { setCaptionTypeFilter(v); fetchCaptionHistory(captionKeyword, v); }} style={{ width: 80 }} size="small" allowClear placeholder="类型" getPopupContainer={() => document.body}>
               <Select.Option value="douyin">抖音</Select.Option>
               <Select.Option value="xiaohongshu">小红书</Select.Option>
             </Select>
