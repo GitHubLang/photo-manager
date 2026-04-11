@@ -1194,7 +1194,7 @@ function App() {
                         <Tooltip title="下载原图" key="download">
                           <DownloadOutlined onClick={() => {
                             const a = document.createElement('a');
-                            a.href = img.imageUrl;
+                            a.href = `${API_BASE}/image/proxy/${encodeURIComponent(img.file_path)}`;
                             a.download = img.filename || `image_${img.id}`;
                             a.target = '_blank';
                             document.body.appendChild(a);
