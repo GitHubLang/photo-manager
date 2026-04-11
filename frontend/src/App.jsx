@@ -1235,8 +1235,8 @@ function App() {
               <Image
                 src={selectedImage.imageUrl}
                 alt={selectedImage.filename}
-                style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }}
-                preview={true}
+                style={{ maxHeight: '75vh', maxWidth: '100%', objectFit: 'contain' }}
+                preview={{ src: selectedImage.imageUrl }}
               />
             </div>
             <Divider />
