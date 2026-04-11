@@ -1075,6 +1075,25 @@
     width: 100vw !important;
     box-shadow: none;
   }
+  .score-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-secondary);
+  }
+  .caption-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-secondary);
+  }
+
+  /* Ensure the panel content scrolls and header sticks */
+  .score-panel-content,
+  .caption-panel-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ============================================
