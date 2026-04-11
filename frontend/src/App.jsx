@@ -1232,11 +1232,11 @@ function App() {
         {selectedImage && (
           <div className="image-preview" style={{ textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-              <Image
+              <img
                 src={selectedImage.imageUrl}
                 alt={selectedImage.filename}
-                style={{ maxHeight: '75vh', maxWidth: '100%', objectFit: 'contain' }}
-                preview={{ src: selectedImage.imageUrl }}
+                style={{ maxHeight: '75vh', maxWidth: '100%', objectFit: 'contain', cursor: 'pointer' }}
+                onClick={() => setPreviewVisible(false)}
               />
             </div>
             <Divider />
