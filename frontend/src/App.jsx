@@ -27,6 +27,8 @@ function App() {
   const [selectedImages, setSelectedImages] = useState([]);
   const [failedCaptions, setFailedCaptions] = useState([]);
   const [failedScores, setFailedScores] = useState([]);
+  // 搜索防抖
+  const searchTimerRef = useRef(null);
   // 正在评分的图片ID集合
   const scoringRef = useRef(new Set());
   // 用于触发UI更新的state
@@ -356,22 +358,25 @@ function App() {
     }
   };
 
-  // 搜索图片
+  // 搜索图片（防抖）
   const handleSearch = async (value) => {
-    if (!value.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/search?keyword=${encodeURIComponent(value)}&page=1&page_size=100`);
-      const data = await res.json();
-      setSearchResults(data.images || []);
-    } catch (err) {
-      message.error('搜索失败');
-    } finally {
-      setLoading(false);
-    }
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      if (!value.trim()) {
+        setSearchResults(null);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/search?keyword=${encodeURIComponent(value)}&page=1&page_size=100`);
+        const data = await res.json();
+        setSearchResults(data.images || []);
+      } catch (err) {
+        message.error('搜索失败');
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
   };
 
   // 评分图片(异步,不等待结果)
@@ -480,6 +485,30 @@ function App() {
     } catch (err) {
       message.error('批量评分请求失败');
     }
+  };
+
+  // 下载选中的原图
+  const handleDownloadOriginal = async () => {
+    if (selectedImages.length === 0) return;
+    const imgs = displayImages.filter(img => selectedImages.includes(img.id));
+    message.loading({ content: `正在准备 ${imgs.length} 张图片...`, key: 'download' });
+    for (let i = 0; i < imgs.length; i++) {
+      const img = imgs[i];
+      try {
+        const res = await fetch(`${API_BASE}/image/proxy/${encodeURIComponent(img.file_path)}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = img.filename || `image_${img.id}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        message.loading({ content: `下载中 ${i + 1}/${imgs.length}`, key: 'download' });
+      } catch (e) {
+        console.error('下载失败:', img.filename, e);
+      }
+    }
+    message.success({ content: `下载完成 ${imgs.length} 张`, key: 'download' });
   };
 
   // 生成每日主题
@@ -706,7 +735,8 @@ function App() {
     if (!isMobile || selectedImages.length === 0) return null;
     return (
       <Dropdown menu={{ items: [
-        { key: 'batch_score', label: `批量评分 (${selectedImages.length})`, onClick: handleBatchScore },
+        { key: 'download', label: `下载原图 (${selectedImages.length})`, onClick: handleDownloadOriginal },
+        { key: 'theme', label: '生成主题', onClick: handleGenerateTheme },
         { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
         { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') },
       ] }} trigger={['click']}>
@@ -722,7 +752,12 @@ function App() {
         <div className="top-toolbar">
           <Button type="text" icon={<MenuOutlined />} onClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); }} style={{ marginRight: 8, minWidth: 44, height: 44 }} />
           <Title level={4} style={{ margin: 0, flex: 1 }}><CameraOutlined style={{ color: '#10b981', marginRight: 8 }} />摄影素材</Title>
-          <Button type="text" icon={<SearchOutlined />} onClick={() => message.info('移动端搜索开发中')} style={{ minWidth: 44, height: 44 }} />
+          <Input.Search
+            placeholder="搜索..."
+            allowClear
+            style={{ width: 160 }}
+            onSearch={handleSearch}
+          />
         </div>
       ) : (
         <div className="top-toolbar">

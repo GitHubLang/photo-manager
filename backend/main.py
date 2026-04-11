@@ -3,6 +3,20 @@
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import json
+
+class UTF8JSONResponse(JSONResponse):
+    """FastAPI JSON response with explicit charset=utf-8 in Content-Type."""
+    def __init__(self, content, **kwargs):
+        kwargs.setdefault("media_type", "application/json; charset=utf-8")
+        super().__init__(content, **kwargs)
+    
+    def render(self, content) -> bytes:
+        # Use ensure_ascii=True to escape all non-ASCII chars as \uXXXX
+        # This ensures maximum compatibility across all browsers/proxies
+        return json.dumps(content, ensure_ascii=True).encode("utf-8")
+
 import uvicorn
 
 from database import init_database
@@ -11,7 +25,8 @@ from routers import images, daily
 app = FastAPI(
     title="摄影素材管理系统",
     description="用于管理摄影素材、AI评分、主题总结和文案生成",
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=UTF8JSONResponse
 )
 
 # CORS 配置，允许前端访问
@@ -22,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # 注册路由
 app.include_router(images.router)
