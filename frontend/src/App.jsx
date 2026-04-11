@@ -1192,7 +1192,9 @@ function App() {
                           <MessageOutlined onClick={() => handleScore(img.id)} />
                         </Tooltip>,
                         <Tooltip title="下载原图" key="download">
-                          <DownloadOutlined onClick={() => {
+                          <DownloadOutlined onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
                             const a = document.createElement('a');
                             a.href = `${API_BASE}/image/proxy/${encodeURIComponent(img.file_path)}`;
                             a.download = img.filename || `image_${img.id}`;
