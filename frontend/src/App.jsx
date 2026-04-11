@@ -1070,69 +1070,73 @@ function App() {
                 <Select.Option value="asc">升序</Select.Option>
                 <Select.Option value="desc">降序</Select.Option>
               </Select>
-              {selectedFolder && (
-                <Button icon={<ThunderboltOutlined />} onClick={handleGenerateTheme}>
-                  生成主题
-                </Button>
+              {!isMobile && (
+                <>
+                  {selectedFolder && (
+                    <Button icon={<ThunderboltOutlined />} onClick={handleGenerateTheme}>
+                      生成主题
+                    </Button>
+                  )}
+                  <Dropdown menu={{
+                    items: [
+                      ...(failedCaptions.length > 0 ? [
+                        { type: 'divider' },
+                        { key: 'failed_header', label: <Text type="danger">失败记录 ({failedCaptions.length})</Text>, disabled: true },
+                        ...failedCaptions.map(fc => ({
+                          key: fc.key,
+                          label: (
+                            <Space size="small">
+                              <Tag color={fc.setType === 'douyin' ? 'blue' : 'green'} style={{ margin: 0 }}>
+                                {fc.setType === 'douyin' ? '抖音' : '小红书'}
+                              </Tag>
+                              <Text type="secondary" style={{ fontSize: 11 }}>{fc.time}</Text>
+                              <Text type="danger" style={{ fontSize: 11 }} ellipsis title={fc.error}>{fc.error}</Text>
+                            </Space>
+                          ),
+                          onClick: () => handleGenerateCaption(fc.setType, fc.imageIds)
+                        })),
+                        { key: 'retry_all', label: '全部重新生成', onClick: () => {
+                          failedCaptions.forEach(fc => handleGenerateCaption(fc.setType, fc.imageIds));
+                        }},
+                        { type: 'divider' },
+                      ] : []),
+                      { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
+                      { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') }
+                    ]
+                  }}>
+                    <Button disabled={selectedImages.length === 0}>
+                      生成文案 {failedCaptions.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedCaptions.length}</Tag>}
+                    </Button>
+                  </Dropdown>
+                  <Dropdown menu={{
+                    items: [
+                      ...(failedScores.length > 0 ? [
+                        { key: 'failed_header', label: <Text type="danger">评分失败 ({failedScores.length})</Text>, disabled: true },
+                        ...failedScores.map((fs, idx) => ({
+                          key: `fs_${idx}`,
+                          label: (
+                            <Space size="small">
+                              <Text style={{ fontSize: 12 }} ellipsis title={`ID: ${fs.imageId}`}>{displayImages.find(i => i.id === fs.imageId)?.filename || `ID: ${fs.imageId}`}</Text>
+                              <Text type="secondary" style={{ fontSize: 11 }}>{fs.time}</Text>
+                              <Text type="danger" style={{ fontSize: 11 }} ellipsis>{fs.error}</Text>
+                            </Space>
+                          ),
+                          onClick: () => handleScore(fs.imageId)
+                        })),
+                        { key: 'retry_all_scores', label: '全部重新评分', onClick: () => {
+                          failedScores.forEach(fs => handleScore(fs.imageId));
+                        }},
+                        { type: 'divider' },
+                      ] : []),
+                      { key: 'batch_score', label: selectedImages.length > 0 ? `批量评分 (${selectedImages.length}张)` : '批量评分', onClick: () => handleBatchScore(), disabled: selectedImages.length === 0 }
+                    ]
+                  }}>
+                    <Button type="primary" icon={<ThunderboltOutlined />} disabled={selectedImages.length === 0}>
+                      批量评分 {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedScores.length}</Tag>}
+                    </Button>
+                  </Dropdown>
+                </>
               )}
-              <Dropdown menu={{
-                items: [
-                  ...(failedCaptions.length > 0 ? [
-                    { type: 'divider' },
-                    { key: 'failed_header', label: <Text type="danger">失败记录 ({failedCaptions.length})</Text>, disabled: true },
-                    ...failedCaptions.map(fc => ({
-                      key: fc.key,
-                      label: (
-                        <Space size="small">
-                          <Tag color={fc.setType === 'douyin' ? 'blue' : 'green'} style={{ margin: 0 }}>
-                            {fc.setType === 'douyin' ? '抖音' : '小红书'}
-                          </Tag>
-                          <Text type="secondary" style={{ fontSize: 11 }}>{fc.time}</Text>
-                          <Text type="danger" style={{ fontSize: 11 }} ellipsis title={fc.error}>{fc.error}</Text>
-                        </Space>
-                      ),
-                      onClick: () => handleGenerateCaption(fc.setType, fc.imageIds)
-                    })),
-                    { key: 'retry_all', label: '全部重新生成', onClick: () => {
-                      failedCaptions.forEach(fc => handleGenerateCaption(fc.setType, fc.imageIds));
-                    }},
-                    { type: 'divider' },
-                  ] : []),
-                  { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
-                  { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') }
-                ]
-              }}>
-                <Button disabled={selectedImages.length === 0}>
-                  生成文案 {failedCaptions.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedCaptions.length}</Tag>}
-                </Button>
-              </Dropdown>
-              <Dropdown menu={{
-                items: [
-                  ...(failedScores.length > 0 ? [
-                    { key: 'failed_header', label: <Text type="danger">评分失败 ({failedScores.length})</Text>, disabled: true },
-                    ...failedScores.map((fs, idx) => ({
-                      key: `fs_${idx}`,
-                      label: (
-                        <Space size="small">
-                          <Text style={{ fontSize: 12 }} ellipsis title={`ID: ${fs.imageId}`}>{displayImages.find(i => i.id === fs.imageId)?.filename || `ID: ${fs.imageId}`}</Text>
-                          <Text type="secondary" style={{ fontSize: 11 }}>{fs.time}</Text>
-                          <Text type="danger" style={{ fontSize: 11 }} ellipsis>{fs.error}</Text>
-                        </Space>
-                      ),
-                      onClick: () => handleScore(fs.imageId)
-                    })),
-                    { key: 'retry_all_scores', label: '全部重新评分', onClick: () => {
-                      failedScores.forEach(fs => handleScore(fs.imageId));
-                    }},
-                    { type: 'divider' },
-                  ] : []),
-                  { key: 'batch_score', label: selectedImages.length > 0 ? `批量评分 (${selectedImages.length}张)` : '批量评分', onClick: () => handleBatchScore(), disabled: selectedImages.length === 0 }
-                ]
-              }}>
-                <Button type="primary" icon={<ThunderboltOutlined />} disabled={selectedImages.length === 0}>
-                  批量评分 {failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{failedScores.length}</Tag>}
-                </Button>
-              </Dropdown>
             </Space>
           </div>
 
