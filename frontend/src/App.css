@@ -1063,6 +1063,18 @@
   .preview-image-wrapper img {
     max-height: 50vh;
   }
+
+  /* Score and Caption panels: full screen on mobile */
+  .score-panel-content {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    box-shadow: none;
+  }
+  .caption-panel-content {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    box-shadow: none;
+  }
 }
 
 /* ============================================
