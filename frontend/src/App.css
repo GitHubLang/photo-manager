@@ -1094,6 +1094,12 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Fix Select dropdown z-index inside panels */
+  .score-panel .ant-select-dropdown,
+  .caption-panel .ant-select-dropdown {
+    z-index: 1200 !important;
+  }
 }
 
 /* ============================================

@@ -69,6 +69,8 @@ function App() {
 
   // 内容区 ref（用于双向滚动加载和位置恢复）
   const contentRef = useRef(null);
+  const captionScrollRef = useRef(null);
+  const scoreScrollRef = useRef(null);
   // 已加载的页号集合（用 Set 追踪哪些页已加载，防止重复）
   const loadedPagesSet = useRef(new Set());
   // 正在加载的页号（防止 API 返回前重复触发加载）
@@ -139,20 +141,20 @@ function App() {
   };
 
   // 获取评分记录
-  const fetchScoreTasks = async (status, page = 1) => {
-    setScoreTasksLoading(true);
+  const fetchScoreTasks = async (status, page = 1, append = false) => {
+    if (page > 1) setScoreTasksLoading(true);
     try {
       const params = new URLSearchParams({ page, page_size: 20 });
       if (status && status !== 'all') params.set('status', status);
       const res = await fetch(`${API_BASE}/score-tasks?${params}`);
       const data = await res.json();
-      setScoreTasks(data.tasks || []);
+      setScoreTasks(prev => append ? [...prev, ...(data.tasks || [])] : (data.tasks || []));
       setScoreTasksTotal(data.total || 0);
       setScoreTasksPage(page);
     } catch (err) {
-      message.error('加载评分记录失败');
+      if (append) message.error('加载更多评分记录失败');
     } finally {
-      setScoreTasksLoading(false);
+      if (page > 1) setScoreTasksLoading(false);
     }
   };
 
@@ -174,21 +176,21 @@ function App() {
   };
 
   // 获取文案记录
-  const fetchCaptionHistory = async (keyword, setType, page = 1) => {
-    setCaptionHistoryLoading(true);
+  const fetchCaptionHistory = async (keyword, setType, page = 1, append = false) => {
+    if (page > 1) setCaptionHistoryLoading(true);
     try {
       const params = new URLSearchParams({ page, page_size: 20 });
       if (keyword) params.set('keyword', keyword);
       if (setType) params.set('set_type', setType);
       const res = await fetch(`${API_BASE}/caption/history?${params}`);
       const data = await res.json();
-      setCaptionHistory(data.captions || []);
+      setCaptionHistory(prev => append ? [...prev, ...(data.captions || [])] : (data.captions || []));
       setCaptionHistoryTotal(data.total || 0);
       setCaptionHistoryPage(page);
     } catch (err) {
-      message.error('加载文案记录失败');
+      if (append) message.error('加载更多文案记录失败');
     } finally {
-      setCaptionHistoryLoading(false);
+      if (page > 1) setCaptionHistoryLoading(false);
     }
   };
 
@@ -666,7 +668,7 @@ function App() {
           <Text strong>评分记录</Text>
           <Button type="text" size="small" onClick={() => setScoreDrawerOpen(false)}>关闭</Button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 12 }} ref={scoreScrollRef} onScroll={e => { const { scrollTop, scrollHeight, clientHeight } = e.target; if (scrollHeight - scrollTop - clientHeight < 100 && !scoreTasksLoading && scoreTasks.length < scoreTasksTotal) fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage + 1, true); }}>
           <Space style={{ marginBottom: 10, flexWrap: 'wrap' }}>
             <Select value={scoreTaskFilter} onChange={(v) => { setScoreTaskFilter(v); fetchScoreTasks(v === 'all' ? null : v); }} style={{ width: 90 }} size="small">
               <Select.Option value="all">全部</Select.Option>
@@ -675,7 +677,7 @@ function App() {
             <Button size="small" disabled={selectedScoreTaskIds.length === 0} onClick={() => retryScoreTasks(selectedScoreTaskIds)}>重试({selectedScoreTaskIds.length})</Button>
           </Space>
           <Spin spinning={scoreTasksLoading}>
-            {scoreTasks.length === 0 ? <Empty description="暂无记录" /> : scoreTasks.slice(0, 20).map(task => (
+            {scoreTasks.length === 0 ? <Empty description="暂无记录" /> : scoreTasks.map(task => (
               <Card key={task.id} size="small" hoverable style={{ marginBottom: 8, opacity: task.status !== 'completed' ? 1 : 0.6 }}
                 cover={task.file_path ? <img src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`} alt={task.filename} style={{ height: 60, objectFit: 'cover' }} /> : null}
                 onClick={() => { if (task.status !== 'completed') setSelectedScoreTaskIds(prev => prev.includes(task.image_id) ? prev.filter(id => id !== task.image_id) : [...prev, task.image_id]); }}>
@@ -704,7 +706,7 @@ function App() {
           <Text strong>文案记录</Text>
           <Button type="text" size="small" onClick={() => setCaptionDrawerOpen(false)}>关闭</Button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 12 }} ref={captionScrollRef} onScroll={e => { const { scrollTop, scrollHeight, clientHeight } = e.target; if (scrollHeight - scrollTop - clientHeight < 100 && !captionHistoryLoading && captionHistory.length < captionHistoryTotal) fetchCaptionHistory(captionKeyword, captionTypeFilter, captionHistoryPage + 1, true); }}>
           <Space style={{ marginBottom: 10 }}>
             <Input.Search placeholder="搜索..." value={captionKeyword} onChange={e => setCaptionKeyword(e.target.value)} onSearch={v => fetchCaptionHistory(v, captionTypeFilter)} style={{ width: 120 }} size="small" />
             <Select value={captionTypeFilter} onChange={v => { setCaptionTypeFilter(v); fetchCaptionHistory(captionKeyword, v); }} style={{ width: 80 }} size="small" allowClear placeholder="类型">
