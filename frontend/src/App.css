@@ -1096,8 +1096,12 @@
   }
 
   /* Fix Select dropdown z-index inside panels */
-  .score-panel .ant-select-dropdown,
   .caption-panel .ant-select-dropdown {
+    position: fixed !important;
+    z-index: 1200 !important;
+  }
+  .score-panel .ant-select-dropdown {
+    position: fixed !important;
     z-index: 1200 !important;
   }
 }
