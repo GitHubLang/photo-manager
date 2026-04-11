@@ -151,7 +151,7 @@
   right: 0;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
-  z-index: 1000;
+  z-index: 1200;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
