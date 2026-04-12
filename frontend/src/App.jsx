@@ -65,12 +65,14 @@ function CaptionInstructionsModal({ open, captionType, imageIds, onCancel, onGen
         placeholder="从历史记录中选择，或直接填写"
         allowClear
         showSearch
+        listHeight={500}
         filterOption={(input, option) =>
           option.children.props.children[1]?.props?.children?.toLowerCase().includes(input.toLowerCase())
         }
         loading={loadingHistory}
         style={{ width: '100%', marginBottom: 8 }}
         onChange={(val) => setInstructions(val || '')}
+        dropdownStyle={{ maxHeight: 'none' }}
       >
         {history.map(item => (
           <Select.Option key={item.id} value={item.instruction}>

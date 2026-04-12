@@ -191,9 +191,9 @@ async def save_instruction_history(req: InstructionHistoryRequest):
     instruction = req.instruction.strip()
     if not instruction:
         return {"success": False, "error": "指令不能为空"}
-    # 避免完全重复的记录
+    # trim 后避免重复
     existing = execute_query(
-        "SELECT id FROM instruction_history WHERE instruction = %s AND set_type = %s LIMIT 1",
+        "SELECT id FROM instruction_history WHERE TRIM(instruction) = %s AND set_type = %s LIMIT 1",
         (instruction, req.set_type)
     )
     if not existing:
