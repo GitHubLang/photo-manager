@@ -12,9 +12,33 @@ const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000/
 // 文案自定义要求弹窗（独立组件，避免父组件1400行重渲染导致输入卡顿）
 function CaptionInstructionsModal({ open, captionType, imageIds, onCancel, onGenerate }) {
   const [instructions, setInstructions] = useState('');
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // 弹窗打开时拉取历史
+  useEffect(() => {
+    if (!open) return;
+    setLoadingHistory(true);
+    fetch(`${API_BASE}/instruction-history?set_type=${captionType}`)
+      .then(r => r.json())
+      .then(data => {
+        setHistory(data.history || []);
+        setLoadingHistory(false);
+      })
+      .catch(() => setLoadingHistory(false));
+  }, [open, captionType]);
 
   const handleOk = () => {
-    onGenerate(instructions);
+    const text = instructions.trim();
+    // 有输入才存历史
+    if (text) {
+      fetch(`${API_BASE}/instruction-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction: text, set_type: captionType })
+      });
+    }
+    onGenerate(text);
     setInstructions('');
   };
 
@@ -37,6 +61,28 @@ function CaptionInstructionsModal({ open, captionType, imageIds, onCancel, onGen
       <p style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
         {captionType === 'douyin' ? '抖音' : '小红书'}文案 - 可选填写自定义要求
       </p>
+      <Select
+        placeholder="从历史记录中选择，或直接填写"
+        allowClear
+        showSearch
+        filterOption={(input, option) =>
+          option.children.props.children[1]?.props?.children?.toLowerCase().includes(input.toLowerCase())
+        }
+        loading={loadingHistory}
+        style={{ width: '100%', marginBottom: 8 }}
+        onChange={(val) => setInstructions(val || '')}
+      >
+        {history.map(item => (
+          <Select.Option key={item.id} value={item.instruction}>
+            <div style={{ padding: '2px 0', wordBreak: 'break-all' }}>
+              <Tag color={item.set_type === 'douyin' ? 'blue' : 'green'} style={{ marginRight: 6 }}>
+                {item.set_type === 'douyin' ? '抖音' : '小红书'}
+              </Tag>
+              {item.instruction}
+            </div>
+          </Select.Option>
+        ))}
+      </Select>
       <Input.TextArea
         rows={3}
         value={instructions}

@@ -166,6 +166,17 @@ def init_database():
         cursor.execute(f"ALTER TABLE app_state ADD COLUMN IF NOT EXISTS {col} {dtype}")
     # 初始化一条记录
     cursor.execute("INSERT IGNORE INTO app_state (id) VALUES (1)")
+
+    # 创建文案指令历史表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS instruction_history (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            instruction VARCHAR(500) NOT NULL,
+            set_type ENUM('douyin', 'xiaohongshu') NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_set_type (set_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
     
     init_conn.commit()
     cursor.close()
