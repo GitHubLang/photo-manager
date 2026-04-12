@@ -779,16 +779,16 @@ function App() {
           </Space>
           <Spin spinning={scoreTasksLoading}>
             {scoreTasks.length === 0 ? <Empty description="暂无记录" /> : scoreTasks.map(task => (
-              <Card key={task.id} size="small" hoverable style={{ marginBottom: 8, opacity: task.status !== 'completed' ? 1 : 0.6 }}
-                cover={task.file_path ? <img src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`} alt={task.filename} style={{ height: 60, objectFit: 'cover' }} /> : null}
-                onClick={() => { if (task.status !== 'completed') setSelectedScoreTaskIds(prev => prev.includes(task.image_id) ? prev.filter(id => id !== task.image_id) : [...prev, task.image_id]); }}>
+                <Card key={String(task.id)} size="small" hoverable style={{ marginBottom: 8, opacity: String(task.status ?? '') === 'completed' ? 0.6 : 1 }}
+                cover={task.file_path ? <img src={`${API_BASE}/image/thumbnail/${encodeURIComponent(String(task.file_path))}?size=100`} alt={String(task.filename ?? '')} style={{ height: 60, objectFit: 'cover' }} /> : null}
+                onClick={() => { if (String(task.status ?? '') !== 'completed') setSelectedScoreTaskIds(prev => prev.includes(Number(task.image_id)) ? prev.filter(id => id !== Number(task.image_id)) : [...prev, Number(task.image_id)]); }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {task.status !== 'completed' && <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />}
+                  {String(task.status ?? '') !== 'completed' && <Checkbox checked={selectedScoreTaskIds.includes(Number(task.image_id))} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
-                    <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : 'orange'} style={{ fontSize: 10 }}>{task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status}</Tag>
+                    <Text ellipsis style={{ fontSize: 12 }}>{String(task.filename ?? '') || `ID:${Number(task.image_id) || 0}`}</Text>
+                    <Tag color={String(task.status ?? '') === 'failed' ? 'red' : String(task.status ?? '') === 'completed' ? 'green' : 'orange'} style={{ fontSize: 10 }}>{String(task.status ?? '') === 'processing' ? '处理中' : String(task.status ?? '') === 'failed' ? '失败' : String(task.status ?? '')}</Tag>
                   </div>
-                  {task.status !== 'completed' && <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>重试</Button>}
+                  {String(task.status ?? '') !== 'completed' && <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([Number(task.image_id)]); }}>重试</Button>}
                 </div>
               </Card>
             ))}
@@ -997,47 +997,55 @@ function App() {
                       }
                       return true;
                     });
-                    return deduped.map(task => (
-                    <Card key={task.id} size="small" hoverable={task.status !== 'completed'}
-                      style={{ opacity: task.status !== 'completed' ? 1 : 0.6 }}
-                      cover={task.file_path ? (
-                        <img
-                          src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
-                          alt={task.filename ? String(task.filename) : `ID:${task.image_id}`}
-                          style={{ height: 60, objectFit: 'cover' }}
-                        />
-                      ) : null}
-                      onClick={() => {
-                        if (task.status !== 'completed') {
-                          setSelectedScoreTaskIds(prev =>
-                            prev.includes(task.image_id)
-                              ? prev.filter(id => id !== task.image_id)
-                              : [...prev, task.image_id]
-                          );
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {task.status !== 'completed' && (
-                          <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text ellipsis style={{ fontSize: 12 }}>{task.filename ? String(task.filename) : `ID:${task.image_id}`}</Text>
-                          <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : task.status === 'processing' ? 'orange' : 'blue'} style={{ fontSize: 10 }}>
-                            {task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status === 'completed' ? '成功' : String(task.status)}
-                          </Tag>
-                          {task.error_message && (
-                            <Text type="danger" style={{ fontSize: 10 }} ellipsis>{String(task.error_message)}</Text>
+                    return deduped.map(task => {
+                      const status = String(task.status ?? '');
+                      const filename = String(task.filename ?? '');
+                      const imageId = Number(task.image_id) || 0;
+                      const errorMsg = task.error_message != null ? String(task.error_message) : '';
+                      const filePath = task.file_path != null ? String(task.file_path) : '';
+                      const isCompleted = status === 'completed';
+                      const tagColor = status === 'failed' ? 'red' : status === 'completed' ? 'green' : status === 'processing' ? 'orange' : 'blue';
+                      const tagText = status === 'processing' ? '处理中' : status === 'failed' ? '失败' : status === 'completed' ? '成功' : status;
+                      return (
+                      <Card key={String(task.id)} size="small" hoverable={!isCompleted}
+                        style={{ opacity: isCompleted ? 0.6 : 1 }}
+                        cover={filePath ? (
+                          <img
+                            src={`${API_BASE}/image/thumbnail/${encodeURIComponent(filePath)}?size=100`}
+                            alt={filename || `ID:${imageId}`}
+                            style={{ height: 60, objectFit: 'cover' }}
+                          />
+                        ) : null}
+                        onClick={() => {
+                          if (!isCompleted) {
+                            setSelectedScoreTaskIds(prev =>
+                              prev.includes(imageId)
+                                ? prev.filter(id => id !== imageId)
+                                : [...prev, imageId]
+                            );
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {!isCompleted && (
+                            <Checkbox checked={selectedScoreTaskIds.includes(imageId)} />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Text ellipsis style={{ fontSize: 12 }}>{filename || `ID:${imageId}`}</Text>
+                            <Tag color={tagColor} style={{ fontSize: 10 }}>{tagText}</Tag>
+                            {errorMsg && (
+                              <Text type="danger" style={{ fontSize: 10 }} ellipsis>{errorMsg}</Text>
+                            )}
+                          </div>
+                          {!isCompleted && (
+                            <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([imageId]); }}>
+                              重试
+                            </Button>
                           )}
                         </div>
-                        {task.status !== 'completed' && (
-                          <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([task.image_id]); }}>
-                            重试
-                          </Button>
-                        )}
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                      );
+                    })}
                   )}
                 </div>
               )}
