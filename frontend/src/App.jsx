@@ -9,6 +9,45 @@ const { Title, Text } = Typography;
 
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000/api`;
 
+// 文案自定义要求弹窗（独立组件，避免父组件1400行重渲染导致输入卡顿）
+function CaptionInstructionsModal({ open, captionType, imageIds, onCancel, onGenerate }) {
+  const [instructions, setInstructions] = useState('');
+
+  const handleOk = () => {
+    onGenerate(instructions);
+    setInstructions('');
+  };
+
+  const handleCancel = () => {
+    setInstructions('');
+    onCancel();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onCancel={handleCancel}
+      title={`生成${captionType === 'douyin' ? '抖音' : '小红书'}文案 - 添加自定义要求`}
+      okText="生成"
+      cancelText="取消"
+      onOk={handleOk}
+      width={500}
+      centered
+    >
+      <p style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+        {captionType === 'douyin' ? '抖音' : '小红书'}文案 - 可选填写自定义要求
+      </p>
+      <Input.TextArea
+        rows={3}
+        value={instructions}
+        onChange={e => setInstructions(e.target.value)}
+        placeholder="例如：接地气口语化 / 文艺小清新风格 / 突出摄影技术 / 不要emoji"
+      />
+    </Modal>
+  );
+}
+
+
 function App() {
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
@@ -24,7 +63,6 @@ function App() {
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
   const [pendingCaptionType, setPendingCaptionType] = useState('douyin');
-  const [captionInstructions, setCaptionInstructions] = useState('');
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [captionModalImages, setCaptionModalImages] = useState([]);  // 文案详情弹窗中的图片列表
   const [selectedImages, setSelectedImages] = useState([]);
@@ -1371,26 +1409,19 @@ function App() {
       </Modal>
 
       {/* 文案弹窗 */}
-      <Modal
+      <CaptionInstructionsModal
         open={captionInstructionsModalVisible}
-        onCancel={() => { setCaptionInstructionsModalVisible(false); setCaptionInstructions(''); }}
-        title={`生成${pendingCaptionType === 'douyin' ? '抖音' : '小红书'}文案 - 添加自定义要求`}
-       okText="生成"
-        cancelText="取消"
-        onOk={() => { const inst = captionInstructions; const imgs = captionModalImgRef.current; if (!imgs?.length) { message.warning('请先选择图片'); return; } const ids = imgs.map(img => img.id); setCaptionInstructionsModalVisible(false); setCaptionInstructions(''); handleGenerateCaption(pendingCaptionType, ids, inst); }}
-        width={500}
-        centered
-      >
-        <p style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
-          {pendingCaptionType === 'douyin' ? '抖音' : '小红书'}文案 - 可选填写自定义要求
-        </p>
-        <Input.TextArea
-          rows={3}
-          value={captionInstructions}
-          onChange={e => setCaptionInstructions(e.target.value)}
-          placeholder="例如：接地气口语化 / 文艺小清新风格 / 突出摄影技术 / 不要emoji"
-        />
-      </Modal>
+        captionType={pendingCaptionType}
+        imageIds={captionModalImgRef.current}
+        onCancel={() => setCaptionInstructionsModalVisible(false)}
+        onGenerate={(inst) => {
+          const imgs = captionModalImgRef.current;
+          if (!imgs?.length) { message.warning('请先选择图片'); return; }
+          const ids = imgs.map(img => img.id);
+          setCaptionInstructionsModalVisible(false);
+          handleGenerateCaption(pendingCaptionType, ids, inst);
+        }}
+      />
 
       <Modal
         open={captionModalVisible}

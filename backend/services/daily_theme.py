@@ -290,11 +290,12 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 }}"""
     else:
         # 无主题信息（文件夹非日期格式）
+        user_req = f"\n用户要求：{user_instructions}" if user_instructions else ""
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片内容，生成抖音文案。
 
 照片描述：
-{photo_desc}
+{photo_desc}{user_req}
 
 请生成以下JSON格式（只返回JSON）：
 {{
@@ -306,7 +307,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
             prompt = f"""你是小红书内容创作者。请根据以下照片内容，生成小红书文案。
 
 照片描述：
-{photo_desc}
+{photo_desc}{user_req}
 
 请生成以下JSON格式（只返回JSON）：
 {{
