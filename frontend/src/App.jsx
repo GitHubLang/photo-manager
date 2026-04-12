@@ -22,6 +22,9 @@ function App() {
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [dailyTheme, setDailyTheme] = useState(null);
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
+  const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
+  const [pendingCaptionType, setPendingCaptionType] = useState('douyin');
+  const [captionInstructions, setCaptionInstructions] = useState('');
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [captionModalImages, setCaptionModalImages] = useState([]);  // 文案详情弹窗中的图片列表
   const [selectedImages, setSelectedImages] = useState([]);
@@ -540,7 +543,7 @@ function App() {
   };
 
   // 生成文案
-  const handleGenerateCaption = async (setType, overrideImageIds) => {
+  const handleGenerateCaption = async (setType, overrideImageIds, userInstructions) => {
     const imgIds = overrideImageIds ?? selectedImages;
     if (imgIds.length === 0) {
       message.warning('请先选择图片');
@@ -555,7 +558,8 @@ function App() {
         body: JSON.stringify({
           date: folderName,
           image_ids: imgIds,
-          set_type: setType
+          set_type: setType,
+          user_instructions: userInstructions || null
         })
       });
       const data = await res.json();
@@ -746,8 +750,8 @@ function App() {
         }},
         { key: 'download', label: `下载原图 (${selectedImages.length})`, onClick: handleDownloadOriginal },
         { key: 'theme', label: '生成主题', onClick: handleGenerateTheme },
-        { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
-        { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') },
+        { key: 'douyin', label: '抖音文案', onClick: () => { setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } },
+        { key: 'xiaohongshu', label: '小红书文案', onClick: () => { setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } },
       ] }} trigger={['click']}>
         <Button className="fab-button" type="primary"><ThunderboltOutlined /></Button>
       </Dropdown>
@@ -1350,6 +1354,27 @@ function App() {
       </Modal>
 
       {/* 文案弹窗 */}
+      <Modal
+        open={captionInstructionsModalVisible}
+        onCancel={() => { setCaptionInstructionsModalVisible(false); setCaptionInstructions(''); }}
+        title={`生成${pendingCaptionType === 'douyin' ? '抖音' : '小红书'}文案 - 添加自定义要求`}
+       okText="生成"
+        cancelText="取消"
+        onOk={() => { const inst = captionInstructions; setCaptionInstructionsModalVisible(false); handleGenerateCaption(pendingCaptionType, null, inst); setCaptionInstructions(''); }}
+        width={500}
+        centered
+      >
+        <p style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+          {pendingCaptionType === 'douyin' ? '抖音' : '小红书'}文案 - 可选填写自定义要求
+        </p>
+        <Input.TextArea
+          rows={3}
+          value={captionInstructions}
+          onChange={e => setCaptionInstructions(e.target.value)}
+          placeholder="例如：接地气口语化 / 文艺小清新风格 / 突出摄影技术 / 不要emoji"
+        />
+      </Modal>
+
       <Modal
         open={captionModalVisible}
         onCancel={() => { setCaptionModalVisible(false); setCaptionModalImages([]); }}
