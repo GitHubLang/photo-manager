@@ -25,6 +25,7 @@ function App() {
   const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
   const [pendingCaptionType, setPendingCaptionType] = useState('douyin');
   const [captionInstructions, setCaptionInstructions] = useState('');
+  const [pendingCaptionIds, setPendingCaptionIds] = useState([]);
   const [generatedCaption, setGeneratedCaption] = useState(null);
   const [captionModalImages, setCaptionModalImages] = useState([]);  // 文案详情弹窗中的图片列表
   const [selectedImages, setSelectedImages] = useState([]);
@@ -756,8 +757,8 @@ function App() {
         }},
         { key: 'download', label: `下载原图 (${selectedImages.length})`, onClick: handleDownloadOriginal },
         { key: 'theme', label: '生成主题', onClick: handleGenerateTheme },
-        { key: 'douyin', label: '抖音文案', onClick: () => { setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } },
-        { key: 'xiaohongshu', label: '小红书文案', onClick: () => { setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } },
+        { key: 'douyin', label: '抖音文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } setPendingCaptionType('douyin'); setPendingCaptionIds(selectedImages.map(img => img.id)); setCaptionInstructionsModalVisible(true); } },
+        { key: 'xiaohongshu', label: '小红书文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } setPendingCaptionType('xiaohongshu'); setPendingCaptionIds(selectedImages.map(img => img.id)); setCaptionInstructionsModalVisible(true); } },
       ] }} trigger={['click']}>
         <Button className="fab-button" type="primary"><ThunderboltOutlined /></Button>
       </Dropdown>
@@ -1119,8 +1120,8 @@ function App() {
                         }},
                         { type: 'divider' },
                       ] : []),
-                      { key: 'douyin', label: '抖音文案', onClick: () => { setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } },
-                      { key: 'xiaohongshu', label: '小红书文案', onClick: () => { setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } }
+                      { key: 'douyin', label: '抖音文案', onClick: () => { setPendingCaptionType('douyin'); setPendingCaptionIds(selectedImages.map(img => img.id)); setCaptionInstructionsModalVisible(true); } },
+                      { key: 'xiaohongshu', label: '小红书文案', onClick: () => { setPendingCaptionType('xiaohongshu'); setPendingCaptionIds(selectedImages.map(img => img.id)); setCaptionInstructionsModalVisible(true); } }
                     ]
                   }}>
                     <Button disabled={selectedImages.length === 0}>
@@ -1366,7 +1367,7 @@ function App() {
         title={`生成${pendingCaptionType === 'douyin' ? '抖音' : '小红书'}文案 - 添加自定义要求`}
        okText="生成"
         cancelText="取消"
-        onOk={() => { const inst = captionInstructions; setCaptionInstructionsModalVisible(false); handleGenerateCaption(pendingCaptionType, null, inst); setCaptionInstructions(''); }}
+        onOk={() => { const inst = captionInstructions; const ids = pendingCaptionIds; if (!ids || ids.length === 0) { message.warning('请先选择图片'); return; } setCaptionInstructionsModalVisible(false); setCaptionInstructions(''); handleGenerateCaption(pendingCaptionType, ids, inst); }}
         width={500}
         centered
       >
