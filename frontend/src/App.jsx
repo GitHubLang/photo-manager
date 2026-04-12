@@ -559,14 +559,14 @@ function App() {
           set_type: setType,
           user_instructions: userInstructions || null
         };
-      console.debug('[caption] req payload:', JSON.stringify(payload));
+      console.log('[caption] payload image_ids:', JSON.stringify(payload.image_ids), 'types:', (payload.image_ids || []).map(x => typeof x));
       const res = await fetch(`${API_BASE}/caption/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      console.debug('[caption] res status:', res.status, 'body:', JSON.stringify(data).slice(0, 200));
+      console.log('[caption] res status:', res.status, JSON.stringify(data).slice(0, 200));
 
       if (!res.ok) {
         const rawDetail = data.detail;
