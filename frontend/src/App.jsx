@@ -756,7 +756,7 @@ function App() {
           if (selectedImages.length === displayImages.length) {
             setSelectedImages([]);
           } else {
-            setSelectedImages(displayImages.map(img => img.id));
+            setSelectedImages([...displayImages]);
           }
         }},
         { key: 'download', label: `下载原图 (${selectedImages.length})`, onClick: handleDownloadOriginal },
@@ -1078,7 +1078,7 @@ function App() {
                 if (selectedImages.length === displayImages.length) {
                   setSelectedImages([]);
                 } else {
-                  setSelectedImages(displayImages.map(img => img.id));
+                  setSelectedImages([...displayImages]);
                 }
               }}>
                 {selectedImages.length === displayImages.length ? '取消全选' : '全选'}
@@ -1172,9 +1172,15 @@ function App() {
                   <Col key={img.id} xs={12} sm={8} md={6} lg={4}>
                     <Card
                       hoverable
-                      className={`image-card ${selectedImages.includes(img.id) ? 'selected' : ''}`}
+                      className={`image-card ${selectedImages.some(item => (item.id || item) === img.id) ? 'selected' : ''}`}
                       cover={
                         <div className="image-cover" onClick={() => {
+                          // 切换选中状态（与checkbox一致）
+                          setSelectedImages(prev =>
+                            prev.some(item => (item.id || item) === img.id)
+                              ? prev.filter(item => (item.id || item) !== img.id)
+                              : [...prev, img]
+                          );
                           const imageUrl = `${API_BASE}/image/proxy/${encodeURIComponent(img.file_path)}`;
                           setSelectedImage({ ...img, imageUrl });
                           setPreviewVisible(true);
@@ -1194,13 +1200,13 @@ function App() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedImages(prev =>
-                                prev.includes(img.id)
-                                  ? prev.filter(id => id !== img.id)
-                                  : [...prev, img.id]
+                                prev.some(item => (item.id || item) === img.id)
+                                  ? prev.filter(item => (item.id || item) !== img.id)
+                                  : [...prev, img]
                               );
                             }}
                           >
-                            {selectedImages.includes(img.id) ? <CheckOutlined /> : null}
+                            {selectedImages.some(item => (item.id || item) === img.id) ? <CheckOutlined /> : null}
                           </div>
                         </div>
                       }
