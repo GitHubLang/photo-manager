@@ -58,6 +58,7 @@ async def get_recommend_set(
 @router.post("/caption/generate")
 async def create_caption(req: CaptionRequest):
     """生成文案"""
+    print(f"[DEBUG] create_caption: date={req.date}, set_type={req.set_type}, image_ids={req.image_ids}, user_instructions={req.user_instructions}")
     result = generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "生成失败"))

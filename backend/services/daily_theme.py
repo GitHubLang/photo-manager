@@ -254,65 +254,60 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         for img in images
     ])
     
-    # 根据是否有主题生成不同版本的 prompt
+    # 构建风格指令（用户要求优先，放在最前面）
+    style_rules = (f"\n风格要求（必须严格遵守）：{user_instructions}\n") if user_instructions else ""
+    emoji_reminder = (f"（注意：必须严格遵守上文风格要求中关于emoji的指令）") if user_instructions else ""
+
     if has_valid_date:
-        # 有主题信息
-        user_req = f"\n用户要求：{user_instructions}" if user_instructions else ""
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片和主题信息，生成抖音文案。
-
-照片描述：
+{style_rules}照片描述：
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
-关键词：{theme_info.get('keywords', '')}{user_req}
+关键词：{theme_info.get('keywords', '')}
 
 请生成以下JSON格式（只返回JSON）：
 {{
     "title": "标题（30字以内，有吸引力）",
-    "description": "文案内容（100字以内，带适当emoji）",
+    "description": "文案内容（100字以内）{emoji_reminder}",
     "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
 }}"""
         else:
             prompt = f"""你是小红书内容创作者。请根据以下照片和主题信息，生成小红书文案。
-
-照片描述：
+{style_rules}照片描述：
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
-关键词：{theme_info.get('keywords', '')}{user_req}
+关键词：{theme_info.get('keywords', '')}
 
 请生成以下JSON格式（只返回JSON）：
 {{
-    "title": "标题（有吸引力，带emoji）",
-    "content": "正文内容（带emoji，分段清晰，150字以内）",
+    "title": "标题（有吸引力）{emoji_reminder}",
+    "content": "正文内容（分段清晰，150字以内）{emoji_reminder}",
     "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
 }}"""
     else:
-        # 无主题信息（文件夹非日期格式）
-        user_req = f"\n用户要求：{user_instructions}" if user_instructions else ""
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片内容，生成抖音文案。
-
-照片描述：
-{photo_desc}{user_req}
+{style_rules}照片描述：
+{photo_desc}
 
 请生成以下JSON格式（只返回JSON）：
 {{
     "title": "标题（30字以内，有吸引力）",
-    "description": "文案内容（100字以内，带适当emoji）",
+    "description": "文案内容（100字以内）{emoji_reminder}",
     "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
 }}"""
         else:
             prompt = f"""你是小红书内容创作者。请根据以下照片内容，生成小红书文案。
-
-照片描述：
-{photo_desc}{user_req}
+{style_rules}照片描述：
+{photo_desc}
 
 请生成以下JSON格式（只返回JSON）：
 {{
-    "title": "标题（有吸引力，带emoji）",
-    "content": "正文内容（带emoji，分段清晰，150字以内）",
+    "title": "标题（有吸引力）{emoji_reminder}",
+    "content": "正文内容（分段清晰，150字以内）{emoji_reminder}",
     "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
 }}"""
     
