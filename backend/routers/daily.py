@@ -163,3 +163,43 @@ async def create_daily_report(date_str: str):
             "caption": douyin_caption.get("caption") if douyin_caption else None
         }
     }
+
+
+@router.get("/instruction-history")
+async def get_instruction_history(set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu"])):
+    """获取文案指令历史"""
+    if set_type:
+        rows = execute_query(
+            "SELECT id, instruction, set_type, created_at FROM instruction_history WHERE set_type = %s ORDER BY created_at DESC LIMIT 20",
+            (set_type,)
+        )
+    else:
+        rows = execute_query(
+            "SELECT id, instruction, set_type, created_at FROM instruction_history ORDER BY created_at DESC LIMIT 20"
+        )
+    return {"history": rows}
+
+
+class InstructionHistoryRequest(BaseModel):
+    instruction: str
+    set_type: str
+
+
+@router.post("/instruction-history")
+async def save_instruction_history(req: InstructionHistoryRequest):
+    """保存文案指令到历史"""
+    instruction = req.instruction.strip()
+    if not instruction:
+        return {"success": False, "error": "指令不能为空"}
+    # 避免完全重复的记录
+    existing = execute_query(
+        "SELECT id FROM instruction_history WHERE instruction = %s AND set_type = %s LIMIT 1",
+        (instruction, req.set_type)
+    )
+    if not existing:
+        execute_query(
+            "INSERT INTO instruction_history (instruction, set_type) VALUES (%s, %s)",
+            (instruction, req.set_type),
+            fetch=False
+        )
+    return {"success": True}
