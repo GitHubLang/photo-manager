@@ -1,5 +1,9 @@
 @echo off
+chcp 65001 >nul
 title Photo Manager - Start
+
+set PYTHON=C:\Users\ADMIN\AppData\Local\Programs\Python\Python311\python.exe
+
 echo ========================================
 echo   Photo Manager System - Start
 echo ========================================
@@ -12,7 +16,7 @@ if %errorlevel%==0 (
 ) else (
     echo [Backend] Starting...
     cd /d D:\MySoftware\photo-manager\backend
-    start "photo-backend" cmd /c "python main.py"
+    start "photo-backend" cmd /k "%PYTHON% main.py"
 )
 
 :: Check frontend
@@ -22,7 +26,7 @@ if %errorlevel%==0 (
 ) else (
     echo [Frontend] Starting (with LAN access)...
     cd /d D:\MySoftware\photo-manager\frontend
-    start "photo-frontend" cmd /c "npm run dev -- --host"
+    start "photo-frontend" cmd /k "npm run dev -- --host"
 )
 
 echo.

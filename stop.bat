@@ -1,5 +1,7 @@
 @echo off
+chcp 65001 >nul
 title Photo Manager - Stop
+
 echo ========================================
 echo   Photo Manager System - Stop
 echo ========================================
