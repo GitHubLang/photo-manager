@@ -1003,7 +1003,7 @@ function App() {
                       cover={task.file_path ? (
                         <img
                           src={`${API_BASE}/image/thumbnail/${encodeURIComponent(task.file_path)}?size=100`}
-                          alt={task.filename}
+                          alt={task.filename ? String(task.filename) : `ID:${task.image_id}`}
                           style={{ height: 60, objectFit: 'cover' }}
                         />
                       ) : null}
@@ -1022,12 +1022,12 @@ function App() {
                           <Checkbox checked={selectedScoreTaskIds.includes(task.image_id)} />
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text ellipsis style={{ fontSize: 12 }}>{task.filename || `ID:${task.image_id}`}</Text>
+                          <Text ellipsis style={{ fontSize: 12 }}>{task.filename ? String(task.filename) : `ID:${task.image_id}`}</Text>
                           <Tag color={task.status === 'failed' ? 'red' : task.status === 'completed' ? 'green' : task.status === 'processing' ? 'orange' : 'blue'} style={{ fontSize: 10 }}>
-                            {task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status === 'completed' ? '成功' : task.status}
+                            {task.status === 'processing' ? '处理中' : task.status === 'failed' ? '失败' : task.status === 'completed' ? '成功' : String(task.status)}
                           </Tag>
                           {task.error_message && (
-                            <Text type="danger" style={{ fontSize: 10 }} ellipsis>{task.error_message}</Text>
+                            <Text type="danger" style={{ fontSize: 10 }} ellipsis>{String(task.error_message)}</Text>
                           )}
                         </div>
                         {task.status !== 'completed' && (
