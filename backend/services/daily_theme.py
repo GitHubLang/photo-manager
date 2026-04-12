@@ -202,7 +202,7 @@ def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
     return {"success": False, "error": "未知错误"}
 
 
-def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaohongshu") -> Dict:
+def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaohongshu", user_instructions: Optional[str] = None) -> Dict:
     """生成发布文案"""
     # 获取选中图片的信息
     if not image_ids:
@@ -257,6 +257,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
     # 根据是否有主题生成不同版本的 prompt
     if has_valid_date:
         # 有主题信息
+        user_req = f"\n用户要求：{user_instructions}" if user_instructions else ""
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片和主题信息，生成抖音文案。
 
@@ -264,7 +265,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
-关键词：{theme_info.get('keywords', '')}
+关键词：{theme_info.get('keywords', '')}{user_req}
 
 请生成以下JSON格式（只返回JSON）：
 {{
@@ -279,7 +280,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
-关键词：{theme_info.get('keywords', '')}
+关键词：{theme_info.get('keywords', '')}{user_req}
 
 请生成以下JSON格式（只返回JSON）：
 {{

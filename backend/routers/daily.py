@@ -19,6 +19,7 @@ class CaptionRequest(BaseModel):
     date: str
     image_ids: List[int]
     set_type: str = "xiaohongshu"
+    user_instructions: Optional[str] = None
 
 
 @router.get("/daily-theme/{date_str}")
@@ -57,7 +58,7 @@ async def get_recommend_set(
 @router.post("/caption/generate")
 async def create_caption(req: CaptionRequest):
     """生成文案"""
-    result = generate_caption(req.date, req.image_ids, req.set_type)
+    result = generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "生成失败"))
     return result
