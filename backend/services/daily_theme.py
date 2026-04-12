@@ -254,63 +254,67 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         for img in images
     ])
     
-    # 构建风格指令（用户要求优先，放在最前面）
-    style_rules = (f"\n风格要求（必须严格遵守）：{user_instructions}\n") if user_instructions else ""
-    emoji_reminder = (f"（注意：必须严格遵守上文风格要求中关于emoji的指令）") if user_instructions else ""
+        # 用户要求作为最高优先级，放在最前面
+    user_req_block = (f"\n⚠️ 最高优先级指令（必须严格遵守）：{user_instructions}\n") if user_instructions else ""
+    # 动态决定emoji描述，避免spec与用户指令冲突
+    if user_instructions and ("不要emoji" in user_instructions or "不用emoji" in user_instructions):
+        emoji_style = "不要emoji，保持文字风格"
+    elif user_instructions and ("带emoji" in user_instructions or "要emoji" in user_instructions):
+        emoji_style = "带emoji"
+    else:
+        emoji_style = None  # 不指定，遵循各平台默认风格
+
+    if set_type == "douyin":
+        desc_style = emoji_style if emoji_style else "带适当emoji"
+        douyin_fields = f"""请生成以下JSON格式（只返回JSON）：
+{{
+    "title": "标题（30字以内，有吸引力）",
+    "description": "文案内容（100字以内，{desc_style}）",
+    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
+}}"""
+    else:
+        content_style = emoji_style if emoji_style else "带emoji"
+        xhs_fields = f"""请生成以下JSON格式（只返回JSON）：
+{{
+    "title": "标题（有吸引力，{content_style}）",
+    "content": "正文内容（{content_style}，分段清晰，150字以内）",
+    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
+}}"""
 
     if has_valid_date:
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片和主题信息，生成抖音文案。
-{style_rules}照片描述：
+{user_req_block}照片描述：
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
 关键词：{theme_info.get('keywords', '')}
 
-请生成以下JSON格式（只返回JSON）：
-{{
-    "title": "标题（30字以内，有吸引力）",
-    "description": "文案内容（100字以内）{emoji_reminder}",
-    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
-}}"""
+{douyin_fields}"""
         else:
             prompt = f"""你是小红书内容创作者。请根据以下照片和主题信息，生成小红书文案。
-{style_rules}照片描述：
+{user_req_block}照片描述：
 {photo_desc}
 
 主题：{theme_info.get('theme_title', '日常记录')}
 关键词：{theme_info.get('keywords', '')}
 
-请生成以下JSON格式（只返回JSON）：
-{{
-    "title": "标题（有吸引力）{emoji_reminder}",
-    "content": "正文内容（分段清晰，150字以内）{emoji_reminder}",
-    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
-}}"""
+{xhs_fields}"""
     else:
         if set_type == "douyin":
             prompt = f"""你是抖音内容创作者。请根据以下照片内容，生成抖音文案。
-{style_rules}照片描述：
+{user_req_block}照片描述：
 {photo_desc}
 
-请生成以下JSON格式（只返回JSON）：
-{{
-    "title": "标题（30字以内，有吸引力）",
-    "description": "文案内容（100字以内）{emoji_reminder}",
-    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5"
-}}"""
+{douyin_fields}"""
         else:
             prompt = f"""你是小红书内容创作者。请根据以下照片内容，生成小红书文案。
-{style_rules}照片描述：
+{user_req_block}照片描述：
 {photo_desc}
 
-请生成以下JSON格式（只返回JSON）：
-{{
-    "title": "标题（有吸引力）{emoji_reminder}",
-    "content": "正文内容（分段清晰，150字以内）{emoji_reminder}",
-    "hashtags": "#话题1 #话题2 #话题3 #话题4 #话题5 #话题6 #话题7 #话题8"
-}}"""
-    
+{xhs_fields}"""
+
+
     try:
         messages = [{"role": "user", "content": prompt}]
         payload = {
