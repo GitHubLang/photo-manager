@@ -552,17 +552,20 @@ function App() {
     const folderName = selectedFolder?.split(/[/\\]/).pop() || '';
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/caption/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const payload = {
           date: folderName,
           image_ids: imgIds,
           set_type: setType,
           user_instructions: userInstructions || null
-        })
+        };
+      console.debug('[caption] req payload:', JSON.stringify(payload));
+      const res = await fetch(`${API_BASE}/caption/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
+      console.debug('[caption] res status:', res.status, 'body:', JSON.stringify(data).slice(0, 200));
 
       if (!res.ok) {
         const rawDetail = data.detail;
@@ -1116,8 +1119,8 @@ function App() {
                         }},
                         { type: 'divider' },
                       ] : []),
-                      { key: 'douyin', label: '抖音文案', onClick: () => handleGenerateCaption('douyin') },
-                      { key: 'xiaohongshu', label: '小红书文案', onClick: () => handleGenerateCaption('xiaohongshu') }
+                      { key: 'douyin', label: '抖音文案', onClick: () => { setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } },
+                      { key: 'xiaohongshu', label: '小红书文案', onClick: () => { setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } }
                     ]
                   }}>
                     <Button disabled={selectedImages.length === 0}>
