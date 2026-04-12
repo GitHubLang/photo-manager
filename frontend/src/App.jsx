@@ -544,7 +544,7 @@ function App() {
 
   // 生成文案
   const handleGenerateCaption = async (setType, overrideImageIds, userInstructions) => {
-    const imgIds = overrideImageIds ?? selectedImages;
+    const imgIds = overrideImageIds ?? selectedImages.map(img => img.id);
     if (imgIds.length === 0) {
       message.warning('请先选择图片');
       return;
