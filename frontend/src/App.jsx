@@ -553,20 +553,24 @@ function App() {
     const folderName = selectedFolder?.split(/[/\\]/).pop() || '';
     setLoading(true);
     try {
+      const cleanIds = (Array.isArray(imgIds) ? imgIds : []).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+      if (cleanIds.length === 0) {
+        message.warning('未选择有效图片');
+        setLoading(false);
+        return;
+      }
       const payload = {
-          date: folderName,
-          image_ids: imgIds,
-          set_type: setType,
-          user_instructions: userInstructions || null
+          date: String(folderName || ''),
+          image_ids: cleanIds,
+          set_type: String(setType || 'douyin'),
+          user_instructions: userInstructions ? String(userInstructions) : null
         };
-      console.log('[caption] payload image_ids:', JSON.stringify(payload.image_ids), 'types:', (payload.image_ids || []).map(x => typeof x));
       const res = await fetch(`${API_BASE}/caption/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      console.log('[caption] res status:', res.status, JSON.stringify(data).slice(0, 200));
 
       if (!res.ok) {
         const rawDetail = data.detail;
