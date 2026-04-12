@@ -567,9 +567,9 @@ function App() {
       if (!res.ok) {
         const rawDetail = data.detail;
         const errMsg = Array.isArray(rawDetail)
-          ? rawDetail.map(e => e.msg || JSON.stringify(e)).join('; ')
-          : (rawDetail || data.error || `请求失败 (${res.status})`);
-        message.error(errMsg);
+          ? rawDetail.map(e => (e && typeof e === 'object' ? (e.msg ? String(e.msg) : JSON.stringify(e)) : String(e))).join('; ')
+          : String(rawDetail || data.error || `请求失败 (${res.status})`);
+        try { message.error(errMsg); } catch(e) { message.error(`请求失败 (${res.status})`); }
         setFailedCaptions(prev => [{
           key: `${setType}_${Date.now()}`,
           setType,
