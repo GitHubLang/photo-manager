@@ -103,6 +103,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [searchResults, setSearchResults] = useState(null);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedModel, setSelectedModel] = useState('local');
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -395,7 +398,6 @@ function App() {
   // 加载下一页（向下滚到底部触发）
   const loadNextPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
-    if (searchResults !== null) return;  // 搜索模式下不加载
     if (loadedPagesSet.current.has(totalPages)) return;
     let nextPage = currentPage + 1;
     while ((loadedPagesSet.current.has(nextPage) || loadingPagesSet.current.has(nextPage)) && nextPage <= totalPages) {
@@ -412,7 +414,6 @@ function App() {
   // 加载上一页（向上滚到顶部触发）
   const loadPrevPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
-    if (searchResults !== null) return;  // 搜索模式下不加载
     if (loadedPagesSet.current.has(1)) return;
     let prevPage = currentPage - 1;
     while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
@@ -474,19 +475,42 @@ function App() {
     searchTimerRef.current = setTimeout(async () => {
       if (!value.trim()) {
         setSearchResults(null);
+        setSearchPage(1);
+        setSearchTotal(0);
         return;
       }
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/search?keyword=${encodeURIComponent(value)}&page=1&page_size=100`);
+        const res = await fetch(`${API_BASE}/search?keyword=${encodeURIComponent(value)}&page=1&page_size=50`);
         const data = await res.json();
         setSearchResults(data.images || []);
+        setSearchPage(data.page || 1);
+        setSearchTotal(data.total || 0);
+        setSearchKeyword(value);
       } catch (err) {
         message.error('搜索失败');
       } finally {
         setLoading(false);
       }
     }, 500);
+  };
+
+  // 加载更多搜索结果
+  const loadMoreSearchResults = async () => {
+    if (loading || !searchKeyword) return;
+    const nextPage = searchPage + 1;
+    if ((searchPage * 50) >= searchTotal) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/search?keyword=${encodeURIComponent(searchKeyword)}&page=${nextPage}&page_size=50`);
+      const data = await res.json();
+      setSearchResults(prev => [...(prev || []), ...(data.images || [])]);
+      setSearchPage(nextPage);
+    } catch (err) {
+      message.error('加载更多失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 评分图片(异步,不等待结果)
@@ -1160,14 +1184,17 @@ function App() {
 
         {/* 右侧内容 */}
         <Content className="content-area" ref={contentRef} style={{ overflowAnchor: 'none' }} onScroll={(e) => {
-          if (searchResults !== null) return;  // 搜索模式下不触发分页加载
           const { scrollTop, scrollHeight, clientHeight } = e.target;
-          // 向下滚到真正接近底部时才加载下一页（阈值增大到600px）
+          // 向下滚到真正接近底部时加载下一页
           if (scrollHeight - scrollTop - clientHeight < 600) {
-            loadNextPage();
+            if (searchResults !== null) {
+              loadMoreSearchResults();
+            } else {
+              loadNextPage();
+            }
           }
-          // 向上滚到很顶部（scrollTop<50px）才加载上一页
-          if (scrollTop < 50 && currentPage > 1) {
+          // 向上滚到很顶部（scrollTop<50px）才加载上一页（仅文件夹模式）
+          if (scrollTop < 50 && currentPage > 1 && searchResults === null) {
             loadPrevPage();
           }
         }}>
