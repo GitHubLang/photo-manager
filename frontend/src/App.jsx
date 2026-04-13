@@ -395,6 +395,7 @@ function App() {
   // 加载下一页（向下滚到底部触发）
   const loadNextPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
+    if (searchResults !== null) return;  // 搜索模式下不加载
     if (loadedPagesSet.current.has(totalPages)) return;
     let nextPage = currentPage + 1;
     while ((loadedPagesSet.current.has(nextPage) || loadingPagesSet.current.has(nextPage)) && nextPage <= totalPages) {
@@ -411,6 +412,7 @@ function App() {
   // 加载上一页（向上滚到顶部触发）
   const loadPrevPage = () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
+    if (searchResults !== null) return;  // 搜索模式下不加载
     if (loadedPagesSet.current.has(1)) return;
     let prevPage = currentPage - 1;
     while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
@@ -1158,6 +1160,7 @@ function App() {
 
         {/* 右侧内容 */}
         <Content className="content-area" ref={contentRef} style={{ overflowAnchor: 'none' }} onScroll={(e) => {
+          if (searchResults !== null) return;  // 搜索模式下不触发分页加载
           const { scrollTop, scrollHeight, clientHeight } = e.target;
           // 向下滚到真正接近底部时才加载下一页（阈值增大到600px）
           if (scrollHeight - scrollTop - clientHeight < 600) {
