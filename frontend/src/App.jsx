@@ -131,6 +131,7 @@ function App() {
 
   // 左侧菜单
   const [activeMenu, setActiveMenu] = useState('folder');
+  const [currentMenuKey, setCurrentMenuKey] = useState('folder');
   const [menuCollapsed, setMenuCollapsed] = useState(false);
 
   // 评分记录
@@ -142,6 +143,20 @@ function App() {
   const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
 
   // 文案记录
+    useEffect(() => {
+    // Sync currentMenuKey with activeMenu for panel visibility
+    if (activeMenu !== 'folder') {
+      setCurrentMenuKey(activeMenu);
+    }
+  }, [activeMenu]);
+
+  // When scores panel opens, fetch tasks
+  useEffect(() => {
+    if (activeMenu === 'scores') {
+      fetchScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter);
+    }
+  }, [activeMenu]);
+
   const [captionHistory, setCaptionHistory] = useState([]);
   const [captionHistoryTotal, setCaptionHistoryTotal] = useState(0);
   const [captionHistoryPage, setCaptionHistoryPage] = useState(1);
@@ -238,6 +253,7 @@ function App() {
       if (status && status !== 'all') params.set('status', status);
       const res = await fetch(`${API_BASE}/score-tasks?${params}`);
       const data = await res.json();
+      console.log("[SCORE API] fetched", (data.tasks||[]).length, "tasks, total:", data.total, "status:", res.status);
       setScoreTasks(prev => append ? [...prev, ...(data.tasks || [])] : (data.tasks || []));
       setScoreTasksTotal(data.total || 0);
       setScoreTasksPage(page);
@@ -957,8 +973,11 @@ function App() {
         </Sider>
 
         {/* 评分记录面板 */}
-        {activeMenu === 'scores' && !menuCollapsed && !isMobile && (
+        {(() => {
+          return currentMenuKey === 'scores' && !menuCollapsed && !isMobile;
+        })() && (
           <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'none' }}>scores panel: {scoreTasks.length} tasks</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text strong>评分记录</Text>
               <Button type="text" size="small" onClick={() => setActiveMenu('folder')} icon={'>'}>
@@ -982,71 +1001,59 @@ function App() {
               <Text type="secondary" style={{ fontSize: 11 }}>共{scoreTasksTotal}条</Text>
             </Space>
             <Spin spinning={scoreTasksLoading}>
-              {scoreTasks.length === 0 ? (
+              {scoreTasks.length === 0 && scoreTasksTotal === 0 ? (
                 <Empty description="暂无记录" />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(() => {
-                    // 按 image_id 去重,每张图片只显示一条
-                    const seen = new Set();
-                    const deduped = scoreTasks.filter(task => {
-                      if (scoreTaskFilter === 'failed' && task.status === 'failed') {
-                        if (seen.has(task.image_id)) return false;
-                        seen.add(task.image_id);
-                        return true;
-                      }
-                      return true;
-                    });
-                    return deduped.map(task => {
-                      const status = String(task.status ?? '');
-                      const filename = String(task.filename ?? '');
-                      const imageId = Number(task.image_id) || 0;
-                      const errorMsg = task.error_message != null ? String(task.error_message) : '';
-                      const filePath = task.file_path != null ? String(task.file_path) : '';
-                      const isCompleted = status === 'completed';
-                      const tagColor = status === 'failed' ? 'red' : status === 'completed' ? 'green' : status === 'processing' ? 'orange' : 'blue';
-                      const tagText = status === 'processing' ? '处理中' : status === 'failed' ? '失败' : status === 'completed' ? '成功' : status;
-                      return (
-                      <Card key={String(task.id)} size="small" hoverable={!isCompleted}
-                        style={{ opacity: isCompleted ? 0.6 : 1 }}
-                        cover={filePath ? (
-                          <img
-                            src={`${API_BASE}/image/thumbnail/${encodeURIComponent(filePath)}?size=100`}
-                            alt={filename || `ID:${imageId}`}
-                            style={{ height: 60, objectFit: 'cover' }}
-                          />
-                        ) : null}
-                        onClick={() => {
-                          if (!isCompleted) {
-                            setSelectedScoreTaskIds(prev =>
-                              prev.includes(imageId)
-                                ? prev.filter(id => id !== imageId)
-                                : [...prev, imageId]
-                            );
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {!isCompleted && (
-                            <Checkbox checked={selectedScoreTaskIds.includes(imageId)} />
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text ellipsis style={{ fontSize: 12 }}>{filename || `ID:${imageId}`}</Text>
-                            <Tag color={tagColor} style={{ fontSize: 10 }}>{tagText}</Tag>
-                            {errorMsg && (
-                              <Text type="danger" style={{ fontSize: 10 }} ellipsis>{errorMsg}</Text>
-                            )}
-                          </div>
-                          {!isCompleted && (
-                            <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([imageId]); }}>
-                              重试
-                            </Button>
+                  {scoreTasks.map(task => {
+                    const status = String(task.status ?? '');
+                    const filename = String(task.filename ?? '');
+                    const imageId = Number(task.image_id) || 0;
+                    const errorMsg = task.error_message != null ? String(task.error_message) : '';
+                    const filePath = task.file_path != null ? String(task.file_path) : '';
+                    const isCompleted = status === 'completed';
+                    const tagColor = status === 'failed' ? 'red' : status === 'completed' ? 'green' : status === 'processing' ? 'orange' : 'blue';
+                    const tagText = status === 'processing' ? '处理中' : status === 'failed' ? '失败' : status === 'completed' ? '成功' : status;
+                    return (
+                    <Card key={String(task.id)} size="small" hoverable={!isCompleted}
+                      style={{ opacity: isCompleted ? 0.6 : 1 }}
+                      cover={filePath ? (
+                        <img
+                          src={`${API_BASE}/image/thumbnail/${encodeURIComponent(filePath)}?size=100`}
+                          alt={filename || `ID:${imageId}`}
+                          style={{ height: 60, objectFit: 'cover' }}
+                        />
+                      ) : null}
+                      onClick={() => {
+                        if (!isCompleted) {
+                          setSelectedScoreTaskIds(prev =>
+                            prev.includes(imageId)
+                              ? prev.filter(id => id !== imageId)
+                              : [...prev, imageId]
+                          );
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {!isCompleted && (
+                          <Checkbox checked={selectedScoreTaskIds.includes(imageId)} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text ellipsis style={{ fontSize: 12 }}>{filename || `ID:${imageId}`}</Text>
+                          <Tag color={tagColor} style={{ fontSize: 10 }}>{tagText}</Tag>
+                          {errorMsg && (
+                            <Text type="danger" style={{ fontSize: 10 }} ellipsis>{errorMsg}</Text>
                           )}
                         </div>
-                      </Card>
-                      );
-                    })}
-                  )}
+                        {!isCompleted && (
+                          <Button size="small" onClick={(e) => { e.stopPropagation(); retryScoreTasks([imageId]); }}>
+                            重试
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                    );
+                  })}
                 </div>
               )}
             </Spin>
@@ -1062,7 +1069,7 @@ function App() {
 
         {/* 文案记录面板 */}
         {/* 文案记录面板 */}
-        {activeMenu === 'captions' && !menuCollapsed && !isMobile && (
+        {currentMenuKey === 'captions' && !menuCollapsed && !isMobile && (
           <div style={{ width: 320, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text strong>文案记录</Text>
