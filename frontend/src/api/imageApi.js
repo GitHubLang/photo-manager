@@ -103,11 +103,6 @@ export const saveInstructionHistory = (instruction, setType) =>
 // ============ 主题 API ============
 export const generateDailyTheme = (folderName) =>
   fetch(API_BASE + '/daily-theme/' + folderName + '/generate', { method: 'POST' }).then(r => r.json());
-
-// ============ 模型 API ============
-export const fetchModels = () =>
-  fetch(API_BASE + '/models').then(r => r.json());
-
 // ============ 应用状态 API ============
 export const fetchAppState = () =>
   fetch(API_BASE + '/app-state').then(r => r.json());
