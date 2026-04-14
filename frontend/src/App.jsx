@@ -23,7 +23,7 @@ import CaptionInstructionsModal from './components/modals/CaptionInstructionsMod
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
-import { fetchModels, generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
+import { fetchModels as apiFetchModels, generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
 
 const { Sider, Content } = Layout;
 const { Search } = Input;
@@ -65,6 +65,7 @@ function App() {
   // 文案弹窗
   const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
   const [pendingCaptionType, setPendingCaptionType] = useState('douyin');
+  const [captionModel, setCaptionModel] = useState('local');  // 'local' or 'MiniMax-2.7'
   const captionModalImgRef = useRef([]);
   let displayImages;
 
@@ -216,7 +217,7 @@ function App() {
   }, [imageHook.selectedFolder]);
 
   // ============ 文案生成 ============
-  const handleGenerateCaption = useCallback(async (setType, overrideImageIds, userInstructions) => {
+  const handleGenerateCaption = useCallback(async (setType, overrideImageIds, userInstructions, model) => {
     const imgIds = overrideImageIds ?? selectedImages.map(img => img.id);
     if (imgIds.length === 0) {
       message.warning('请先选择图片');
@@ -228,7 +229,8 @@ function App() {
         date: folderName,
         imageIds: imgIds,
         setType,
-        userInstructions
+        userInstructions,
+        model: model || captionModel
       });
       captionHook.removeFailedCaption(setType);
       captionHook.setGeneratedCaption({ ...data.caption, setType });
@@ -331,6 +333,18 @@ function App() {
                   { key: 'retry_all', label: '全部重新生成', onClick: () => { captionHook.failedCaptions.forEach(fc => handleGenerateCaption(fc.setType, fc.imageIds)); }},
                   { type: 'divider' },
                 ] : []),
+                { key: 'caption_model', label: (
+                  <Space size="small">
+                    <span style={{ fontSize: 12, color: '#666' }}>模型:</span>
+                    <Select value={captionModel} onChange={setCaptionModel} size="small" style={{ width: 120 }}
+                      onClick={e => e.stopPropagation()}
+                      options={[
+                        { value: 'local', label: '本地模型' },
+                        { value: 'MiniMax-2.7', label: 'MiniMax-2.7' }
+                      ]}
+                    />
+                  </Space>
+                ), disabled: false },
                 { key: 'douyin', label: '抖音文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } captionModalImgRef.current = selectedImages; setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); }},
                 { key: 'xiaohongshu', label: '小红书文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } captionModalImgRef.current = selectedImages; setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); }}
               ]
@@ -554,7 +568,7 @@ function App() {
           if (!imgs?.length) { message.warning('请先选择图片'); return; }
           const ids = imgs.map(img => img.id);
           setCaptionInstructionsModalVisible(false);
-          handleGenerateCaption(pendingCaptionType, ids, inst);
+          handleGenerateCaption(pendingCaptionType, ids, inst, captionModel);
         }}
       />
 

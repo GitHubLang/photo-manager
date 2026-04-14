@@ -62,7 +62,7 @@ export const fetchCaptionHistory = ({ keyword, setType, page = 1, pageSize = 20 
   return fetch(API_BASE + '/caption/history?' + params).then(r => r.json());
 };
 
-export const generateCaption = ({ date, imageIds, setType, userInstructions }) =>
+export const generateCaption = ({ date, imageIds, setType, userInstructions, model = 'local' }) =>
   fetch(API_BASE + '/caption/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,7 +70,8 @@ export const generateCaption = ({ date, imageIds, setType, userInstructions }) =
       date: String(date || ''),
       image_ids: imageIds,
       set_type: String(setType || 'douyin'),
-      user_instructions: userInstructions ? String(userInstructions) : null
+      user_instructions: userInstructions ? String(userInstructions) : null,
+      llm_model: model
     })
   }).then(async r => {
     const data = await r.json();
