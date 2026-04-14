@@ -79,7 +79,7 @@ function App() {
 
   // 加载模型列表
   useEffect(() => {
-    fetchModels().then(data => {
+    apiFetchModels().then(data => {
       setAvailableModels(data.models || []);
     });
   }, []);
