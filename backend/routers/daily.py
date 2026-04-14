@@ -23,16 +23,6 @@ class CaptionRequest(BaseModel):
     llm_model: str = "local"
 
 
-@router.get("/models")
-async def get_models():
-    """获取可用的文案生成模型"""
-    from config import LOCAL_MODELS
-    return {
-        "models": list(LOCAL_MODELS.keys()),
-        "default": "local"
-    }
-
-
 @router.get("/daily-theme/{date_str}")
 async def get_daily_theme(date_str: str):
     """获取某日的主题总结"""

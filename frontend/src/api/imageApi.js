@@ -55,6 +55,11 @@ export const fetchScoreResults = (imageId) =>
   fetch(API_BASE + '/images/score/results/' + imageId).then(r => r.json());
 
 // ============ 文案 API ============
+export const fetchModels = () => fetch(API_BASE + '/models/').then(r => r.json());
+export const createModel = (data) => fetch(API_BASE + '/models/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }).then(r => r.json());
+export const updateModel = (id, data) => fetch(API_BASE + '/models/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }).then(r => r.json());
+export const deleteModel = (id) => fetch(API_BASE + '/models/' + id, { method: 'DELETE' }).then(r => r.json());
+
 export const fetchCaptionHistory = ({ keyword, setType, page = 1, pageSize = 20 } = {}) => {
   const params = new URLSearchParams({ page, page_size: pageSize });
   if (keyword) params.set('keyword', keyword);

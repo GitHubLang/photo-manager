@@ -20,7 +20,7 @@ class UTF8JSONResponse(JSONResponse):
 import uvicorn
 
 from database import init_database
-from routers import images, daily
+from routers import images, daily, models
 
 app = FastAPI(
     title="摄影素材管理系统",
@@ -42,6 +42,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(images.router)
 app.include_router(daily.router)
+app.include_router(models.router)
 
 
 @app.get("/")
@@ -53,22 +54,6 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-
-@app.get("/api/models")
-async def get_models():
-    """获取可用的评分模型列表"""
-    from config import LOCAL_MODELS, MINIMAX_VISION_MODEL
-    
-    local_models = [
-        {"id": model_id, "name": model_id, "type": "local"}
-        for name, model_id in LOCAL_MODELS.items()
-    ]
-    
-    return {
-        "models": local_models + [
-            {"id": "minimax", "name": "MiniMax Vision", "type": "cloud"}
-        ]
-    }
 
 
 @app.on_event("startup")
