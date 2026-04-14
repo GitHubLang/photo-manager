@@ -20,6 +20,17 @@ class CaptionRequest(BaseModel):
     image_ids: List[int]
     set_type: str = "xiaohongshu"
     user_instructions: Optional[str] = None
+    llm_model: str = "local"
+
+
+@router.get("/models")
+async def get_models():
+    """获取可用的文案生成模型"""
+    from config import LOCAL_MODELS
+    return {
+        "models": list(LOCAL_MODELS.keys()),
+        "default": "local"
+    }
 
 
 @router.get("/daily-theme/{date_str}")
@@ -59,7 +70,7 @@ async def get_recommend_set(
 async def create_caption(req: CaptionRequest):
     """生成文案"""
     print(f"[DEBUG] create_caption: date={req.date}, set_type={req.set_type}, image_ids={req.image_ids}, user_instructions={req.user_instructions}")
-    result = generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions)
+    result = generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions, llm_model=req.llm_model)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "生成失败"))
     return result
