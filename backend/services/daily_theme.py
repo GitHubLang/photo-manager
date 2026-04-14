@@ -56,17 +56,41 @@ def generate_daily_theme(date_str: str) -> Dict:
     try:
         messages = [{"role": "user", "content": prompt}]
         payload = {
-            "model": LOCAL_LLM_MODEL,
+            "model": llm_model if llm_model != "local" else LOCAL_LLM_MODEL,
             "messages": messages,
             "max_tokens": 1024,
             "temperature": 0.3,
         }
         
-        response = requests.post(
-            f"{LOCAL_LLM_API}/v1/chat/completions",
-            json=payload,
-            timeout=120
-        )
+        if llm_model == "local":
+            response = requests.post(
+                f"{LOCAL_LLM_API}/v1/chat/completions",
+                json=payload,
+                timeout=120
+            )
+        else:
+            row = execute_query(
+                "SELECT api_endpoint, api_key, model_name FROM models WHERE name=%s AND model_type='chat' LIMIT 1",
+                (llm_model,), fetch=True
+            )
+            if not row:
+                raise ValueError(f"Model '{llm_model}' not found in database")
+            ext_api, ext_key, ext_model_name = row[0]
+            ext_payload = {
+                "model": ext_model_name,
+                "messages": messages,
+                "max_tokens": 1024,
+                "temperature": 0.3,
+            }
+            headers = {}
+            if ext_key:
+                headers["Authorization"] = f"Bearer {ext_key}"
+            response = requests.post(
+                ext_api,
+                json=ext_payload,
+                headers=headers,
+                timeout=120
+            )
         response.raise_for_status()
         result = response.json()
         content = result["choices"][0]["message"]["content"]
@@ -344,7 +368,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
             save_sql = """
                 INSERT INTO photo_sets (date, set_type, cover_image_id, caption_title, 
                                       caption_body, hashtags, image_ids)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
             execute_query(save_sql, (
                 effective_date,
@@ -353,7 +377,8 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
                 caption_data.get("title", ""),
                 caption_data.get("content") or caption_data.get("description", ""),
                 caption_data.get("hashtags", ""),
-                json.dumps(image_ids)
+                json.dumps(image_ids),
+                llm_model if llm_model != 'local' else 'local'
             ), fetch=False)
             
             return {

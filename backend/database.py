@@ -139,11 +139,29 @@ def init_database():
             caption_body TEXT,
             hashtags VARCHAR(500),
             image_ids JSON,
+            llm_model VARCHAR(100) DEFAULT "local",
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (cover_image_id) REFERENCES images(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
     
+
+    # Create models config table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS models (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            name VARCHAR(100) NOT NULL,
+            api_endpoint VARCHAR(500) NOT NULL,
+            api_key VARCHAR(200) DEFAULT "",
+            model_name VARCHAR(200) NOT NULL,
+            model_type ENUM("chat", "vision") DEFAULT "chat",
+            is_default BOOLEAN DEFAULT FALSE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_model_type (model_type),
+            INDEX idx_is_default (is_default)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+
     # 创建应用状态表（存储浏览位置等）
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS app_state (
