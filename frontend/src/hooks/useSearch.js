@@ -3,8 +3,11 @@ import { message } from 'antd';
 import { searchImages } from '../api/imageApi';
 
 /**
- * 搜索 hook
- * 封装：防抖搜索、结果分页加载
+ * Search hook
+ * Handles: debounced search, results pagination, loading states
+ * 
+ * @param {Object} options
+ * @param {Function} options.onSearchStart - callback fired when search begins
  */
 export function useSearch({ onSearchStart } = {}) {
   const [searchResults, setSearchResults] = useState(null);
@@ -14,9 +17,12 @@ export function useSearch({ onSearchStart } = {}) {
   const [loading, setLoading] = useState(false);
   const searchTimerRef = useRef(null);
 
-  // 执行搜索
+  /**
+   * Execute search with given keyword
+   * @param {string} value - search keyword
+   */
   const executeSearch = useCallback(async (value) => {
-    if (!value.trim()) {
+    if (!value?.trim()) {
       setSearchResults(null);
       setSearchPage(1);
       setSearchTotal(0);
@@ -33,23 +39,37 @@ export function useSearch({ onSearchStart } = {}) {
       setSearchKeyword(value);
     } catch (err) {
       message.error('搜索失败');
+      setSearchResults(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // 防抖搜索入口
+  /**
+   * Debounced search handler (500ms)
+   * @param {string} value - search keyword
+   */
   const handleSearch = useCallback((value) => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (onSearchStart) onSearchStart();
-    searchTimerRef.current = setTimeout(() => executeSearch(value), 500);
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+    if (onSearchStart) {
+      onSearchStart();
+    }
+    searchTimerRef.current = setTimeout(() => {
+      executeSearch(value);
+    }, 500);
   }, [executeSearch, onSearchStart]);
 
-  // 加载更多搜索结果
+  /**
+   * Load more search results (pagination)
+   */
   const loadMoreSearchResults = useCallback(async () => {
     if (loading || !searchKeyword) return;
+    
     const nextPage = searchPage + 1;
     if ((searchPage * 50) >= searchTotal) return;
+
     setLoading(true);
     try {
       const data = await searchImages(searchKeyword, { page: nextPage, pageSize: 50 });
@@ -62,8 +82,13 @@ export function useSearch({ onSearchStart } = {}) {
     }
   }, [loading, searchKeyword, searchPage, searchTotal]);
 
-  // 清除搜索
+  /**
+   * Clear search state
+   */
   const clearSearch = useCallback(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
     setSearchResults(null);
     setSearchPage(1);
     setSearchTotal(0);
@@ -76,6 +101,7 @@ export function useSearch({ onSearchStart } = {}) {
     searchTotal,
     searchKeyword,
     loading,
+    executeSearch,
     handleSearch,
     loadMoreSearchResults,
     clearSearch

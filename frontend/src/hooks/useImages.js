@@ -24,6 +24,39 @@ export function useImages() {
   const scrollBusyRef = useRef(false);
   const contentRef = useRef(null);
 
+  // 持久化状态到 localStorage
+  const persistState = useCallback((state) => {
+    try {
+      localStorage.setItem('photoManagerAppState', JSON.stringify(state));
+    } catch (e) {
+      console.warn('localStorage persist failed', e);
+    }
+  }, []);
+
+  // 从 localStorage 读取状态
+  const loadPersistedState = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('photoManagerAppState');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('localStorage load failed', e);
+    }
+    return null;
+  }, []);
+
+  // 保存应用状态到服务器
+  const persistToServer = useCallback((state) => {
+    saveAppState(state).catch(err => console.warn('saveAppState failed', err));
+  }, []);
+
+  // 统一保存状态（同时写 localStorage 和服务器）
+  const saveState = useCallback((state) => {
+    persistState(state);
+    persistToServer(state);
+  }, [persistState, persistToServer]);
+
   // 加载目录树
   const loadFolders = useCallback(async () => {
     try {
@@ -37,10 +70,16 @@ export function useImages() {
     }
   }, []);
 
-  // 加载单张图片
+  // 加载图片
   const loadImages = useCallback(async (folderPath, page = 1, append = false) => {
-    if (page === 1) setLoading(true);
-    else setLoadingMore(true);
+    if (!folderPath) return;
+
+    if (page === 1 && !append) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
       const data = await fetchImages(folderPath, {
         page,
@@ -58,12 +97,20 @@ export function useImages() {
         loadedPagesSet.current = new Set([data.page]);
         loadingPagesSet.current.clear();
       }
+
       setCurrentPage(data.page);
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
 
+      // 保存状态（除非正在恢复浏览位置）
       if (!isRestoringRef.current) {
-        saveAppState({ last_folder_path: folderPath, last_page: page, last_sort_by: sortBy, last_sort_order: sortOrder, last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0 });
+        saveState({
+          last_folder_path: folderPath,
+          last_page: page,
+          last_sort_by: sortBy,
+          last_sort_order: sortOrder,
+          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0
+        });
       }
     } catch (err) {
       message.error('加载图片失败');
@@ -73,17 +120,42 @@ export function useImages() {
       scrollBusyRef.current = false;
       if (isRestoringRef.current) {
         isRestoringRef.current = false;
-        saveAppState({ last_folder_path: folderPath, last_page: page, last_sort_by: sortBy, last_sort_order: sortOrder, last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0 });
+        saveState({
+          last_folder_path: folderPath,
+          last_page: page,
+          last_sort_by: sortBy,
+          last_sort_order: sortOrder,
+          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0
+        });
       }
     }
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder, saveState]);
 
-  // 加载上一页
-  const loadImagesPrev = useCallback(async (page) => {
+  // 加载上一页（向上翻页，保持当前位置）
+  const loadPrevPage = useCallback(async () => {
+    if (isRestoringRef.current || scrollBusyRef.current) return;
+    if (loadedPagesSet.current.has(1)) return;
+    if (!selectedFolder) return;
+
+    let prevPage = currentPage - 1;
+    while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
+      prevPage--;
+    }
+    if (prevPage < 1) return;
+
+    scrollBusyRef.current = true;
+    loadingPagesSet.current.add(prevPage);
     setLoadingMore(true);
+
     try {
-      const data = await fetchImages(selectedFolder, { page, pageSize: 50, sortBy, sortOrder });
-      if (data.images) {
+      const data = await fetchImages(selectedFolder, {
+        page: prevPage,
+        pageSize: 50,
+        sortBy,
+        sortOrder
+      });
+
+      if (data.images && data.images.length > 0) {
         const contentEl = contentRef.current;
         const scrollTopBefore = contentEl ? contentEl.scrollTop : 0;
         const clientHeight = contentEl ? contentEl.clientHeight : 0;
@@ -91,9 +163,17 @@ export function useImages() {
         const bottomBoundary = scrollHeightBefore - scrollTopBefore - clientHeight;
 
         setImages(prev => [...data.images, ...prev]);
-        setCurrentPage(page);
-        loadedPagesSet.current.add(data.page);
-        saveAppState({ last_folder_path: selectedFolder, last_page: page, last_sort_by: sortBy, last_sort_order: sortOrder, last_scroll_top: 0 });
+        setCurrentPage(prevPage);
+        loadedPagesSet.current.add(prevPage);
+        loadingPagesSet.current.delete(prevPage);
+
+        saveState({
+          last_folder_path: selectedFolder,
+          last_page: prevPage,
+          last_sort_by: sortBy,
+          last_sort_order: sortOrder,
+          last_scroll_top: 0
+        });
 
         requestAnimationFrame(() => {
           if (contentEl) {
@@ -105,43 +185,32 @@ export function useImages() {
       }
     } catch (err) {
       console.error('加载上一页失败', err);
+      loadingPagesSet.current.delete(prevPage);
     } finally {
       setLoadingMore(false);
       scrollBusyRef.current = false;
     }
-  }, [selectedFolder, sortBy, sortOrder]);
+  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState]);
 
-  // 加载下一页
+  // 加载下一页（向下翻页）
   const loadNextPage = useCallback(() => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     if (loadedPagesSet.current.has(totalPages)) return;
+    if (!selectedFolder) return;
+
     let nextPage = currentPage + 1;
     while ((loadedPagesSet.current.has(nextPage) || loadingPagesSet.current.has(nextPage)) && nextPage <= totalPages) {
       nextPage++;
     }
     if (nextPage > totalPages) return;
+
     scrollBusyRef.current = true;
     loadingPagesSet.current.add(nextPage);
+
     requestAnimationFrame(() => {
       loadImages(selectedFolder, nextPage, true);
     });
   }, [currentPage, totalPages, selectedFolder, loadImages]);
-
-  // 加载上一页（向上翻）
-  const loadPrevPage = useCallback(() => {
-    if (isRestoringRef.current || scrollBusyRef.current) return;
-    if (loadedPagesSet.current.has(1)) return;
-    let prevPage = currentPage - 1;
-    while ((loadedPagesSet.current.has(prevPage) || loadingPagesSet.current.has(prevPage)) && prevPage > 1) {
-      prevPage--;
-    }
-    if (prevPage < 1) return;
-    scrollBusyRef.current = true;
-    loadingPagesSet.current.add(prevPage);
-    requestAnimationFrame(() => {
-      loadImagesPrev(prevPage);
-    });
-  }, [currentPage, loadImagesPrev]);
 
   // 扫描所有文件夹
   const handleScanAll = useCallback(async () => {
@@ -149,7 +218,9 @@ export function useImages() {
     try {
       const data = await scanAllFolders();
       message.success('扫描完成:新增 ' + data.added + ' 张,跳过 ' + data.skipped + ' 张');
-      if (selectedFolder) loadImages(selectedFolder);
+      if (selectedFolder) {
+        loadImages(selectedFolder, 1);
+      }
       loadFolders();
     } catch (err) {
       message.error('扫描失败');
@@ -158,55 +229,79 @@ export function useImages() {
     }
   }, [selectedFolder, loadImages, loadFolders]);
 
-  // 恢复上次浏览位置
+  // 排序变化
+  const handleSortChange = useCallback((by, order) => {
+    setSortBy(by);
+    setSortOrder(order);
+    if (selectedFolder) {
+      loadImages(selectedFolder, 1);
+    }
+  }, [selectedFolder, loadImages]);
+
+  // 恢复浏览位置
   const restoreBrowseState = useCallback(async (currentFolders) => {
-    try {
-      const data = await fetchAppState();
-      if (data.last_folder_path) {
-        const folderName = data.last_folder_path.split(/[/\\]/).pop();
-        const matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
-        if (matched) {
-          isRestoringRef.current = true;
-          setSortBy(data.last_sort_by || 'filename');
-          setSortOrder(data.last_sort_order || 'asc');
-          loadImages(matched.path, data.last_page || 1, false, data.last_scroll_top || 0);
+    if (!currentFolders || currentFolders.length === 0) return;
+
+    let state = loadPersistedState();
+
+    // 如果 localStorage 没有，尝试从服务器获取
+    if (!state) {
+      try {
+        const serverState = await fetchAppState();
+        if (serverState.last_folder_path) {
+          state = serverState;
+        }
+      } catch (err) {
+        console.warn('fetchAppState failed', err);
+      }
+    }
+
+    if (state && state.last_folder_path) {
+      const folderName = state.last_folder_path.split(/[/\\]/).pop();
+      const matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
+
+      if (matched) {
+        isRestoringRef.current = true;
+        setSortBy(state.last_sort_by || 'filename');
+        setSortOrder(state.last_sort_order || 'asc');
+
+        // 先加载图片
+        await loadImages(matched.path, state.last_page || 1);
+
+        // 恢复滚动位置
+        if (contentRef.current && state.last_scroll_top > 0) {
+          requestAnimationFrame(() => {
+            if (contentRef.current) {
+              contentRef.current.scrollTop = state.last_scroll_top;
+            }
+          });
         }
       }
-    } catch (err) {
-      console.error('加载浏览位置失败');
     }
-  }, [loadImages]);
+  }, [loadImages, loadPersistedState]);
 
-  // 初始化
+  // 初始化：加载文件夹列表，然后恢复浏览状态
   useEffect(() => {
     loadFolders().then(restoreBrowseState);
   }, []);
 
-  // 排序变化时重新加载
-  const handleSortChange = useCallback((by, order) => {
-    setSortBy(by);
-    setSortOrder(order);
-    if (selectedFolder) loadImages(selectedFolder, 1);
-  }, [selectedFolder, loadImages]);
-
   return {
+    // 状态
     folders,
     selectedFolder,
     images,
     loading,
     loadingMore,
     currentPage,
-    totalPages,
     sortBy,
     sortOrder,
     contentRef,
-    scrollBusyRef,
-    isRestoringRef,
+
+    // 操作方法
     loadImages,
     loadNextPage,
     loadPrevPage,
-    handleScanAll,
     handleSortChange,
-    loadFolders
+    handleScanAll,
   };
 }
