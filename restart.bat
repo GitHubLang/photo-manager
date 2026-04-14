@@ -19,6 +19,14 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING
     echo 停止 PID %%a (frontend)
     taskkill /PID %%a /F >nul 2>&1
 )
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5174" ^| findstr "LISTENING"') do (
+    echo 停止 PID %%a (old frontend)
+    taskkill /PID %%a /F >nul 2>&1
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5175" ^| findstr "LISTENING"') do (
+    echo 停止 PID %%a (old frontend)
+    taskkill /PID %%a /F >nul 2>&1
+)
 
 echo [等待] 等待端口释放...
 timeout /t 3 /nobreak >nul
@@ -34,7 +42,7 @@ if %errorlevel% neq 0 (
 :: 启动后端
 echo [启动] 启动后端...
 cd /d D:\MySoftware\photo-manager\backend
-start "photo-backend" cmd /k "%PYTHON% main.py"
+start "photo-backend" cmd /k "python main.py"
 
 :: 等待后端就绪
 echo [等待] 等待后端启动...
@@ -47,7 +55,7 @@ echo [就绪] 后端已就绪
 :: 启动前端
 echo [启动] 启动前端...
 cd /d D:\MySoftware\photo-manager\frontend
-start "photo-frontend" cmd /k "npm run dev -- --host"
+start "photo-frontend" cmd /k "npm run preview -- --host 0.0.0.0 --port 5173"
 
 echo.
 echo ========================================
