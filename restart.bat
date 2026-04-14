@@ -5,62 +5,57 @@ title Photo Manager - Restart
 set PYTHON=C:\Users\ADMIN\AppData\Local\Programs\Python\Python311\python.exe
 
 echo ========================================
-echo   Photo Manager 重启脚本
+echo   Photo Manager Restart Script
 echo ========================================
 echo.
 
-:: 停止现有服务
-echo [停止] 停止现有服务...
+echo [Stop] Stopping existing services...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
-    echo 停止 PID %%a (backend)
+    echo Stopping PID %%a (backend)
     taskkill /PID %%a /F >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do (
-    echo 停止 PID %%a (frontend)
+    echo Stopping PID %%a (frontend)
     taskkill /PID %%a /F >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5174" ^| findstr "LISTENING"') do (
-    echo 停止 PID %%a (old frontend)
+    echo Stopping PID %%a (old frontend)
     taskkill /PID %%a /F >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5175" ^| findstr "LISTENING"') do (
-    echo 停止 PID %%a (old frontend)
+    echo Stopping PID %%a (old frontend)
     taskkill /PID %%a /F >nul 2>&1
 )
 
-echo [等待] 等待端口释放...
+echo [Wait] Waiting for ports to be released...
 timeout /t 3 /nobreak >nul
 
-:: 检查并安装依赖
-echo [检查] 检查 Python 依赖...
+echo [Check] Checking Python dependencies...
 %PYTHON% -c "import fastapi" 2>nul
 if %errorlevel% neq 0 (
-    echo [安装] fastapi 未安装，正在安装...
+    echo [Install] fastapi not found, installing...
     %PYTHON% -m pip install fastapi uvicorn python-multipart aiofiles
 )
 
-:: 启动后端
-echo [启动] 启动后端...
+echo [Start] Starting backend...
 cd /d D:\MySoftware\photo-manager\backend
 start "photo-backend" cmd /k "python main.py"
 
-:: 等待后端就绪
-echo [等待] 等待后端启动...
+echo [Wait] Waiting for backend to be ready...
 :wait_backend
 timeout /t 2 /nobreak >nul
 curl -s http://localhost:8000/health >nul 2>&1
 if %errorlevel% neq 0 goto wait_backend
-echo [就绪] 后端已就绪
+echo [Ready] Backend is ready
 
-:: 启动前端
-echo [启动] 启动前端...
+echo [Start] Starting frontend...
 cd /d D:\MySoftware\photo-manager\frontend
 start "photo-frontend" cmd /k "npm run preview -- --host 0.0.0.0 --port 5173"
 
 echo.
 echo ========================================
-echo   重启完成
-echo   后端: http://localhost:8000
-echo   前端: http://192.168.71.55:5173
+echo   Restart Complete
+echo   Backend:  http://localhost:8000
+echo   Frontend: http://192.168.71.55:5173
 echo ========================================
 pause
