@@ -12,7 +12,7 @@ import { useCaption } from './hooks/useCaption';
 import TopToolbar from './components/layout/TopToolbar';
 import SideMenu from './components/layout/SideMenu';
 import BottomTabs from './components/layout/BottomTabs';
-import { FolderDrawer } from './components/layout/MobileDrawers';
+import { FolderDrawer, MenuDrawer } from './components/layout/MobileDrawers';
 
 import ImageGrid from './components/image/ImageGrid';
 import ImagePreviewModal from './components/modals/ImagePreviewModal';
@@ -44,6 +44,7 @@ function App() {
 
   // 移动端抽屉
   const [folderDrawerOpen, setFolderDrawerOpen] = useState(false);
+  const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [scoreDrawerOpen, setScoreDrawerOpen] = useState(false);
   const [captionDrawerOpen, setCaptionDrawerOpen] = useState(false);
 
@@ -316,7 +317,7 @@ function App() {
 
   const handleMobileTabChange = useCallback((tab) => {
     setActiveTab(tab);
-    if (tab === 'folder') { setFolderDrawerOpen(false); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); }
+    if (tab === 'folder') { setFolderDrawerOpen(false); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); setMenuDrawerOpen(false); }
     if (tab === 'scores') { setScoreDrawerOpen(true); setFolderDrawerOpen(false); setCaptionDrawerOpen(false); scoreHook.loadScoreTasks(scoreHook.scoreTaskFilter === 'all' ? null : scoreHook.scoreTaskFilter); }
     if (tab === 'captions') { setCaptionDrawerOpen(true); setFolderDrawerOpen(false); setScoreDrawerOpen(false); captionHook.loadCaptionHistory(captionHook.captionKeyword, captionHook.captionTypeFilter); }
   }, [scoreHook, captionHook]);
@@ -431,10 +432,21 @@ function App() {
         searchText=""
         onSearch={searchHook.handleSearch}
         onScan={imageHook.handleScanAll}
-        onMenuClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); }}
+        onMenuClick={() => setMenuDrawerOpen(true)}
       />
 
       {/* 移动端抽屉 */}
+      {isMobile && (
+        <MenuDrawer
+          open={menuDrawerOpen}
+          onClose={() => setMenuDrawerOpen(false)}
+          onMenuSelect={(key) => {
+            if (key === 'settings') { setSettingsModalVisible(true); return; }
+            if (key === 'folder') { setActiveTab('folder'); setFolderDrawerOpen(true); return; }
+            handleMobileTabChange(key);
+          }}
+        />
+      )}
       {isMobile && (
         <FolderDrawer
           open={folderDrawerOpen}
@@ -475,6 +487,12 @@ function App() {
           setTypeFilter={captionHook.setCaptionTypeFilter}
           onLoad={(kw, tp) => captionHook.loadCaptionHistory(kw, tp)}
           onLoadMore={() => captionHook.loadCaptionHistory(captionHook.captionKeyword, captionHook.captionTypeFilter, captionHook.captionHistoryPage + 1, true)}
+          onImageClick={(cap) => {
+            const parsedIds = cap.image_ids ? JSON.parse(cap.image_ids) : [];
+            captionHook.setGeneratedCaption({ ...cap, title: cap.caption_title, setType: cap.set_type, content: cap.caption_body, hashtags: cap.hashtags });
+            fetchBatchImages(parsedIds).then(d => captionHook.setCaptionModalImages(d.images || [])).catch(() => captionHook.setCaptionModalImages([]));
+            captionHook.setCaptionModalVisible(true);
+          }}
         />
       )}
       {isMobile && <FABButton />}

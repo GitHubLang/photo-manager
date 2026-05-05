@@ -4,7 +4,7 @@ import { Card, Tag, Button, Space, Spin, Empty, Select, Input, Divider, Typograp
 import { getThumbnailUrl } from '../../api/imageApi';
 
 // 移动端抽屉
-export function CaptionDrawer({ open, onClose, history, total, loading, page, keyword, setKeyword, typeFilter, setTypeFilter, onLoad, onLoadMore }) {
+export function CaptionDrawer({ open, onClose, history, total, loading, page, keyword, setKeyword, typeFilter, setTypeFilter, onLoad, onLoadMore, onImageClick }) {
   return (
     <div className={'caption-panel ' + (open ? 'open' : '')} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="caption-panel-backdrop" onClick={onClose} />
@@ -34,7 +34,7 @@ export function CaptionDrawer({ open, onClose, history, total, loading, page, ke
             {history.length === 0 ? <Empty description="暂无文案" /> : history.map(cap => (
               <Card key={cap.id} size="small" hoverable style={{ marginBottom: 8 }}
                 cover={cap.cover_filename ? <img src={getThumbnailUrl(cap.cover_filename, 100)} alt={cap.caption_title} style={{ height: 60, objectFit: 'cover' }} /> : null}
-                onClick={() => {}}>
+                onClick={() => onImageClick && onImageClick(cap)}>
                 <Space style={{ marginBottom: 4 }}>
                   <Tag color={cap.set_type === 'douyin' ? 'blue' : 'green'} style={{ fontSize: 10 }}>{cap.set_type === 'douyin' ? '抖音' : '小红书'}</Tag>
                   <Text type="secondary" style={{ fontSize: 10 }}>{cap.date}</Text>

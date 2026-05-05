@@ -7,7 +7,7 @@ export default function BottomTabs({ activeTab, onTabChange, failedScores }) {
       <div className="bottom-tabs-inner">
         <button className={'bottom-tab-item ' + (activeTab === 'folder' ? 'active' : '')} onClick={() => onTabChange('folder')}>
           <FolderOutlined />
-          <span>文件夹</span>
+          <span>主页</span>
         </button>
         <button className={'bottom-tab-item ' + (activeTab === 'scores' ? 'active' : '')} onClick={() => onTabChange('scores')}>
           <StarOutlined />
