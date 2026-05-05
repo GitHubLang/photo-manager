@@ -54,6 +54,7 @@ export default function LutPage() {
   const [lutUrl, setLutUrl] = useState(null);
   const [haldUrl, setHaldUrl] = useState(null);
   const [xmpUrl, setXmpUrl] = useState(null);
+  const [profileUrl, setProfileUrl] = useState(null);
   const [extracting, setExtracting] = useState(false);
 
   const [testFile, setTestFile] = useState(null);
@@ -84,6 +85,7 @@ export default function LutPage() {
       setLutUrl(API + '/download/' + data.cube.split('/').pop());
       setHaldUrl(API + '/download/' + data.hald.split('/').pop());
       setXmpUrl(API + '/download/' + data.xmp.split('/').pop());
+      setProfileUrl(API + '/download/' + data.profile.split('/').pop());
       message.success('LUT 提取完成');
     } catch (e) { message.error('提取失败: ' + e.message); }
     finally { setExtracting(false); }
@@ -190,6 +192,9 @@ export default function LutPage() {
             </Button>
             <Button icon={<DownloadOutlined />} onClick={() => window.open(xmpUrl)} style={C.btn}>
               下载 .xmp (Lightroom)
+            </Button>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={() => window.open(profileUrl)} style={C.btn}>
+              下载 Lightroom 配置
             </Button>
           </div>
           <Text type="secondary" style={{ display: 'block', marginTop: 10, fontSize: 12 }}>

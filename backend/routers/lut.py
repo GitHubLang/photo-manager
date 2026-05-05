@@ -369,12 +369,18 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
     generate_hald(out_path, hald_path, hald_size=64)
     xmp_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.xmp")
     _generate_xmp(src_path, styled_path, xmp_path)
+    # 从 .cube 生成 Lightroom 配置 .xmp
+    profile_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}_lr.xmp")
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from cube_to_xmp import cube_to_lightroom_xmp
+    cube_to_lightroom_xmp(out_path, profile_path, f"LUT_{task_id}")
 
     return {
         "task_id": task_id,
         "cube": f"/api/lut/download/lut_{task_id}.cube",
         "hald": f"/api/lut/download/lut_{task_id}.png",
-        "xmp": f"/api/lut/download/lut_{task_id}.xmp"
+        "xmp": f"/api/lut/download/lut_{task_id}.xmp",
+        "profile": f"/api/lut/download/lut_{task_id}_lr.xmp"
     }
 
 
