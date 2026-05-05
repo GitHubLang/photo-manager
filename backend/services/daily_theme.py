@@ -7,7 +7,7 @@ from datetime import date
 from typing import List, Dict, Optional
 from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
 from database import execute_query
-from services.llm_scorer import _is_local_model, _get_model_name
+from core.model_router import is_local_model, get_model_name
 
 
 def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
@@ -56,9 +56,9 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
     
     try:
         messages = [{"role": "user", "content": prompt}]
-        if _is_local_model(llm_model):
+        if is_local_model(llm_model):
             api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
-            model_name = _get_model_name(llm_model)
+            model_name = get_model_name(llm_model)
             payload = {"model": model_name, "messages": messages, "max_tokens": 1024, "temperature": 0.3}
             headers = {}
         else:
@@ -317,9 +317,9 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 
     try:
         messages = [{"role": "user", "content": prompt}]
-        if _is_local_model(llm_model):
+        if is_local_model(llm_model):
             api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
-            model_name = _get_model_name(llm_model)
+            model_name = get_model_name(llm_model)
             payload = {"model": model_name, "messages": messages, "max_tokens": 2048, "temperature": 0.5}
             headers = {}
         else:

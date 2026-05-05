@@ -7,39 +7,9 @@ import json
 import requests
 from PIL import Image as PILImage, ImageOps
 from typing import Dict, Optional
-from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, LOCAL_MODELS, MINIMAX_API_KEY, MINIMAX_API_URL, MINIMAX_MODEL, MINIMAX_VISION_API_URL, MINIMAX_VISION_MODEL
+from config import LOCAL_LLM_API, MINIMAX_API_KEY, MINIMAX_API_URL, MINIMAX_MODEL, MINIMAX_VISION_API_URL, MINIMAX_VISION_MODEL
 from database import execute_query as _db_query
-
-def _is_local_model(model: str) -> bool:
-    """判断模型是本地还是云端：先查 DB，再查 config"""
-    if model.startswith("local"):
-        return True
-    if model in LOCAL_MODELS:
-        return True
-    # 查 DB models 表
-    try:
-        rows = _db_query("SELECT api_endpoint FROM models WHERE name=%s LIMIT 1", (model,))
-        if rows:
-            ep = rows[0].get('api_endpoint', '')
-            return any(x in ep for x in ('192.168', 'localhost', '127.0.0.1'))
-    except:
-        pass
-    return False
-
-def _get_model_name(model: str) -> str:
-    """获取实际 API 用的模型名"""
-    if model in LOCAL_MODELS:
-        return LOCAL_MODELS[model]
-    if model.startswith("local"):
-        return LOCAL_LLM_MODEL
-    # 查 DB
-    try:
-        rows = _db_query("SELECT model_name FROM models WHERE name=%s LIMIT 1", (model,))
-        if rows:
-            return rows[0].get('model_name', model)
-    except:
-        pass
-    return model
+from core.model_router import is_local_model, get_model_name
 
 SCORING_PROMPT = """你是一位专业摄影比赛评委。请根据专业摄影比赛标准对这张照片进行评分。
 
@@ -116,9 +86,9 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
     """调用支持 Vision 的 LLM"""
     image_b64 = encode_image_for_llm(image_path)
 
-    if _is_local_model(model):
+    if is_local_model(model):
         api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
-        model_name = _get_model_name(model)
+        model_name = get_model_name(model)
         messages = [
             {
                 "role": "user",
@@ -154,7 +124,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         result = response.json()
         print(f"MiniMax Vision API response: {result}")
         
-        if _is_local_model(model):
+        if is_local_model(model):
             return result["choices"][0]["message"]["content"]
         else:
             # MiniMax Vision API 返回格式
