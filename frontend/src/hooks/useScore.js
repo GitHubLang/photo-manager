@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { message } from 'antd';
 import { fetchScoreTasks, retryScoreTasks as apiRetryScoreTasks } from '../api/imageApi';
 
@@ -14,10 +14,12 @@ export function useScore() {
   const [scoreTaskFilter, setScoreTaskFilter] = useState('all');
   const [selectedScoreTaskIds, setSelectedScoreTaskIds] = useState([]);
   const [failedScores, setFailedScores] = useState([]);
+  const loadingRef = useRef(false);
 
   // 获取评分记录
   const loadScoreTasks = useCallback(async (status, page = 1, append = false) => {
-    // Only show loading indicator for page > 1 (load more), not filter changes
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     if (page > 1) setScoreTasksLoading(true);
     try {
       const data = await fetchScoreTasks({
@@ -34,6 +36,7 @@ export function useScore() {
       }
     } finally {
       if (page > 1) setScoreTasksLoading(false);
+      loadingRef.current = false;
     }
   }, []);
 

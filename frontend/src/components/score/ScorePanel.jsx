@@ -124,7 +124,7 @@ export function ScorePanel({ tasks, total, loading, page, filter, setFilter, sel
         <Space>
           <Button size="small" disabled={page <= 1} onClick={() => onLoad(filter === 'all' ? null : filter, page - 1)}>上页</Button>
           <Text type="secondary" style={{ fontSize: 11 }}>{page}</Text>
-          <Button size="small" disabled={tasks.length < 20} onClick={() => onLoad(filter === 'all' ? null : filter, page + 1)}>下页</Button>
+          <Button size="small" disabled={page * 20 >= total} onClick={() => onLoad(filter === 'all' ? null : filter, page + 1)}>下页</Button>
         </Space>
       </div>
     </div>
