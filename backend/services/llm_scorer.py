@@ -136,21 +136,11 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         }
         headers = {}
     else:
-        # 使用 MiniMax 标准 Chat API (支持 vision, 用 Token Plan 额度)
-        api_url = MINIMAX_API_URL
+        # 使用 MiniMax Vision API (MiniMax-VL-01)
+        api_url = MINIMAX_VISION_API_URL
         payload = {
-            "model": MINIMAX_MODEL,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-                        {"type": "text", "text": prompt}
-                    ]
-                }
-            ],
-            "max_tokens": 4096,
-            "temperature": 0.1,
+            "prompt": prompt,
+            "image_url": f"data:image/jpeg;base64,{image_b64}"
         }
         headers = {
             "Authorization": f"Bearer {MINIMAX_API_KEY}",
@@ -167,9 +157,8 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         if _is_local_model(model):
             return result["choices"][0]["message"]["content"]
         else:
-            # MiniMax Chat API 返回 OpenAI 兼容格式
-            return (result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    or result.get("content", ""))
+            # MiniMax Vision API 返回格式
+            return result.get("content", "")
     except Exception as e:
         print(f"LLM call error: {e}")
         import traceback
