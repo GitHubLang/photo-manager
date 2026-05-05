@@ -34,16 +34,10 @@ export default function SettingsModal({ visible, onClose }) {
     message.success('设置已保存');
   };
 
-  // 后端能识别的模型名：'local' + LOCAL_MODELS 的 key + 其他→MiniMax
-  const modelOptions = [
-    { value: 'local', label: '本地模型 (默认)' },
-    { value: 'Qwen3.5-9B', label: '本地 Qwen3.5-9B' },
-    { value: 'Gemma-4-E4B-IT', label: '本地 Gemma-4-E4B-IT' },
-    { value: 'MiniMax-2.7', label: 'MiniMax-2.7 (云端)' },
-    ...models
-      .filter(m => !['local','Qwen3.5-9B','Gemma-4-E4B-IT','MiniMax-2.7'].includes(m.name))
-      .map(m => ({ value: m.name, label: m.name + ' (云端)' }))
-  ];
+  const modelOptions = models.map(m => ({
+    value: m.model_name,
+    label: m.name + ' (' + m.model_type + ')'
+  }));
 
   const items = [
     {

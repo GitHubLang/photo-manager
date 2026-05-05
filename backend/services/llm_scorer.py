@@ -123,7 +123,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         result = response.json()
         print(f"MiniMax Vision API response: {result}")
         
-        if model.startswith("local"):
+        if model.startswith("local") or model in LOCAL_MODELS:
             return result["choices"][0]["message"]["content"]
         else:
             # MiniMax Vision API 返回格式
