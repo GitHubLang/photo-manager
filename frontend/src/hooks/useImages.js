@@ -39,43 +39,6 @@ export function useImages() {
     return 0;
   }, []);
 
-  // 滚动停止 800ms 后自动保存位置
-  const scheduleSave = useCallback(() => {
-    if (isRestoringRef.current) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      if (!selectedFolder || !contentRef.current) return;
-      saveState({
-        last_folder_path: selectedFolder,
-        last_page: currentPage,
-        last_sort_by: sortBy,
-        last_sort_order: sortOrder,
-        last_scroll_top: contentRef.current.scrollTop,
-        anchor_image_id: getAnchorImageId()
-      });
-    }, 800);
-  }, [selectedFolder, currentPage, sortBy, sortOrder, saveState, getAnchorImageId]);
-
-  // 页面离开前保存（beforeunload），确保刷新/关闭时保存最新位置
-  useEffect(() => {
-    const handler = () => {
-      if (!selectedFolder || !contentRef.current || isRestoringRef.current) return;
-      // 同步写入 localStorage（beforeunload 中异步可能不执行）
-      try {
-        localStorage.setItem('photoManagerAppState', JSON.stringify({
-          last_folder_path: selectedFolder,
-          last_page: currentPage,
-          last_sort_by: sortBy,
-          last_sort_order: sortOrder,
-          last_scroll_top: contentRef.current.scrollTop,
-          anchor_image_id: getAnchorImageId()
-        }));
-      } catch {}
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [selectedFolder, currentPage, sortBy, sortOrder, getAnchorImageId]);
-
   // 持久化状态到 localStorage
   const persistState = useCallback((state) => {
     try {
@@ -108,6 +71,42 @@ export function useImages() {
     persistState(state);
     persistToServer(state);
   }, [persistState, persistToServer]);
+
+  // 滚动停止 800ms 后自动保存位置
+  const scheduleSave = useCallback(() => {
+    if (isRestoringRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (!selectedFolder || !contentRef.current) return;
+      saveState({
+        last_folder_path: selectedFolder,
+        last_page: currentPage,
+        last_sort_by: sortBy,
+        last_sort_order: sortOrder,
+        last_scroll_top: contentRef.current.scrollTop,
+        anchor_image_id: getAnchorImageId()
+      });
+    }, 800);
+  }, [selectedFolder, currentPage, sortBy, sortOrder, saveState, getAnchorImageId]);
+
+  // 页面离开前保存（beforeunload），确保刷新/关闭时保存最新位置
+  useEffect(() => {
+    const handler = () => {
+      if (!selectedFolder || !contentRef.current || isRestoringRef.current) return;
+      try {
+        localStorage.setItem('photoManagerAppState', JSON.stringify({
+          last_folder_path: selectedFolder,
+          last_page: currentPage,
+          last_sort_by: sortBy,
+          last_sort_order: sortOrder,
+          last_scroll_top: contentRef.current.scrollTop,
+          anchor_image_id: getAnchorImageId()
+        }));
+      } catch {}
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [selectedFolder, currentPage, sortBy, sortOrder, getAnchorImageId]);
 
   // 加载目录树
   const loadFolders = useCallback(async () => {
