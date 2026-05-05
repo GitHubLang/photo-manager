@@ -59,7 +59,7 @@ export default function LutPage() {
   const [prevResultUrl, setPrevResultUrl] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
-  const [showPrompt, setShowPrompt] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(true);
 
   const handleUpload = (file, setFile, setPreview) => {
     setFile(file);
