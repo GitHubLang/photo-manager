@@ -112,7 +112,8 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
             "image_url": f"data:image/jpeg;base64,{image_b64}"
         }
         headers = {
-            "MM-API-Source": "OpenClaw"
+            "Authorization": f"Bearer {MINIMAX_API_KEY}",
+            "Content-Type": "application/json"
         }
     
     try:
