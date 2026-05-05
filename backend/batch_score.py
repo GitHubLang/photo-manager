@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-批量评分 - MiniMax, 4并发, 导出目录
+批量评分 - MiniMax, 1张/次, 间隔2秒, 失败重试1次
 """
-import sys, os, io
+import sys, os, io, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-# Force UTF-8 output (Windows redirect)
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 from database import execute_query
 from services.llm_scorer import score_and_describe_image
-import threading
 
 FOLDER = r'E:\图像\导出'
-CONCURRENCY = 4
 MODEL = 'MiniMax-2.7'
+DELAY = 3  # seconds between each image
 
 def get_unscored():
     rows = execute_query("""
@@ -24,48 +22,51 @@ def get_unscored():
     """, (FOLDER,))
     return rows
 
-def process_batch(batch, sem):
-    for img in batch:
-        sem.acquire()
-        def worker(iid=img['id'], ipath=img['file_path']):
-            try:
-                name = os.path.basename(ipath)
-                print("[%s] Scoring %d: %s" % (threading.current_thread().name, iid, name))
-                r = score_and_describe_image(iid, ipath, MODEL)
-                if r.get('scored'):
-                    print("  [OK] %d scored" % iid)
-                else:
-                    print("  [FAIL] %d score failed" % iid)
-                if r.get('described'):
-                    print("  [OK] %d described" % iid)
-            except Exception as e:
-                print("  [ERR] %d: %s" % (iid, e))
-            finally:
-                sem.release()
-        t = threading.Thread(target=worker, daemon=True)
-        t.start()
+def process_one(iid, ipath):
+    """Score one image, retry once on failure"""
+    name = os.path.basename(ipath)
+    for attempt in (1, 2):
+        try:
+            r = score_and_describe_image(iid, ipath, MODEL)
+            if r.get('scored'):
+                print("[OK] %d %s scored" % (iid, name))
+                return True
+            elif attempt == 1:
+                print("[RETRY] %d %s" % (iid, name))
+                time.sleep(5)
+            else:
+                print("[FAIL] %d %s" % (iid, name))
+                return False
+        except Exception as e:
+            if attempt == 1:
+                print("[RETRY] %d %s: %s" % (iid, name, e))
+                time.sleep(5)
+            else:
+                print("[FAIL] %d %s: %s" % (iid, name, e))
+                return False
+    return False
 
 def main():
     images = get_unscored()
     total = len(images)
-    print("Unscored: %d, concurrency: %d, model: %s" % (total, CONCURRENCY, MODEL))
     if total == 0:
         print("All scored!")
         return
 
-    sem = threading.Semaphore(CONCURRENCY)
-    for i in range(0, total, CONCURRENCY):
-        batch = images[i:i+CONCURRENCY]
-        idx = i // CONCURRENCY + 1
-        total_batches = (total + CONCURRENCY - 1) // CONCURRENCY
-        print("\n--- Batch %d/%d (%d images) ---" % (idx, total_batches, len(batch)))
-        process_batch(batch, sem)
-        for _ in range(len(batch)):
-            sem.acquire()
-        for _ in range(len(batch)):
-            sem.release()
+    print("Unscored: %d, delay: %ds, model: %s" % (total, DELAY, MODEL))
+    ok = 0
+    fail = 0
+    for idx, img in enumerate(images):
+        iid, ipath = img['id'], img['file_path']
+        name = os.path.basename(ipath)
+        print("[%d/%d] %s ..." % (idx + 1, total, name), end=' ', flush=True)
+        if process_one(iid, ipath):
+            ok += 1
+        else:
+            fail += 1
+        time.sleep(DELAY)
 
-    print("\nDone! Processed %d images" % total)
+    print("\nDone! OK=%d FAIL=%d Total=%d" % (ok, fail, total))
 
 if __name__ == '__main__':
     main()
