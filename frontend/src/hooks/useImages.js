@@ -24,15 +24,15 @@ export function useImages() {
   const scrollBusyRef = useRef(false);
   const contentRef = useRef(null);
 
-  // 获取当前视口第一个可见图片的（估算）索引
-  const getFirstVisibleImageIndex = useCallback(() => {
+  // 获取当前视口第一个可见图片的 ID
+  const getAnchorImageId = useCallback(() => {
     if (!contentRef.current) return 0;
-    const cards = contentRef.current.querySelectorAll('.ant-col');
+    const cards = contentRef.current.querySelectorAll('.ant-col[data-img-id]');
     const containerRect = contentRef.current.getBoundingClientRect();
-    for (let i = 0; i < cards.length; i++) {
-      const rect = cards[i].getBoundingClientRect();
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
       if (rect.bottom > containerRect.top + 10) {
-        return Math.max(0, i);
+        return Number(card.getAttribute('data-img-id')) || 0;
       }
     }
     return 0;
@@ -126,7 +126,7 @@ export function useImages() {
           last_sort_by: sortBy,
           last_sort_order: sortOrder,
           last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0,
-          last_image_index: getFirstVisibleImageIndex()
+          anchor_image_id: getAnchorImageId()
         });
       }
     } catch (err) {
@@ -143,7 +143,7 @@ export function useImages() {
           last_sort_by: sortBy,
           last_sort_order: sortOrder,
           last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0,
-          last_image_index: getFirstVisibleImageIndex()
+          anchor_image_id: getAnchorImageId()
         });
       }
     }
@@ -211,7 +211,7 @@ export function useImages() {
               last_sort_by: sortBy,
               last_sort_order: sortOrder,
               last_scroll_top: contentEl ? contentEl.scrollTop : 0,
-              last_image_index: getFirstVisibleImageIndex()
+              anchor_image_id: getAnchorImageId()
             });
           });
         });
@@ -223,7 +223,7 @@ export function useImages() {
       setLoadingMore(false);
       scrollBusyRef.current = false;
     }
-  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState, getFirstVisibleImageIndex]);
+  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState, getAnchorImageId]);
 
 
   // 更新单张图片数据（评分完成后原地更新，不用重刷列表）
@@ -347,19 +347,18 @@ export function useImages() {
         // 加载保存的页面
         await loadImages(matched.path, state.last_page || 1);
 
-        // 如果有保存的图片索引，滚动到对应位置
-        const savedIndex = state.last_image_index ?? 0;
-        if (savedIndex > 0 && contentRef.current) {
+        // 如果有保存的锚点图片ID，滚动到该图片
+        const anchorId = state.anchor_image_id;
+        if (anchorId && contentRef.current) {
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               const el = contentRef.current;
               if (!el) return;
-              const cards = el.querySelectorAll('.ant-col');
-              if (cards.length > savedIndex) {
-                const card = cards[savedIndex];
+              const card = el.querySelector('.ant-col[data-img-id="' + anchorId + '"]');
+              if (card) {
                 card.scrollIntoView({ block: 'start', behavior: 'instant' });
               } else if (state.last_scroll_top > 0) {
-                el.scrollTop = state.last_scroll_top;
+                el.scrollTop = Math.min(state.last_scroll_top, el.scrollHeight - el.clientHeight);
               }
             });
           });
