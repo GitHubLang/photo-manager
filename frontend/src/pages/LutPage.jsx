@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Button, Image, Space, Card, Divider, Typography, message, Spin } from 'antd';
-import { InboxOutlined, SwapOutlined, DownloadOutlined, CopyOutlined, EyeOutlined, ExportOutlined } from '@ant-design/icons';
+import { Upload, Button, Image, Space, Card, Divider, Typography, message } from 'antd';
+import { InboxOutlined, DownloadOutlined, CopyOutlined, EyeOutlined } from '@ant-design/icons';
 
 const { Dragger } = Upload;
 const { Title, Text } = Typography;
@@ -35,61 +35,37 @@ const AI_PROMPT = `任务目标
 
 export default function LutPage() {
   const [sourceFile, setSourceFile] = useState(null);
-  const [refFile, setRefFile] = useState(null);
+  const [styledFile, setStyledFile] = useState(null);
   const [sourcePreview, setSourcePreview] = useState(null);
-  const [refPreview, setRefPreview] = useState(null);
-  const [resultUrl, setResultUrl] = useState(null);
+  const [styledPreview, setStyledPreview] = useState(null);
   const [lutUrl, setLutUrl] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+
+  // 预览
   const [testFile, setTestFile] = useState(null);
   const [testPreview, setTestPreview] = useState(null);
   const [prevResultUrl, setPrevResultUrl] = useState(null);
   const [previewing, setPreviewing] = useState(false);
+  const [sliderPos, setSliderPos] = useState(50);
 
   const handleUpload = (file, setFile, setPreview) => {
     setFile(file);
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(file);
-    return false; // prevent auto upload
-  };
-
-  const handleTransfer = async () => {
-    if (!sourceFile || !refFile) {
-      message.warning('请先上传原图和参考图');
-      return;
-    }
-    setLoading(true);
-    try {
-      const form = new FormData();
-      form.append('source', sourceFile);
-      form.append('reference', refFile);
-      const r = await fetch(API + '/transfer', { method: 'POST', body: form });
-      if (!r.ok) throw new Error('Transfer failed');
-      const data = await r.json();
-      setResultUrl(API + '/output/' + data.url.split('/').pop());
-      message.success('色彩迁移完成');
-    } catch (e) {
-      message.error('迁移失败: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
+    return false;
   };
 
   const handleExtractLut = async () => {
-    if (!sourceFile || !resultUrl) {
-      message.warning('请先完成色彩迁移');
+    if (!sourceFile || !styledFile) {
+      message.warning('请上传原图和AI生成的目标图');
       return;
     }
     setExtracting(true);
     try {
-      // 下载结果图作为 styled
-      const styledBlob = await fetch(resultUrl).then(r => r.blob());
-
       const form = new FormData();
       form.append('source', sourceFile);
-      form.append('styled', new File([styledBlob], 'styled.jpg', { type: 'image/jpeg' }));
+      form.append('styled', styledFile);
       const r = await fetch(API + '/extract', { method: 'POST', body: form });
       if (!r.ok) throw new Error('Extract failed');
       const data = await r.json();
@@ -117,7 +93,8 @@ export default function LutPage() {
       if (!r.ok) throw new Error('Preview failed');
       const data = await r.json();
       setPrevResultUrl(API + '/output/' + data.url.split('/').pop());
-      message.success('预览生成完成');
+      setSliderPos(50);
+      message.success('预览生成完成，拖动滑块对比');
     } catch (e) {
       message.error('预览失败: ' + e.message);
     } finally {
@@ -125,166 +102,134 @@ export default function LutPage() {
     }
   };
 
-  const handleExport = () => {
-    if (prevResultUrl) {
-      const a = document.createElement('a');
-      a.href = prevResultUrl;
-      a.download = 'preview_result.jpg';
-      a.click();
-    }
+  const copyPrompt = () => {
+    const ta = document.createElement('textarea');
+    ta.value = AI_PROMPT;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    message.success('AI 提示词已复制，去 ChatGPT/MiniMax 粘贴使用');
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
+    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
       <Title level={3}>LUT 克隆</Title>
-      <div style={{ marginBottom: 24 }}>
-        <Text type="secondary">
-          上传参考风格图 + 原图 → 自动迁移色调 → 生成 .cube LUT 文件（可用于 Lightroom/PS）
+
+      {/* 提示词区 */}
+      <div style={{ marginBottom: 24, padding: 12, background: '#f5f5f5', borderRadius: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text strong>步骤1：复制提示词 → AI 生成</Text>
+          <Button type="primary" size="small" icon={<CopyOutlined />} onClick={copyPrompt}>复制 AI 提示词</Button>
+        </div>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          去 ChatGPT/MiniMax 粘贴提示词 + 原图 + 参考图 → 获得 AI 生成的风格图
         </Text>
-        <Button
-          type="primary"
-          size="small"
-          icon={<CopyOutlined />}
-          style={{ marginLeft: 12 }}
-          onClick={() => {
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(AI_PROMPT).then(() => message.success('AI 提示词已复制')).catch(() => fallbackCopy());
-            } else {
-              fallbackCopy();
-            }
-            function fallbackCopy() {
-              const ta = document.createElement('textarea');
-              ta.value = AI_PROMPT;
-              ta.style.position = 'fixed'; ta.style.left = '-9999px';
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand('copy');
-              document.body.removeChild(ta);
-              message.success('AI 提示词已复制');
-            }
-          }}
-        >
-          复制 AI 提示词
-        </Button>
-        <div style={{ marginTop: 8, padding: 12, background: '#f5f5f5', borderRadius: 6, maxHeight: 200, overflow: 'auto', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-          {AI_PROMPT}
+      </div>
+
+      {/* 上传区 */}
+      <div style={{ marginBottom: 24, padding: 16, background: '#fffbe6', borderRadius: 6 }}>
+        <Text strong style={{ marginBottom: 12, display: 'block' }}>步骤2：上传原图 + AI生成的目标图</Text>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Card title="原图" size="small">
+            <Dragger accept="image/*" maxCount={1}
+              beforeUpload={(f) => handleUpload(f, setSourceFile, setSourcePreview)} showUploadList={false}>
+              {sourcePreview ? (
+                <Image src={sourcePreview} preview={false} style={{ maxHeight: 150, objectFit: 'contain' }} />
+              ) : (
+                <div><InboxOutlined style={{ fontSize: 24, color: '#999' }} /><p style={{ fontSize: 12 }}>原图</p></div>
+              )}
+            </Dragger>
+          </Card>
+          <Card title="AI 生成的目标图" size="small">
+            <Dragger accept="image/*" maxCount={1}
+              beforeUpload={(f) => handleUpload(f, setStyledFile, setStyledPreview)} showUploadList={false}>
+              {styledPreview ? (
+                <Image src={styledPreview} preview={false} style={{ maxHeight: 150, objectFit: 'contain' }} />
+              ) : (
+                <div><InboxOutlined style={{ fontSize: 24, color: '#999' }} /><p style={{ fontSize: 12 }}>AI 生成图</p></div>
+              )}
+            </Dragger>
+          </Card>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <Button type="primary" size="large" icon={<DownloadOutlined />}
+            disabled={!sourceFile || !styledFile} loading={extracting} onClick={handleExtractLut}>
+            提取 .cube LUT
+          </Button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-        <Card title="原图（待调色）" size="small">
-          <Dragger
-            accept="image/*"
-            maxCount={1}
-            beforeUpload={(f) => handleUpload(f, setSourceFile, setSourcePreview)}
-            showUploadList={false}
-          >
-            {sourcePreview ? (
-              <Image src={sourcePreview} preview={false} style={{ maxHeight: 180, objectFit: 'contain' }} />
-            ) : (
-              <div>
-                <InboxOutlined style={{ fontSize: 32, color: '#999' }} />
-                <p>点击或拖拽上传</p>
-              </div>
-            )}
-          </Dragger>
-        </Card>
-
-        <Card title="参考风格图" size="small">
-          <Dragger
-            accept="image/*"
-            maxCount={1}
-            beforeUpload={(f) => handleUpload(f, setRefFile, setRefPreview)}
-            showUploadList={false}
-          >
-            {refPreview ? (
-              <Image src={refPreview} preview={false} style={{ maxHeight: 180, objectFit: 'contain' }} />
-            ) : (
-              <div>
-                <InboxOutlined style={{ fontSize: 32, color: '#999' }} />
-                <p>点击或拖拽上传</p>
-              </div>
-            )}
-          </Dragger>
-        </Card>
-      </div>
-
-      <Space style={{ marginBottom: 24 }}>
-        <Button type="primary" icon={<SwapOutlined />} onClick={handleTransfer}
-          disabled={!sourceFile || !refFile} loading={loading}>
-          风格迁移
-        </Button>
-        <Button icon={<DownloadOutlined />} onClick={handleExtractLut}
-          disabled={!resultUrl} loading={extracting}>
-          提取 .cube LUT
-        </Button>
-      </Space>
-
-      {resultUrl && (
-        <>
-          <Divider />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            <Card title="原图" size="small" cover={sourcePreview ? <Image src={sourcePreview} /> : null} />
-            <Card title="风格迁移结果" size="small" cover={<Image src={resultUrl} />} />
-            <Card title="参考风格" size="small" cover={refPreview ? <Image src={refPreview} /> : null} />
-          </div>
-        </>
+      {/* 下载 LUT */}
+      {lutUrl && (
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <Button type="primary" icon={<DownloadOutlined />} onClick={() => window.open(lutUrl)}>
+            下载 .cube LUT 文件
+          </Button>
+          <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>导入 Lightroom/PS/DaVinci</Text>
+        </div>
       )}
 
-      {lutUrl && (
-        <>
-          <Divider />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Card title="测试预览" size="small">
-              <Dragger
-                accept="image/*"
-                maxCount={1}
-                beforeUpload={(f) => { handleUpload(f, setTestFile, setTestPreview); return false; }}
-                showUploadList={false}
-              >
-                {testPreview ? (
-                  <Image src={testPreview} preview={false} style={{ maxHeight: 120, objectFit: 'contain' }} />
-                ) : (
-                  <div>
-                    <InboxOutlined style={{ fontSize: 24, color: '#999' }} />
-                    <p style={{ fontSize: 12 }}>上传测试图</p>
-                  </div>
-                )}
-              </Dragger>
-              <div style={{ marginTop: 8, textAlign: 'center' }}>
-                <Space>
-                  <Button size="small" icon={<EyeOutlined />} onClick={handlePreview}
-                    disabled={!testFile} loading={previewing}>
-                    预览
-                  </Button>
-                  <Button size="small" icon={<ExportOutlined />} onClick={handleExport}
-                    disabled={!prevResultUrl}>
-                    导出
-                  </Button>
-                </Space>
-              </div>
-            </Card>
-            <Card title="预览结果" size="small">
-              {prevResultUrl ? (
-                <Image src={prevResultUrl} />
-              ) : (
-                <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-                  上传测试图后点击预览
-                </div>
-              )}
-            </Card>
+      {/* 预览对比区 */}
+      <Divider>预览对比</Divider>
+      <div style={{ marginBottom: 16, padding: 12, background: '#f0f5ff', borderRadius: 6 }}>
+        <Text strong style={{ marginBottom: 8, display: 'block' }}>上传测试图预览 LUT 效果</Text>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <Dragger accept="image/*" maxCount={1} style={{ flex: 1 }}
+            beforeUpload={(f) => { handleUpload(f, setTestFile, setTestPreview); return false; }} showUploadList={false}>
+            {testPreview ? (
+              <Image src={testPreview} preview={false} style={{ maxHeight: 60, objectFit: 'contain' }} />
+            ) : (
+              <div style={{ padding: '8px 0' }}><InboxOutlined style={{ fontSize: 18 }} /><p style={{ fontSize: 11, margin: 0 }}>测试图</p></div>
+            )}
+          </Dragger>
+          <Button icon={<EyeOutlined />} onClick={handlePreview} disabled={!testFile} loading={previewing}>生成预览</Button>
+        </div>
+      </div>
+
+      {/* 滑块对比 */}
+      {prevResultUrl && testPreview && (
+        <div style={{ position: 'relative', width: '100%', maxHeight: 500, overflow: 'hidden', borderRadius: 8, border: '1px solid #ddd', userSelect: 'none' }}>
+          {/* 原图（底层） */}
+          <img src={testPreview} alt="原图" style={{ width: '100%', display: 'block' }} />
+          {/* LUT 结果（上层裁剪） */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: sliderPos + '%', height: '100%', overflow: 'hidden' }}>
+            <img src={prevResultUrl} alt="LUT结果" style={{ width: (10000 / sliderPos) + '%', maxWidth: 'none', display: 'block' }} />
           </div>
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <Button type="primary" size="large" icon={<DownloadOutlined />}
-              onClick={() => window.open(lutUrl)}>
-              下载 .cube LUT 文件
-            </Button>
-            <br />
-            <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
-              导入 Lightroom/PS/DaVinci 即可使用
-            </Text>
+          {/* 拖动条 */}
+          <div
+            style={{
+              position: 'absolute', top: 0, left: sliderPos + '%', width: 3, height: '100%',
+              background: '#fff', boxShadow: '0 0 8px rgba(0,0,0,0.3)', cursor: 'ew-resize', zIndex: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const container = e.target.parentElement;
+              const onMove = (ev) => {
+                const rect = container.getBoundingClientRect();
+                const x = ev.clientX - rect.left;
+                setSliderPos(Math.min(100, Math.max(0, (x / rect.width) * 100)));
+              };
+              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          >
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', background: '#fff',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <div style={{ width: 0, height: 0, borderTop: '5px solid transparent', borderBottom: '5px solid transparent', borderLeft: '6px solid #666' }} />
+              <div style={{ width: 0, height: 0, borderTop: '5px solid transparent', borderBottom: '5px solid transparent', borderRight: '6px solid #666', marginLeft: 2 }} />
+            </div>
           </div>
-        </>
+          {/* 标签 */}
+          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>原图</div>
+          <div style={{ position: 'absolute', bottom: 8, right: 12, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>LUT</div>
+        </div>
       )}
     </div>
   );
