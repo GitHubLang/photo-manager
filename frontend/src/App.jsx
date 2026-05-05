@@ -332,6 +332,20 @@ function App() {
         </Button>
       </Space>
       <Space>
+        {!isMobile && imageHook.selectedFolder && searchHook.searchResults === null && (
+          <Space size="small">
+            <Button size="small" onClick={() => imageHook.goToPage(imageHook.currentPage - 1)} disabled={imageHook.currentPage <= 1}>上一页</Button>
+            <Input
+              size="small"
+              style={{ width: 50, textAlign: 'center' }}
+              defaultValue={imageHook.currentPage}
+              key={imageHook.currentPage}
+              onPressEnter={(e) => { const v = parseInt(e.target.value); if (v >= 1 && v <= imageHook.totalPages) imageHook.goToPage(v); }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>/ {imageHook.totalPages}</Text>
+            <Button size="small" onClick={() => imageHook.goToPage(imageHook.currentPage + 1)} disabled={imageHook.currentPage >= imageHook.totalPages}>下一页</Button>
+          </Space>
+        )}
         <Select value={imageHook.sortBy} onChange={(v) => imageHook.handleSortChange(v, imageHook.sortOrder)} style={{ width: 120 }}>
           <Select.Option value="created_at">创建时间</Select.Option>
           <Select.Option value="filename">文件名</Select.Option>
@@ -545,7 +559,6 @@ function App() {
             if (scrollTop < 50 && imageHook.currentPage > 1 && searchHook.searchResults === null) {
               imageHook.loadPrevPage();
             }
-            imageHook.scheduleSave();
           }}>
           {renderActionBar()}
           <ImageGrid

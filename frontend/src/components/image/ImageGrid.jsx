@@ -11,7 +11,7 @@ export default function ImageGrid({ images, loading, selectedImages, scoringIds,
     <Spin spinning={loading}>
       <Row gutter={[16, 16]} className="image-grid">
         {images.map(img => (
-          <Col key={img.id} data-img-id={img.id} xs={12} sm={8} md={6} lg={4}>
+          <Col key={img.id} xs={12} sm={8} md={6} lg={4}>
             <ImageCard
               img={img}
               selected={selectedImages}
