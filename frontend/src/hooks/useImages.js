@@ -99,6 +99,10 @@ export function useImages() {
     loadedPagesSet.current.clear();
     loadingPagesSet.current.clear();
     loadImages(selectedFolder, page, false, sortBy, sortOrder);
+    // 跳页后滚到顶部
+    requestAnimationFrame(() => {
+      if (contentRef.current) contentRef.current.scrollTop = 0;
+    });
   }, [selectedFolder, sortBy, sortOrder, loadImages]);
 
   /** 向上翻页（无限滚动） */
