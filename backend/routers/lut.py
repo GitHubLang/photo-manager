@@ -161,11 +161,14 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
 
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from lut_gen import generate_lut
+    from lut_gen import generate_lut, generate_hald
     out_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.cube")
     generate_lut(src_path, styled_path, out_path, lut_size=33)
+    # 同时生成 HALD CLUT PNG
+    hald_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.png")
+    generate_hald(out_path, hald_path, hald_size=64)
 
-    return {"task_id": task_id, "url": f"/api/lut/download/lut_{task_id}.cube"}
+    return {"task_id": task_id, "cube": f"/api/lut/download/lut_{task_id}.cube", "hald": f"/api/lut/download/lut_{task_id}.png"}
 
 
 @router.get("/download/{filename}")

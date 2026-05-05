@@ -33,7 +33,7 @@ const AI_PROMPT = `任务目标
 请只输出调色后的图片，不要输出解释文字。重要：输出画布必须和待处理图片完全一致。不得裁剪，不得扩图，不得补边，不得改变画幅，不得改变人物或物体位置。输出宽度、高度、构图、透视、边缘内容必须与待处理图片逐像素对应。只改变颜色，不改变内容。`;
 
 const C = {
-  box: { padding: 24, maxWidth: 960, margin: '0 auto' },
+  box: { padding: 24, maxWidth: 960, width: '100%', margin: '0 auto' },
   step: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 },
   stepNum: { width: 28, height: 28, borderRadius: '50%', background: '#1677ff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },
@@ -52,6 +52,7 @@ export default function LutPage() {
   const [sourcePreview, setSourcePreview] = useState(null);
   const [styledPreview, setStyledPreview] = useState(null);
   const [lutUrl, setLutUrl] = useState(null);
+  const [haldUrl, setHaldUrl] = useState(null);
   const [extracting, setExtracting] = useState(false);
 
   const [testFile, setTestFile] = useState(null);
@@ -79,7 +80,8 @@ export default function LutPage() {
       const r = await fetch(API + '/extract', { method: 'POST', body: form });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Extract failed');
-      setLutUrl(API + '/download/' + data.url.split('/').pop());
+      setLutUrl(API + '/download/' + data.cube.split('/').pop());
+      setHaldUrl(API + '/download/' + data.hald.split('/').pop());
       message.success('LUT 提取完成');
     } catch (e) { message.error('提取失败: ' + e.message); }
     finally { setExtracting(false); }
@@ -175,10 +177,19 @@ export default function LutPage() {
 
       {/* LUT 下载 */}
       {lutUrl && (
-        <div style={{ textAlign: 'center', marginBottom: 32, padding: 16, background: '#f0f5ff', borderRadius: 10 }}>
-          <Text style={{ marginRight: 12 }}>LUT 提取完成</Text>
-          <Button type="primary" icon={<DownloadOutlined />} onClick={() => window.open(lutUrl)}>下载 .cube 文件</Button>
-          <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>可导入 Lightroom / Photoshop / DaVinci</Text>
+        <div style={{ textAlign: 'center', marginBottom: 32, padding: 20, background: '#f0f5ff', borderRadius: 10 }}>
+          <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 12 }}>LUT 提取完成，选择格式下载</Text>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={() => window.open(lutUrl)} style={C.btn}>
+              下载 .cube
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={() => window.open(haldUrl)} style={C.btn}>
+              下载 .png (HALD CLUT)
+            </Button>
+          </div>
+          <Text type="secondary" style={{ display: 'block', marginTop: 10, fontSize: 12 }}>
+            .cube → PS/达芬奇/Premiere &nbsp;|&nbsp; .png HALD → Lightroom/更多软件
+          </Text>
         </div>
       )}
 

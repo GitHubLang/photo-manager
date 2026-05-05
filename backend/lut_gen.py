@@ -207,6 +207,54 @@ def apply_lut(image_path, lut_path, output_path):
     print(f"LUT applied: {output_path}")
 
 
+def generate_hald(lut_path, output_path, hald_size=64):
+    """
+    从 .cube LUT 生成 HALD CLUT PNG 图片
+    HALD 是编码 3D LUT 的标准图片格式，Lightroom/PS/达芬奇均支持
+    """
+    import numpy as np
+
+    with open(lut_path) as f:
+        lines = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+
+    lut_3d_size = None
+    data_start = 0
+    for i, line in enumerate(lines):
+        if line.startswith('LUT_3D_SIZE'):
+            lut_3d_size = int(line.split()[-1])
+        if not line.startswith(('TITLE', 'LUT_3D_SIZE', 'DOMAIN_MIN', 'DOMAIN_MAX')):
+            if lut_3d_size is not None:
+                data_start = i
+                break
+
+    data_lines = lines[data_start:]
+    width = hald_size * hald_size
+    height = hald_size
+    hald = np.zeros((height, width, 3), dtype=np.float32)
+
+    idx = 0
+    for b in range(hald_size):
+        for g in range(hald_size):
+            for r in range(hald_size):
+                x = (b * hald_size + g) % width
+                y = r % height
+                ri = int(r * (lut_3d_size - 1) / (hald_size - 1))
+                gi = int(g * (lut_3d_size - 1) / (hald_size - 1))
+                bi = int(b * (lut_3d_size - 1) / (hald_size - 1))
+                lut_idx = bi * lut_3d_size * lut_3d_size + gi * lut_3d_size + ri
+                if lut_idx < len(data_lines):
+                    parts = data_lines[lut_idx].split()
+                    hald[y, x] = [float(parts[0]), float(parts[1]), float(parts[2])]
+
+    hald = np.clip(hald * 255, 0, 255).astype(np.uint8)
+    Image.fromarray(hald).save(output_path)
+    print(f"HALD saved: {output_path}")
+    return output_path
+
+
+# ============ CLI ============
+
+
 # ============ CLI ============
 if __name__ == '__main__':
     import sys
