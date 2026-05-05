@@ -23,7 +23,13 @@ import CaptionInstructionsModal from './components/modals/CaptionInstructionsMod
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
-import { fetchModels as apiFetchModels, generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
+import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
+
+const LS_SCORING = 'pm_scoring_model_id';
+const LS_CAPTION = 'pm_caption_model_id';
+function getSettingModel(key) {
+  try { return localStorage.getItem(key) || ''; } catch { return ''; }
+}
 
 const { Sider, Content } = Layout;
 const { Search } = Input;
@@ -56,8 +62,7 @@ function App() {
   const captionHook = useCaption();
 
   // ============ 额外状态 ============
-  const [selectedModel, setSelectedModel] = useState('local');
-  const [availableModels, setAvailableModels] = useState([]);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [scoringIds, setScoringIds] = useState(new Set());
 
@@ -72,7 +77,6 @@ function App() {
   // 文案弹窗
   const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
   const [pendingCaptionType, setPendingCaptionType] = useState('douyin');
-  const [captionModel, setCaptionModel] = useState('local');  // 'local' or 'MiniMax-2.7'
   const captionModalImgRef = useRef([]);
   let displayImages;
 
@@ -82,13 +86,6 @@ function App() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // 加载模型列表
-  useEffect(() => {
-    apiFetchModels().then(data => {
-      setAvailableModels(data.models || []);
-    });
   }, []);
 
   // activeMenu 同步
@@ -101,9 +98,10 @@ function App() {
 
   // ============ 评分逻辑 ============
   const handleScore = useCallback(async (imageId) => {
+    const model = getSettingModel(LS_SCORING) || 'local';
     setScoringIds(prev => new Set([...prev, imageId]));
     try {
-      const data = await createScoreTask([imageId], selectedModel);
+      const data = await createScoreTask([imageId], model);
       if (data.tasks?.length > 0) {
         message.success('评分任务已创建,请在图片上查看进度');
         pollScoreStatus(imageId);
@@ -118,7 +116,7 @@ function App() {
       message.error('评分请求失败');
       setScoringIds(prev => { const s = new Set(prev); s.delete(imageId); return s; });
     }
-  }, [selectedModel]);
+  }, []);
 
   const pollScoreStatus = useCallback(async (imageId, maxAttempts = 60) => {
     let attempts = 0;
@@ -156,8 +154,9 @@ function App() {
       message.warning('请先选择图片');
       return;
     }
+    const model = getSettingModel(LS_SCORING) || 'local';
     try {
-      const data = await createScoreTask(selectedImages.map(img => img.id), selectedModel);
+      const data = await createScoreTask(selectedImages.map(img => img.id), model);
       message.success(selectedImages.length + ' 个评分任务已创建,后台处理中...');
       setSelectedImages([]);
       data.tasks?.forEach(task => {
@@ -167,7 +166,7 @@ function App() {
     } catch (err) {
       message.error('批量评分请求失败');
     }
-  }, [selectedImages, selectedModel, pollScoreStatus]);
+  }, [selectedImages, pollScoreStatus]);
 
   // ============ 下载 ============
   const handleDownload = useCallback((img) => {
@@ -224,12 +223,13 @@ function App() {
   }, [imageHook.selectedFolder]);
 
   // ============ 文案生成 ============
-  const handleGenerateCaption = useCallback(async (setType, overrideImageIds, userInstructions, model) => {
+  const handleGenerateCaption = useCallback(async (setType, overrideImageIds, userInstructions) => {
     const imgIds = overrideImageIds ?? selectedImages.map(img => img.id);
     if (imgIds.length === 0) {
       message.warning('请先选择图片');
       return;
     }
+    const model = getSettingModel(LS_CAPTION) || 'local';
     const folderName = imageHook.selectedFolder?.split(/[/\\]/).pop() || '';
     try {
       const data = await apiGenerateCaption({
@@ -237,7 +237,7 @@ function App() {
         imageIds: imgIds,
         setType,
         userInstructions,
-        model: model || captionModel
+        model
       });
       captionHook.removeFailedCaption(setType);
       captionHook.setGeneratedCaption({ ...data.caption, setType });
@@ -279,6 +279,14 @@ function App() {
     key: f.path,
     path: f.path,
   }));
+
+  // ============ 评分记录点击 -> 跳转到对应图片 ============
+  const handleScoreImageClick = useCallback((task) => {
+    if (!task.file_path) return;
+    const folderPath = task.file_path.substring(0, task.file_path.lastIndexOf('\\'));
+    imageHook.loadImages(folderPath, 1);
+    setActiveMenu('folder');
+  }, [imageHook]);
 
   // ============ Tab/菜单切换 ============
   const handleMenuClick = useCallback((key) => {
@@ -341,18 +349,6 @@ function App() {
                   { key: 'retry_all', label: '全部重新生成', onClick: () => { captionHook.failedCaptions.forEach(fc => handleGenerateCaption(fc.setType, fc.imageIds)); }},
                   { type: 'divider' },
                 ] : []),
-                { key: 'caption_model', label: (
-                  <Space size="small">
-                    <span style={{ fontSize: 12, color: '#666' }}>模型:</span>
-                    <Select value={captionModel} onChange={setCaptionModel} size="small" style={{ width: 120 }}
-                      onClick={e => e.stopPropagation()}
-                      options={[
-                        { value: 'local', label: '本地模型' },
-                        { value: 'MiniMax-2.7', label: 'MiniMax-2.7' }
-                      ]}
-                    />
-                  </Space>
-                ), disabled: false },
                 { key: 'douyin', label: '抖音文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } captionModalImgRef.current = selectedImages; setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); }},
                 { key: 'xiaohongshu', label: '小红书文案', onClick: () => { if (!selectedImages?.length) { message.warning('请先选择图片'); return; } captionModalImgRef.current = selectedImages; setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); }}
               ]
@@ -409,9 +405,6 @@ function App() {
         isMobile={isMobile}
         searchText=""
         onSearch={searchHook.handleSearch}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-        models={availableModels}
         onScan={imageHook.handleScanAll}
         onMenuClick={() => { setActiveTab('folder'); setFolderDrawerOpen(true); }}
       />
@@ -440,6 +433,7 @@ function App() {
           onLoadMore={() => scoreHook.loadScoreTasks(scoreHook.scoreTaskFilter === 'all' ? null : scoreHook.scoreTaskFilter, scoreHook.scoreTasksPage + 1, true)}
           onRetry={scoreHook.retryScore}
           currentPage={scoreHook.scoreTasksPage}
+          onImageClick={handleScoreImageClick}
         />
       )}
       {isMobile && (
@@ -470,7 +464,10 @@ function App() {
               activeMenu={activeMenu}
               folders={imageHook.folders}
               selectedFolder={imageHook.selectedFolder}
-              onMenuClick={handleMenuClick}
+              onMenuClick={(key) => {
+                if (key === 'settings') { setSettingsModalVisible(true); return; }
+                handleMenuClick(key);
+              }}
               onFolderSelect={handleFolderSelect}
               failedScores={scoreHook.failedScores.length}
               captionCount={captionHook.captionHistory.length}
@@ -492,6 +489,7 @@ function App() {
             onLoad={(s, p) => scoreHook.loadScoreTasks(s, p)}
             onRetry={scoreHook.retryScore}
             onPageChange={() => setActiveMenu('folder')}
+            onImageClick={handleScoreImageClick}
           />
         )}
 
@@ -576,7 +574,7 @@ function App() {
           if (!imgs?.length) { message.warning('请先选择图片'); return; }
           const ids = imgs.map(img => img.id);
           setCaptionInstructionsModalVisible(false);
-          handleGenerateCaption(pendingCaptionType, ids, inst, captionModel);
+          handleGenerateCaption(pendingCaptionType, ids, inst);
         }}
       />
 
@@ -589,6 +587,9 @@ function App() {
         onImageClick={(img) => { setSelectedImage({ ...img, imageUrl: getProxyUrl(img.file_path) }); setPreviewVisible(true); }}
         getProxyUrl={getProxyUrl}
       />
+
+      {/* 设置弹窗 */}
+      <SettingsModal visible={settingsModalVisible} onClose={() => setSettingsModalVisible(false)} />
     </Layout>
   );
 }

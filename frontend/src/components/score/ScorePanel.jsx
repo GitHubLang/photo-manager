@@ -4,7 +4,7 @@ import { Card, Tag, Button, Space, Checkbox, Spin, Empty, Select, Typography } f
 import { getThumbnailUrl } from '../../api/imageApi';
 
 // 移动端抽屉（评分记录）
-export function ScoreDrawer({ open, onClose, scoreTasks, scoreTasksTotal, scoreTasksLoading, scoreTaskFilter, setScoreTaskFilter, selectedIds, setSelectedIds, onLoadMore, onRetry, currentPage }) {
+export function ScoreDrawer({ open, onClose, scoreTasks, scoreTasksTotal, scoreTasksLoading, scoreTaskFilter, setScoreTaskFilter, selectedIds, setSelectedIds, onLoadMore, onRetry, currentPage, onImageClick }) {
   return (
     <div className={'score-panel ' + (open ? 'open' : '')} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="score-panel-backdrop" onClick={onClose} />
@@ -35,7 +35,10 @@ export function ScoreDrawer({ open, onClose, scoreTasks, scoreTasksTotal, scoreT
               <Card key={String(task.id)} size="small" hoverable style={{ marginBottom: 8, opacity: String(task.status ?? '') === 'completed' ? 0.6 : 1 }}
                 cover={task.file_path ? <img src={getThumbnailUrl(String(task.file_path), 100)} alt={String(task.filename ?? '')} style={{ height: 60, objectFit: 'cover' }} /> : null}
                 onClick={() => {
-                  if (String(task.status ?? '') !== 'completed') {
+                  const isCompleted = String(task.status ?? '') === 'completed';
+                  if (isCompleted && onImageClick) {
+                    onImageClick(task);
+                  } else if (!isCompleted) {
                     setSelectedIds(prev => prev.includes(Number(task.image_id)) ? prev.filter(id => id !== Number(task.image_id)) : [...prev, Number(task.image_id)]);
                   }
                 }}>
@@ -59,7 +62,7 @@ export function ScoreDrawer({ open, onClose, scoreTasks, scoreTasksTotal, scoreT
 }
 
 // PC端侧边栏（评分记录）
-export function ScorePanel({ tasks, total, loading, page, filter, setFilter, selectedIds, setSelectedIds, onLoad, onRetry, onPageChange, onSelectAll }) {
+export function ScorePanel({ tasks, total, loading, page, filter, setFilter, selectedIds, setSelectedIds, onLoad, onRetry, onPageChange, onSelectAll, onImageClick }) {
   return (
     <div style={{ width: 300, borderLeft: '1px solid #f0f0f0', padding: 12, overflowY: 'auto', background: '#fff', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -96,7 +99,11 @@ export function ScorePanel({ tasks, total, loading, page, filter, setFilter, sel
                 <Card key={String(task.id)} size="small" hoverable={!isCompleted} style={{ opacity: isCompleted ? 0.6 : 1 }}
                   cover={filePath ? <img src={getThumbnailUrl(filePath, 100)} alt={filename || 'ID:' + imageId} style={{ height: 60, objectFit: 'cover' }} /> : null}
                   onClick={() => {
-                    if (!isCompleted) setSelectedIds(prev => prev.includes(imageId) ? prev.filter(id => id !== imageId) : [...prev, imageId]);
+                    if (isCompleted && onImageClick) {
+                      onImageClick(task);
+                    } else if (!isCompleted) {
+                      setSelectedIds(prev => prev.includes(imageId) ? prev.filter(id => id !== imageId) : [...prev, imageId]);
+                    }
                   }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {!isCompleted && <Checkbox checked={selectedIds.includes(imageId)} />}

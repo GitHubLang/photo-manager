@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
-import { Input, Button, Select, Space, Typography } from 'antd';
+import React from 'react';
+import { Input, Button, Space, Typography } from 'antd';
 const { Title } = Typography;
-import { CameraOutlined, ScanOutlined, SearchOutlined, MenuOutlined, SettingOutlined } from '@ant-design/icons';
-import SettingsModal from '../modals/SettingsModal';
+import { CameraOutlined, ScanOutlined, MenuOutlined } from '@ant-design/icons';
 
-export default function TopToolbar({ isMobile, searchText, onSearch, selectedModel, onModelChange, models, onScan, onMenuClick }) {
-  const [settingsVisible, setSettingsVisible] = useState(false);
-
+export default function TopToolbar({ isMobile, searchText, onSearch, onScan, onMenuClick }) {
   if (isMobile) {
     return (
       <div className="top-toolbar">
         <Button type="text" icon={<MenuOutlined />} onClick={onMenuClick} style={{ marginRight: 8, minWidth: 44, height: 44 }} />
         <Title level={4} style={{ margin: 0, flex: 1 }}><CameraOutlined style={{ color: '#10b981', marginRight: 8 }} />摄影素材</Title>
         <Input.Search placeholder="搜索..." allowClear style={{ width: 160 }} onSearch={onSearch} />
-        <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)} style={{ marginLeft: 8 }} />
-        <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
       </div>
     );
   }
@@ -26,13 +21,8 @@ export default function TopToolbar({ isMobile, searchText, onSearch, selectedMod
       </Title>
       <Space>
         <Input.Search placeholder="搜索文件名、描述、标签..." allowClear style={{ width: 300 }} onSearch={onSearch} />
-        <Select value={selectedModel} onChange={onModelChange} style={{ width: 200 }}>
-          {models.map(m => <Select.Option key={m.id} value={m.id}>{m.name}</Select.Option>)}
-        </Select>
         <Button icon={<ScanOutlined />} onClick={onScan}>扫描</Button>
-        <Button type="text" icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)} />
       </Space>
-      <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
     </div>
   );
 }
