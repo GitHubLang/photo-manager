@@ -115,123 +115,6 @@ def _lab_to_rgb(lab):
     return (np.clip(rgb, 0, 1) * 255).reshape(h, w, 3)
 
 
-def _generate_xmp(src_path, styled_path, output_path):
-    """从原图+风格图推导 Lightroom .xmp 预设（含色调曲线+HSL）"""
-    import numpy as np
-    src = np.array(Image.open(src_path).resize((512, 512), Image.LANCZOS).convert('RGB'), dtype=np.float32) / 255.0
-    styled = np.array(Image.open(styled_path).resize((512, 512), Image.LANCZOS).convert('RGB'), dtype=np.float32) / 255.0
-
-    # --- 基础调整 ---
-    src_mean = src.mean(axis=(0,1))
-    styled_mean = styled.mean(axis=(0,1))
-    diff = (styled_mean - src_mean) * 100
-    exp_adj = round(np.log2(max(styled_mean.mean(), 0.001) / max(src_mean.mean(), 0.001)), 2)
-    contrast_adj = int((styled.std() / max(src.std(), 0.001) - 1) * 35)
-    temp_adj = int(diff[0] * 15 - diff[2] * 15)
-    tint_adj = int(diff[1] * 25)
-    sat_adj = int((diff[0] + diff[1] + diff[2]) / 3 * 25)
-    vib_adj = int(diff[1] * 15)
-
-    # 高光/阴影
-    h_src = np.percentile(src, 95)
-    h_styled = np.percentile(styled, 95)
-    s_src = np.percentile(src, 5)
-    s_styled = np.percentile(styled, 5)
-    highlights_adj = int((h_styled / max(h_src, 0.01) - 1) * 50)
-    shadows_adj = int((s_styled / max(s_src, 0.01) - 1) * 50)
-
-    # --- HSL 分析：8个色相段的偏移 ---
-    def rgb_to_hsl(rgb):
-        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-        mx = np.maximum(np.maximum(r, g), b)
-        mn = np.minimum(np.minimum(r, g), b)
-        d = mx - mn
-        l = (mx + mn) / 2
-        s = np.where(d == 0, 0, np.where(l > 0.5, d / (2 - mx - mn), d / (mx + mn)))
-        h = np.where(d == 0, 0,
-            np.where(mx == r, ((g - b) / d) % 6,
-            np.where(mx == g, (b - r) / d + 2, (r - g) / d + 4))) / 6
-        return np.stack([h, s, l], axis=-1)
-
-    src_hsl = rgb_to_hsl(src)
-    styled_hsl = rgb_to_hsl(styled)
-    hue_bins = [0, 0.042, 0.083, 0.167, 0.25, 0.33, 0.5, 0.67, 1.0]  # red/orange/yellow/green/aqua/blue/purple/magenta
-    hsl_names = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta']
-    hsl_shifts = []
-    for i in range(8):
-        mask = (src_hsl[..., 0] >= hue_bins[i]) & (src_hsl[..., 0] < hue_bins[i+1]) & (src_hsl[..., 1] > 0.05)
-        if mask.sum() > 100:
-            hue_shift = int((styled_hsl[mask][:, 0].mean() - src_hsl[mask][:, 0].mean()) * 100)
-            sat_shift = int((styled_hsl[mask][:, 1].mean() - src_hsl[mask][:, 1].mean()) * 100 * 2)
-            lum_shift = int((styled_hsl[mask][:, 2].mean() - src_hsl[mask][:, 2].mean()) * 100)
-        else:
-            hue_shift = sat_shift = lum_shift = 0
-        hsl_shifts.append((hsl_names[i], hue_shift, sat_shift, lum_shift))
-
-    # --- 色调曲线 ---
-    # 分析暗部/中间调/亮部的RGB偏移
-    def curve_points(arr_src, arr_styled, percentiles=[10, 30, 50, 70, 90]):
-        pts = []
-        for p in percentiles:
-            v_src = np.percentile(arr_src, p)
-            v_styled = np.percentile(arr_styled, p)
-            shift = int((v_styled / max(v_src, 0.01) - 1) * 100)
-            pts.append(shift)
-        return pts
-
-    r_curve = curve_points(src[..., 0].flatten(), styled[..., 0].flatten())
-    g_curve = curve_points(src[..., 1].flatten(), styled[..., 1].flatten())
-    b_curve = curve_points(src[..., 2].flatten(), styled[..., 2].flatten())
-
-    # --- 色彩分级 ---
-    s_lo = np.percentile(src, [5], axis=(0,1))
-    s_hi = np.percentile(src, [95], axis=(0,1))
-    t_lo = np.percentile(styled, [5], axis=(0,1))
-    t_hi = np.percentile(styled, [95], axis=(0,1))
-    shadow_hue_shift = int((t_lo[0,0] - s_lo[0,0]) * 50)
-    shadow_sat_shift = int((t_lo[0][:, None].std() - s_lo[0][:, None].std()) * 100)
-    highlight_hue_shift = int((t_hi[0,0] - s_hi[0,0]) * 50)
-    highlight_sat_shift = int((t_hi[0][:, None].std() - s_hi[0][:, None].std()) * 100)
-
-    # --- 生成 XMP ---
-    xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
-    xmp += '<x:xmpmeta xmlns:x="adobe:ns:meta/">\n'
-    xmp += ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
-    xmp += '  <rdf:Description rdf:about=""\n'
-    xmp += '   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">\n'
-    xmp += f'   <crs:Version>15.0</crs:Version>\n'
-    xmp += f'   <crs:ProcessVersion>15.4</crs:ProcessVersion>\n'
-    # 基础
-    xmp += f'   <crs:Exposure2012>{exp_adj:+.4f}</crs:Exposure2012>\n'
-    xmp += f'   <crs:Contrast2012>{contrast_adj}</crs:Contrast2012>\n'
-    xmp += f'   <crs:Highlights2012>{highlights_adj}</crs:Highlights2012>\n'
-    xmp += f'   <crs:Shadows2012>{shadows_adj}</crs:Shadows2012>\n'
-    xmp += f'   <crs:Temperature>{5000 + temp_adj}</crs:Temperature>\n'
-    xmp += f'   <crs:Tint>{tint_adj}</crs:Tint>\n'
-    xmp += f'   <crs:Saturation>{sat_adj}</crs:Saturation>\n'
-    xmp += f'   <crs:Vibrance>{vib_adj}</crs:Vibrance>\n'
-    # HSL
-    for name, hue, sat, lum in hsl_shifts:
-        xmp += f'   <crs:HueAdjustment{name}>{hue}</crs:HueAdjustment{name}>\n'
-        xmp += f'   <crs:SaturationAdjustment{name}>{sat}</crs:SaturationAdjustment{name}>\n'
-        xmp += f'   <crs:LuminanceAdjustment{name}>{lum}</crs:LuminanceAdjustment{name}>\n'
-    # 曲线
-    for ch, vals in [('Red', r_curve), ('Green', g_curve), ('Blue', b_curve)]:
-        pts = ' '.join(f'{s}' for s in vals)
-        pts += ' 0 0 0 0 0 0 0 0 0 0'  # pad to 14 params
-        xmp += f'   <crs:Parametric{ch}Split>{pts}</crs:Parametric{ch}Split>\n'
-    # 色彩分级
-    xmp += f'   <crs:ShadowTint>{shadow_hue_shift}</crs:ShadowTint>\n'
-    xmp += f'   <crs:ShadowTintSaturation>{shadow_sat_shift}</crs:ShadowTintSaturation>\n'
-    xmp += f'   <crs:HighlightTint>{highlight_hue_shift}</crs:HighlightTint>\n'
-    xmp += f'   <crs:HighlightTintSaturation>{highlight_sat_shift}</crs:HighlightTintSaturation>\n'
-    xmp += '  </rdf:Description>\n'
-    xmp += ' </rdf:RDF>\n'
-    xmp += '</x:xmpmeta>\n'
-    xmp += '<?xpacket end="r"?>\n'
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(xmp)
-
 
 @router.post("/transfer")
 async def transfer_colors(source: UploadFile = File(...), reference: UploadFile = File(...)):
@@ -284,14 +167,11 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
     generate_lut(src_path, styled_path, out_path, lut_size=33)
     hald_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.png")
     generate_hald(out_path, hald_path, hald_size=64)
-    xmp_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.xmp")
-    _generate_xmp(src_path, styled_path, xmp_path)
 
     return {
         "task_id": task_id,
         "cube": f"/api/lut/download/lut_{task_id}.cube",
-        "hald": f"/api/lut/download/lut_{task_id}.png",
-        "xmp": f"/api/lut/download/lut_{task_id}.xmp"
+        "hald": f"/api/lut/download/lut_{task_id}.png"
     }
 
 
