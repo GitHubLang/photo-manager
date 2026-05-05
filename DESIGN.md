@@ -261,3 +261,63 @@ export const menuConfig = [
 ## 五、是否启动？
 
 重构分步进行，每一步独立可测。建议从**后端拆分**开始（对外无影响），然后**前端 Context 化**，最后**页面模块化**。
+
+---
+
+## 六、未来功能适配分析
+
+### 6.1 规划功能清单及架构适配
+
+| 功能 | 前端模块 | 后端路由 | 依赖 | 架构能否支撑 |
+|------|---------|---------|------|------------|
+| 上传图片评分 | `pages/upload/` | `routers/upload.py` | 文件上传 + AI评分 | ✅ 独立模块 |
+| 上传记录查看 | `pages/upload/` 子页面 | 同上 | 上传历史表 | ✅ 同模块 |
+| 文件夹管理(增删改) | `pages/folders/` | `routers/folders.py` | 文件系统操作 | ✅ 扩展现有 |
+| 照片详情编辑 | `pages/detail/` | `routers/images.py` | 元数据读写 | ✅ 独立模块 |
+| 照片编辑(裁剪/调色) | `pages/editor/` | 无(纯前端) 或 `routers/image_process.py` | Canvas/PIL | ✅ 独立模块 |
+| LUT 生成 | `pages/lut/` | `routers/lut.py` | AI + 图像处理 | ✅ 独立模块 |
+| AI 对话评分 | `pages/ai/` | `routers/ai.py` | LLM Service | ✅ 独立模块 |
+
+### 6.2 菜单配置预览（未来态）
+
+```javascript
+export const menuConfig = [
+  // === 浏览 ===
+  { key: 'folder',   icon: FolderOutlined,    label: '文件夹',   type: 'submenu' },
+  { key: 'upload',   icon: UploadOutlined,    label: '上传评分', type: 'page' },
+  
+  // === 管理 ===
+  { key: 'folders',  icon: FolderAddOutlined, label: '文件夹管理', type: 'page' },
+  { key: 'history',  icon: HistoryOutlined,   label: '上传记录', type: 'page' },
+  
+  // === 记录 ===
+  { key: 'scores',   icon: StarOutlined,      label: '评分记录', type: 'page', badge: 'failedScores' },
+  { key: 'captions', icon: FileTextOutlined,  label: '文案记录', type: 'page' },
+  
+  // === 工具 ===
+  { key: 'editor',   icon: EditOutlined,      label: '照片编辑', type: 'page' },
+  { key: 'lut',      icon: BgColorsOutlined,  label: 'LUT生成',  type: 'page' },
+  { key: 'ai',       icon: RobotOutlined,     label: 'AI助手',   type: 'page' },
+  
+  { type: 'divider' },
+  { key: 'settings', icon: SettingOutlined,   label: '设置',     type: 'modal' },
+];
+```
+
+### 6.3 关键决策点
+
+| 问题 | 建议 | 理由 |
+|------|------|------|
+| 前端路由用 React Router？ | **暂不需要** | 当前基于 key 的条件渲染够用，等页面 > 8 个再引入 |
+| 状态管理用 Redux/Zustand？ | **React Context 即可** | 当前状态量不大，Context 性能足够 |
+| TypeScript 迁移？ | **后期渐进** | 先稳定架构再迁类型，不影响功能 |
+| 照片编辑纯前端还是后端？ | **轻量纯前端，重量级后端** | 裁剪/调色用 Canvas，LUT 生成用后端 PIL |
+| 文件系统 vs 数据库存储？ | **当前混合，后期统一 DB 元数据** | 图片存文件系统，元数据存 DB，保持现状 |
+
+### 6.4 架构评价
+
+> 当前架构对「文件夹浏览 + 评分 + 文案」三个功能已经捉襟见肘（App.jsx 550 行）。
+> 加上上传、编辑、LUT、AI 等 5+ 个功能后，如果不重构，App.jsx 会膨胀到 2000+ 行，完全不可维护。
+> 
+> **现在重构是必须的，不是可选的。** 目标架构的模块化设计能轻松承载 10+ 个功能，
+> 每个功能互不干扰，加新功能只需创建文件夹 + 配菜单。
