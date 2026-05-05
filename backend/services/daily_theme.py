@@ -5,8 +5,9 @@ import json
 import requests
 from datetime import date
 from typing import List, Dict, Optional
-from config import LOCAL_LLM_API, LOCAL_LLM_MODEL
+from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
 from database import execute_query
+from services.llm_scorer import _is_local_model, _get_model_name
 
 
 def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
@@ -55,18 +56,17 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
     
     try:
         messages = [{"role": "user", "content": prompt}]
-        payload = {
-            "model": LOCAL_LLM_MODEL,
-            "messages": messages,
-            "max_tokens": 1024,
-            "temperature": 0.3,
-        }
-        
-        response = requests.post(
-            f"{LOCAL_LLM_API}/v1/chat/completions",
-            json=payload,
-            timeout=120
-        )
+        if _is_local_model(llm_model):
+            api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
+            model_name = _get_model_name(llm_model)
+            payload = {"model": model_name, "messages": messages, "max_tokens": 1024, "temperature": 0.3}
+            headers = {}
+        else:
+            api_url = MINIMAX_API_URL
+            payload = {"model": "MiniMax-M2.7", "messages": messages, "max_tokens": 1024, "temperature": 0.3}
+            headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
+
+        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
         response.raise_for_status()
         result = response.json()
         content = result["choices"][0]["message"]["content"]
@@ -317,18 +317,17 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 
     try:
         messages = [{"role": "user", "content": prompt}]
-        payload = {
-            "model": LOCAL_LLM_MODEL,
-            "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.5,
-        }
-        
-        response = requests.post(
-            f"{LOCAL_LLM_API}/v1/chat/completions",
-            json=payload,
-            timeout=120
-        )
+        if _is_local_model(llm_model):
+            api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
+            model_name = _get_model_name(llm_model)
+            payload = {"model": model_name, "messages": messages, "max_tokens": 2048, "temperature": 0.5}
+            headers = {}
+        else:
+            api_url = MINIMAX_API_URL
+            payload = {"model": "MiniMax-M2.7", "messages": messages, "max_tokens": 2048, "temperature": 0.5}
+            headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
+
+        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
         response.raise_for_status()
         result = response.json()
         content = result["choices"][0]["message"]["content"]
