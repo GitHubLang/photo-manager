@@ -140,7 +140,10 @@ export function useImages() {
 
     scrollBusyRef.current = true;
     loadingPagesSet.current.add(nextPage);
-    requestAnimationFrame(() => loadImages(selectedFolder, nextPage, true));
+    requestAnimationFrame(async () => {
+      await loadImages(selectedFolder, nextPage, true);
+      persistState(selectedFolder, nextPage);
+    });
   }, [currentPage, totalPages, selectedFolder, loadImages]);
 
   // ========== 排序 ==========
