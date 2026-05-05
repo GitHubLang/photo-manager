@@ -596,7 +596,6 @@ function App() {
         images={captionHook.captionModalImages}
         onClose={() => { captionHook.setCaptionModalVisible(false); captionHook.setCaptionModalImages([]); }}
         onImageClick={(img) => { setSelectedImage({ ...img, imageUrl: getProxyUrl(img.file_path) }); setPreviewVisible(true); }}
-        getProxyUrl={getProxyUrl}
       />
 
       {/* 设置弹窗 */}

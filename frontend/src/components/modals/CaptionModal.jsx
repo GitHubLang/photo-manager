@@ -2,8 +2,9 @@ import React from 'react';
 const { Title } = Typography;
 import { Modal, Divider, Button, Tag, Space, Typography } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
+import { getThumbnailUrl } from '../../api/imageApi';
 
-export default function CaptionModal({ visible, caption, images, onClose, onImageClick, getProxyUrl }) {
+export default function CaptionModal({ visible, caption, images, onClose, onImageClick }) {
   if (!caption) return null;
 
   const copyToClipboard = (text) => {
@@ -24,7 +25,7 @@ export default function CaptionModal({ visible, caption, images, onClose, onImag
             {images.map(img => (
               <div key={img.id} style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden', background: '#f0f0f0', cursor: 'pointer' }}
                 onClick={() => onImageClick && onImageClick(img)}>
-                <img src={getProxyUrl(img.file_path) + '?size=300'} alt={img.filename}
+                <img src={getThumbnailUrl(img.file_path, 300)} alt={img.filename}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => { e.target.style.opacity = 0; }} />
               </div>
