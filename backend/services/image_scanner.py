@@ -163,47 +163,110 @@ def scan_folder_images(folder_path: str) -> List[Dict]:
     return sorted(images, key=lambda x: x['filename'])
 
 
-def index_folder(folder_path: str) -> Dict:
-    """扫描并索引指定文件夹的图片到数据库"""
-    images = scan_folder_images(folder_path)
-    
-    if not images:
-        return {"added": 0, "skipped": 0, "total": 0}
-    
-    # 检查已存在的图片
+def _list_image_files(folder_path: str) -> List[str]:
+    """列出文件夹中所有有效图片路径（不打开 PIL，纯文件系统操作）"""
+    result = []
     try:
-        existing = execute_query(
+        for fname in os.listdir(folder_path):
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in ('.jpg', '.jpeg', '.png'):
+                continue
+            fp = os.path.join(folder_path, fname)
+            if not os.path.isfile(fp):
+                continue
+            if os.path.getsize(fp) < 50000:
+                continue
+            result.append(fp)
+    except Exception as e:
+        print(f"Error listing folder {folder_path}: {e}")
+    return result
+
+
+def _get_image_info(file_path: str, folder_path: str) -> Dict:
+    """获取单张图片的元信息（需要 PIL 打开）"""
+    filename = os.path.basename(file_path)
+    file_size = os.path.getsize(file_path)
+
+    width, height = 0, 0
+    orientation = 'landscape'
+    try:
+        with PILImage.open(file_path) as img:
+            width, height = img.size
+            orientation = 'portrait' if height > width else 'landscape' if width > height else 'square'
+    except:
+        pass
+
+    folder_name = os.path.basename(folder_path)
+    folder_date = None
+    if '-' in folder_name:
+        try:
+            parts = folder_name.split('-')
+            if len(parts) == 3:
+                normalized = f"{int(parts[0])}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+                folder_date = datetime.strptime(normalized, '%Y-%m-%d').date()
+        except:
+            pass
+
+    return {
+        "file_path": file_path,
+        "filename": filename,
+        "folder_date": folder_date,
+        "folder_path": folder_path,
+        "file_size": file_size,
+        "width": width,
+        "height": height,
+        "orientation": orientation,
+        "perceptual_hash": None
+    }
+
+
+def index_folder(folder_path: str) -> Dict:
+    """扫描并索引指定文件夹的图片到数据库（跳过已入库的）"""
+    # 1. 先查 DB 已有的路径
+    try:
+        existing_rows = execute_query(
             "SELECT file_path FROM images WHERE folder_path = %s",
             (folder_path,)
         )
-        existing_paths = {row['file_path'] for row in existing}
+        existing_paths = {row['file_path'] for row in existing_rows}
     except:
         existing_paths = set()
-    
-    # 插入新图片
-    to_insert = [img for img in images if img['file_path'] not in existing_paths]
-    to_skip = len(images) - len(to_insert)
-    
-    if to_insert:
-        insert_sql = """
-            INSERT INTO images (file_path, filename, folder_date, folder_path, 
-                              file_size, width, height, orientation, perceptual_hash)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        params = [
-            (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],
-             img['file_size'], img['width'], img['height'], img['orientation'], img['perceptual_hash'])
-            for img in to_insert
-        ]
-        try:
-            execute_many(insert_sql, params)
-        except Exception as e:
-            print(f"Error inserting images: {e}")
-    
+
+    # 2. 列出磁盘上的图片文件（不打开 PIL）
+    disk_files = _list_image_files(folder_path)
+    if not disk_files:
+        return {"added": 0, "skipped": 0, "total": 0}
+
+    # 3. 找出新文件，只对这些打开 PIL
+    new_files = [f for f in disk_files if f not in existing_paths]
+    to_skip = len(disk_files) - len(new_files)
+
+    if not new_files:
+        return {"added": 0, "skipped": to_skip, "total": len(disk_files)}
+
+    # 4. 获取新图片的元信息
+    to_insert = [_get_image_info(fp, folder_path) for fp in new_files]
+
+    # 5. 批量插入数据库
+    insert_sql = """
+        INSERT INTO images (file_path, filename, folder_date, folder_path,
+                          file_size, width, height, orientation, perceptual_hash)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    params = [
+        (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],
+         img['file_size'], img['width'], img['height'], img['orientation'], img['perceptual_hash'])
+        for img in to_insert
+    ]
+    try:
+        execute_many(insert_sql, params)
+    except Exception as e:
+        print(f"Error inserting images: {e}")
+
     return {
         "added": len(to_insert),
         "skipped": to_skip,
-        "total": len(images)
+        "total": len(disk_files)
     }
 
 

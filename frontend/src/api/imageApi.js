@@ -7,6 +7,9 @@ export const fetchFolders = () =>
 export const scanAllFolders = () =>
   fetch(API_BASE + '/folders/scan-all', { method: 'POST' }).then(r => r.json());
 
+export const fetchScanProgress = (taskId) =>
+  fetch(API_BASE + '/folders/scan-all/progress?task_id=' + taskId).then(r => r.json());
+
 // ============ 图片 API ============
 export const fetchImages = (folderPath, { page = 1, pageSize = 50, sortBy = 'filename', sortOrder = 'asc' } = {}) => {
   const params = new URLSearchParams({ page, page_size: pageSize, sort_by: sortBy, sort_order: sortOrder });

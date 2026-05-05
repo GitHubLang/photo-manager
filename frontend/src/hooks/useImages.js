@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { message } from 'antd';
-import { fetchFolders, fetchImages, fetchAppState, saveAppState, scanAllFolders } from '../api/imageApi';
+import { fetchFolders, fetchImages, fetchAppState, saveAppState, scanAllFolders, fetchScanProgress } from '../api/imageApi';
 
 /**
  * 图片管理 hook
@@ -220,18 +220,56 @@ export function useImages() {
     });
   }, [currentPage, totalPages, selectedFolder, loadImages]);
 
-  // 扫描所有文件夹
+  // 扫描所有文件夹（异步后台 + 轮询进度）
   const handleScanAll = useCallback(async () => {
     setLoading(true);
+    const hideMsg = message.loading('正在启动扫描...', 0);
     try {
-      const data = await scanAllFolders();
-      message.success('扫描完成:新增 ' + data.added + ' 张,跳过 ' + data.skipped + ' 张');
+      const { task_id, total_folders } = await scanAllFolders();
+      if (!task_id) throw new Error('No task_id');
+
+      // 轮询进度
+      let lastUpdate = 0;
+      const poll = () => new Promise((resolve, reject) => {
+        const timer = setInterval(async () => {
+          try {
+            const progress = await fetchScanProgress(task_id);
+            if (progress.status === 'not_found') {
+              clearInterval(timer);
+              reject(new Error('Task lost'));
+              return;
+            }
+            const now = Date.now();
+            if (now - lastUpdate > 1500 && progress.progress) {
+              lastUpdate = now;
+              const p = progress.progress;
+              hideMsg();
+              message.loading(
+                `正在扫描: ${p.current_folder || '...'} (${p.current}/${p.total}) - 新增${p.added}, 跳过${p.skipped}`,
+                2
+              );
+            }
+            if (progress.status === 'completed') {
+              clearInterval(timer);
+              const r = progress.result || {};
+              resolve(r);
+            }
+          } catch (e) {
+            // 继续轮询
+          }
+        }, 2000);
+      });
+
+      const result = await poll();
+      hideMsg();
+      message.success('扫描完成: 新增 ' + (result.added || 0) + ' 张, 跳过 ' + (result.skipped || 0) + ' 张', 4);
       if (selectedFolder) {
         loadImages(selectedFolder, 1);
       }
       loadFolders();
     } catch (err) {
-      message.error('扫描失败');
+      hideMsg();
+      message.error('扫描失败: ' + (err.message || '未知错误'));
     } finally {
       setLoading(false);
     }

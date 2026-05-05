@@ -13,9 +13,15 @@ from services.image_scanner import scan_folders, index_folder, scan_folder_image
 from services.llm_scorer import score_and_describe_image
 from config import PHOTO_ROOT
 import threading
+import time
+import uuid
 
-# 并发限制：最多同时处理3个评分任务
+# 并发限制：最多同时处理4个评分任务
 score_semaphore = threading.Semaphore(4)
+
+# 后台扫描任务状态
+_scan_tasks = {}
+_scan_lock = threading.Lock()
 
 router = APIRouter(prefix="/api", tags=["images"])
 
@@ -239,9 +245,67 @@ async def scan_new_folder(req: FolderScanRequest):
 
 @router.post("/folders/scan-all")
 async def scan_all():
-    """扫描并索引所有文件夹"""
-    from services.image_scanner import index_all_folders
-    result = index_all_folders()
+    """启动后台扫描所有文件夹（异步，立即返回 task_id）"""
+    task_id = uuid.uuid4().hex[:12]
+    folders = scan_folders()
+    total = len(folders)
+
+    with _scan_lock:
+        _scan_tasks[task_id] = {
+            "status": "running",
+            "progress": {"current": 0, "total": total, "current_folder": "", "added": 0, "skipped": 0},
+            "started_at": time.time()
+        }
+
+    def _run():
+        total_added = 0
+        total_skipped = 0
+        for i, folder in enumerate(folders):
+            with _scan_lock:
+                if task_id not in _scan_tasks:
+                    return  # 任务被取消
+                _scan_tasks[task_id]["progress"].update({
+                    "current": i + 1,
+                    "current_folder": folder["name"],
+                })
+            try:
+                result = index_folder(folder["path"])
+                total_added += result["added"]
+                total_skipped += result["skipped"]
+                with _scan_lock:
+                    if task_id in _scan_tasks:
+                        _scan_tasks[task_id]["progress"].update({
+                            "added": total_added,
+                            "skipped": total_skipped
+                        })
+            except Exception as e:
+                print(f"Scan error on {folder['name']}: {e}")
+        with _scan_lock:
+            if task_id in _scan_tasks:
+                _scan_tasks[task_id]["status"] = "completed"
+                _scan_tasks[task_id]["result"] = {"added": total_added, "skipped": total_skipped}
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    return {"task_id": task_id, "total_folders": total}
+
+
+@router.get("/folders/scan-all/progress")
+async def scan_all_progress(task_id: str = Query(...)):
+    """查询扫描进度"""
+    with _scan_lock:
+        task = _scan_tasks.get(task_id)
+    if not task:
+        return {"status": "not_found"}
+    result = {"status": task["status"], "progress": dict(task.get("progress", {}))}
+    if task["status"] == "completed":
+        result["result"] = task.get("result", {})
+        # 完成后保留 5 分钟再清理
+        elapsed = time.time() - task.get("started_at", 0)
+        if elapsed > 300:
+            with _scan_lock:
+                _scan_tasks.pop(task_id, None)
     return result
 
 
