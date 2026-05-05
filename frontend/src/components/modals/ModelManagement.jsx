@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Form, Input, Checkbox, Space, Popconfirm, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined, CopyOutlined } from '@ant-design/icons';
 import { fetchModels, createModel, updateModel, deleteModel } from '../../api/imageApi';
 
 export default function ModelManagement() {
@@ -78,6 +78,16 @@ export default function ModelManagement() {
     setShowForm(false);
   };
 
+  const handleCopy = (record) => {
+    form.setFieldsValue({
+      ...record,
+      name: record.name + ' 副本',
+      is_default: false
+    });
+    setEditingId(null);
+    setShowForm(true);
+  };
+
   const columns = [
     { title: '名称', dataIndex: 'name', key: 'name', width: 150 },
     { title: '模型名', dataIndex: 'model_name', key: 'model_name', width: 150 },
@@ -92,15 +102,11 @@ export default function ModelManagement() {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 150,
       render: (_, record) => (
-        <Space>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => startEdit(record)}
-          />
+        <Space size="small">
+          <Button type="link" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(record)} title="复制" />
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => startEdit(record)} title="编辑" />
           <Popconfirm
             title="确定删除?"
             onConfirm={() => handleDelete(record.id)}
