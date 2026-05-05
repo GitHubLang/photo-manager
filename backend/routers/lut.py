@@ -115,6 +115,40 @@ def _lab_to_rgb(lab):
     return (np.clip(rgb, 0, 1) * 255).reshape(h, w, 3)
 
 
+def _generate_xmp(src_path, styled_path, output_path):
+    """从原图+风格图推导 Lightroom .xmp 预设"""
+    import numpy as np
+    src = np.array(Image.open(src_path).convert('RGB'), dtype=np.float32) / 255.0
+    styled = np.array(Image.open(styled_path).convert('RGB'), dtype=np.float32) / 255.0
+    diff = (styled.mean(axis=(0,1)) - src.mean(axis=(0,1))) * 100
+    src_std = src.std()
+    styled_std = styled.std()
+    contrast_adj = int((styled_std / max(src_std, 0.001) - 1) * 50)
+    exp_adj = float(np.log2(styled.mean() / max(src.mean(), 0.001)))
+    temp_adj = int(diff[0] * 20 - diff[2] * 20)
+    tint_adj = int(diff[1] * 30)
+    sat_adj = int((diff[0] + diff[1] + diff[2]) / 3 * 30)
+
+    xmp = '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n'
+    xmp += '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Photo Manager">\n'
+    xmp += ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+    xmp += '  <rdf:Description rdf:about=""\n'
+    xmp += '   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">\n'
+    xmp += f'   <crs:Version>15.0</crs:Version>\n'
+    xmp += f'   <crs:ProcessVersion>15.4</crs:ProcessVersion>\n'
+    xmp += f'   <crs:Exposure2012>{exp_adj:+.4f}</crs:Exposure2012>\n'
+    xmp += f'   <crs:Contrast2012>{contrast_adj}</crs:Contrast2012>\n'
+    xmp += f'   <crs:Temperature>{5500 + temp_adj}</crs:Temperature>\n'
+    xmp += f'   <crs:Tint>{tint_adj}</crs:Tint>\n'
+    xmp += f'   <crs:Saturation>{sat_adj}</crs:Saturation>\n'
+    xmp += '  </rdf:Description>\n'
+    xmp += ' </rdf:RDF>\n'
+    xmp += '</x:xmpmeta>\n'
+    xmp += '<?xpacket end="r"?>\n'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(xmp)
+
+
 @router.post("/transfer")
 async def transfer_colors(source: UploadFile = File(...), reference: UploadFile = File(...)):
     """上传原图+参考图，返回色彩迁移结果"""
@@ -164,11 +198,17 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
     from lut_gen import generate_lut, generate_hald
     out_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.cube")
     generate_lut(src_path, styled_path, out_path, lut_size=33)
-    # 同时生成 HALD CLUT PNG
     hald_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.png")
     generate_hald(out_path, hald_path, hald_size=64)
+    xmp_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.xmp")
+    _generate_xmp(src_path, styled_path, xmp_path)
 
-    return {"task_id": task_id, "cube": f"/api/lut/download/lut_{task_id}.cube", "hald": f"/api/lut/download/lut_{task_id}.png"}
+    return {
+        "task_id": task_id,
+        "cube": f"/api/lut/download/lut_{task_id}.cube",
+        "hald": f"/api/lut/download/lut_{task_id}.png",
+        "xmp": f"/api/lut/download/lut_{task_id}.xmp"
+    }
 
 
 @router.get("/download/{filename}")
