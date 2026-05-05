@@ -105,7 +105,23 @@ export default function LutPage() {
           size="small"
           icon={<CopyOutlined />}
           style={{ marginLeft: 12 }}
-          onClick={() => { navigator.clipboard.writeText(AI_PROMPT); message.success('AI 提示词已复制，去 ChatGPT/MiniMax 粘贴使用'); }}
+          onClick={() => {
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(AI_PROMPT).then(() => message.success('AI 提示词已复制')).catch(() => fallbackCopy());
+            } else {
+              fallbackCopy();
+            }
+            function fallbackCopy() {
+              const ta = document.createElement('textarea');
+              ta.value = AI_PROMPT;
+              ta.style.position = 'fixed'; ta.style.left = '-9999px';
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              message.success('AI 提示词已复制');
+            }
+          }}
         >
           复制 AI 提示词
         </Button>
