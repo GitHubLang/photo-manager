@@ -155,8 +155,8 @@ export function useImages() {
       setTotalPages(data.total_pages);
       setSelectedFolder(folderPath);
 
-      // 保存状态（除非正在恢复浏览位置）
-      if (!isRestoringRef.current) {
+      // 保存状态（非追加且非恢复时；追加由滚动停止保存处理）
+      if (!isRestoringRef.current && !append) {
         saveState({
           last_folder_path: folderPath,
           last_page: page,
