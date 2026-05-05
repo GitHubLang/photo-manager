@@ -545,6 +545,7 @@ function App() {
             if (scrollTop < 50 && imageHook.currentPage > 1 && searchHook.searchResults === null) {
               imageHook.loadPrevPage();
             }
+            imageHook.scheduleSave();
           }}>
           {renderActionBar()}
           <ImageGrid

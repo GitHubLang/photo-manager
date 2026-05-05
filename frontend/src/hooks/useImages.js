@@ -23,6 +23,7 @@ export function useImages() {
   const isRestoringRef = useRef(false);
   const scrollBusyRef = useRef(false);
   const contentRef = useRef(null);
+  const saveTimerRef = useRef(null);
 
   // 获取当前视口第一个可见图片的 ID
   const getAnchorImageId = useCallback(() => {
@@ -37,6 +38,23 @@ export function useImages() {
     }
     return 0;
   }, []);
+
+  // 滚动停止 800ms 后自动保存位置
+  const scheduleSave = useCallback(() => {
+    if (isRestoringRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (!selectedFolder || !contentRef.current) return;
+      saveState({
+        last_folder_path: selectedFolder,
+        last_page: currentPage,
+        last_sort_by: sortBy,
+        last_sort_order: sortOrder,
+        last_scroll_top: contentRef.current.scrollTop,
+        anchor_image_id: getAnchorImageId()
+      });
+    }, 800);
+  }, [selectedFolder, currentPage, sortBy, sortOrder, saveState, getAnchorImageId]);
 
   // 持久化状态到 localStorage
   const persistState = useCallback((state) => {
@@ -204,15 +222,6 @@ export function useImages() {
               const cTop = contentEl.getBoundingClientRect().top;
               contentEl.scrollTop += (newTop - cTop) - anchorOffsetY;
             }
-            // 更新保存的状态为当前浏览位置
-            saveState({
-              last_folder_path: selectedFolder,
-              last_page: prevPage,
-              last_sort_by: sortBy,
-              last_sort_order: sortOrder,
-              last_scroll_top: contentEl ? contentEl.scrollTop : 0,
-              anchor_image_id: getAnchorImageId()
-            });
           });
         });
       }
@@ -223,7 +232,7 @@ export function useImages() {
       setLoadingMore(false);
       scrollBusyRef.current = false;
     }
-  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState, getAnchorImageId]);
+  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState, getAnchorImageId, scheduleSave]);
 
 
   // 更新单张图片数据（评分完成后原地更新，不用重刷列表）
@@ -396,6 +405,7 @@ export function useImages() {
     loadPrevPage,
     handleSortChange,
     handleScanAll,
+    scheduleSave,
     updateImage,
   };
 }
