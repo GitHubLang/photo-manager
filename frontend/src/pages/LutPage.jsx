@@ -101,14 +101,17 @@ export default function LutPage() {
           上传参考风格图 + 原图 → 自动迁移色调 → 生成 .cube LUT 文件（可用于 Lightroom/PS）
         </Text>
         <Button
-          type="dashed"
+          type="primary"
           size="small"
           icon={<CopyOutlined />}
           style={{ marginLeft: 12 }}
-          onClick={() => { navigator.clipboard.writeText(AI_PROMPT); message.success('AI 提示词已复制'); }}
+          onClick={() => { navigator.clipboard.writeText(AI_PROMPT); message.success('AI 提示词已复制，去 ChatGPT/MiniMax 粘贴使用'); }}
         >
           复制 AI 提示词
         </Button>
+        <div style={{ marginTop: 8, padding: 12, background: '#f5f5f5', borderRadius: 6, maxHeight: 200, overflow: 'auto', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          {AI_PROMPT}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
