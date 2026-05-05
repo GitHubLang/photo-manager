@@ -116,6 +116,169 @@ def _lab_to_rgb(lab):
 
 
 
+def _generate_xmp(src_path, styled_path, output_path):
+    """从原图+风格图推导 Lightroom .xmp 预设（参考 lightroom-preset-maker 算法）"""
+    import cv2
+    import numpy as np
+
+    def load_bgr(p):
+        return cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_COLOR)
+
+    ref = load_bgr(styled_path)
+    src = load_bgr(src_path)
+    if ref is None or src is None:
+        print(f"Cannot load images: {src_path}, {styled_path}")
+        return False
+
+    h = min(src.shape[0], ref.shape[0])
+    w = min(src.shape[1], ref.shape[1])
+    src = cv2.resize(src, (w, h), interpolation=cv2.INTER_AREA)
+    ref = cv2.resize(ref, (w, h), interpolation=cv2.INTER_AREA)
+
+    src_lab = cv2.cvtColor(src, cv2.COLOR_BGR2LAB).astype(np.float32)
+    ref_lab = cv2.cvtColor(ref, cv2.COLOR_BGR2LAB).astype(np.float32)
+    src_hsv = cv2.cvtColor(src, cv2.COLOR_BGR2HSV).astype(np.float32)
+    ref_hsv = cv2.cvtColor(ref, cv2.COLOR_BGR2HSV).astype(np.float32)
+
+    # --- 曝光 (使用中间调区域加权) ---
+    r_mean_lum = np.mean(ref_lab[:,:,0])
+    s_mean_lum = np.mean(src_lab[:,:,0])
+    r_mid = np.mean(ref_lab[(ref_lab[:,:,0] > 85) & (ref_lab[:,:,0] < 170)])
+    s_mid = np.mean(src_lab[(src_lab[:,:,0] > 85) & (src_lab[:,:,0] < 170)])
+    r_mid = r_mid if not np.isnan(r_mid) else r_mean_lum
+    s_mid = s_mid if not np.isnan(s_mid) else s_mean_lum
+    exp = round((0.6 * (r_mid - s_mid) + 0.4 * (r_mean_lum - s_mean_lum)) / 50.0, 2)
+
+    # --- 对比度 (标准差+动态范围混合) ---
+    r_std = np.std(ref_lab[:,:,0])
+    s_std = np.std(src_lab[:,:,0])
+    r_range = np.percentile(ref_lab[:,:,0], 95) - np.percentile(ref_lab[:,:,0], 5)
+    s_range = np.percentile(src_lab[:,:,0], 95) - np.percentile(src_lab[:,:,0], 5)
+    contrast_ratio = 0.7 * (r_std / max(s_std, 1e-6)) + 0.3 * (r_range / max(s_range, 1e-6))
+    contrast = max(-100, min(100, int((contrast_ratio - 1.0) * 100)))
+
+    # --- 色温/色调 ---
+    temp = int((np.mean(ref_lab[:,:,2]) - np.mean(src_lab[:,:,2])) * 0.5)
+    tint = int((np.mean(ref_lab[:,:,1]) - np.mean(src_lab[:,:,1])) * 0.5)
+
+    # --- 高光/阴影/白色/黑色 (百分位) ---
+    tone_vals = {}
+    for what in ['Highlights', 'Shadows', 'Whites', 'Blacks']:
+        pct = {'Highlights': 90, 'Shadows': 10, 'Whites': 95, 'Blacks': 5}[what]
+        rv = np.percentile(ref_lab[:,:,0], pct)
+        sv = np.percentile(src_lab[:,:,0], pct)
+        tone_vals[what] = max(-100, min(100, int((rv - sv) / 2.55)))
+    highlights, shadows, whites, blacks = [tone_vals[w] for w in ['Highlights','Shadows','Whites','Blacks']]
+
+    # --- 饱和度 ---
+    r_sat = np.mean(ref_hsv[:,:,1])
+    s_sat = np.mean(src_hsv[:,:,1])
+    saturation = max(-100, min(100, int((r_sat - s_sat) / 2.55)))
+    vibrance = int(saturation * 0.7)
+
+    # --- 纹理/清晰度/去雾 ---
+    texture = max(-100, min(100, int(contrast * 0.3)))
+    clarity = max(-100, min(100, int(contrast * 0.5)))
+    dehaze = 0
+
+    # --- HSL (8色相段) ---
+    color_ranges = [
+        ('Red', 0, 22), ('Orange', 22, 45), ('Yellow', 45, 67),
+        ('Green', 67, 135), ('Aqua', 135, 157),
+        ('Blue', 157, 247), ('Purple', 247, 280), ('Magenta', 280, 360)
+    ]
+    hsl_data = {}
+    for name, hmin, hmax in color_ranges:
+        mr = ((ref_hsv[:,:,0] >= hmin) & (ref_hsv[:,:,0] < hmax)).astype(float)
+        ms = ((src_hsv[:,:,0] >= hmin) & (src_hsv[:,:,0] < hmax)).astype(float)
+        if mr.sum() > 100 and ms.sum() > 100:
+            h = max(-100, min(100, int((np.sum(ref_hsv[:,:,0]*mr)/mr.sum() - np.sum(src_hsv[:,:,0]*ms)/ms.sum()) / 1.8)))
+            s = max(-100, min(100, int((np.sum(ref_hsv[:,:,1]*mr)/mr.sum() - np.sum(src_hsv[:,:,1]*ms)/ms.sum()) / 2.55)))
+            l = max(-100, min(100, int((np.sum(ref_hsv[:,:,2]*mr)/mr.sum() - np.sum(src_hsv[:,:,2]*ms)/ms.sum()) / 2.55)))
+        else:
+            h = s = l = 0
+        hsl_data[name] = (h, s, l)
+
+    # --- 色调曲线 (PV2012) ---
+    tc = []
+    for pct in [0, 12.5, 25, 50, 75, 87.5, 100]:
+        rv = np.percentile(ref_lab[:,:,0], pct)
+        sv = np.percentile(src_lab[:,:,0], pct)
+        tc.append(f"{sv / 255.0:.6f} {rv / 255.0:.6f}")
+
+    # --- 色彩分级 ---
+    cg = {}
+    for name, lo, hi in [('Shadows', 0, 85), ('Midtones', 85, 170), ('Highlights', 170, 255)]:
+        rm = (ref_lab[:,:,0] >= lo) & (ref_lab[:,:,0] < hi)
+        sm = (src_lab[:,:,0] >= lo) & (src_lab[:,:,0] < hi)
+        if rm.sum() > 100 and sm.sum() > 100:
+            ra = ref_lab[rm][:, 1:].mean(axis=0)
+            sa = src_lab[sm][:, 1:].mean(axis=0)
+            cg[name] = (int((ra[0] - sa[0]) * 0.5), int((ra[1] - sa[1]) * 0.5))
+        else:
+            cg[name] = (0, 0)
+
+    # --- XYZ 校准 ---
+    cal = {}
+    for ch in range(3):
+        hv = max(-100, min(100, int((np.mean(ref_lab[..., ch]) - np.mean(src_lab[..., ch])) * 0.3)))
+        sv = max(-100, min(100, int((np.mean(ref_hsv[..., 1]) - np.mean(src_hsv[..., 1])) * 0.3)))
+        cal[ch] = (hv, sv)
+
+    # --- 生成 XMP ---
+    hsl_xml = ''
+    for name, (h, s, l) in hsl_data.items():
+        hsl_xml += f'    crs:HueAdjustment{name}="{h}"\n'
+        hsl_xml += f'    crs:SaturationAdjustment{name}="{s}"\n'
+        hsl_xml += f'    crs:LuminanceAdjustment{name}="{l}"\n'
+
+    tc_xml = '    <crs:ToneCurvePV2012>\n     <rdf:Seq>\n'
+    for pt in tc:
+        tc_xml += f'      <rdf:li>{pt}</rdf:li>\n'
+    tc_xml += '     </rdf:Seq>\n    </crs:ToneCurvePV2012>\n'
+
+    xmp = f'''<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Photo Manager XMP Generator">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+   crs:Version="15.0"
+   crs:ProcessVersion="15.4"
+   crs:Temperature="{temp}"
+   crs:Tint="{tint}"
+   crs:Exposure2012="{round(exp, 2)}"
+   crs:Contrast2012="{contrast}"
+   crs:Highlights2012="{highlights}"
+   crs:Shadows2012="{shadows}"
+   crs:Whites2012="{whites}"
+   crs:Blacks2012="{blacks}"
+   crs:Texture="{texture}"
+   crs:Clarity="{clarity}"
+   crs:Dehaze="{dehaze}"
+   crs:Vibrance="{vibrance}"
+   crs:Saturation="{saturation}"
+{hsl_xml}   crs:ColorGradeShadowsHue="{cg['Shadows'][0]}"
+   crs:ColorGradeShadowsSat="{cg['Shadows'][1]}"
+   crs:ColorGradeMidtonesHue="{cg['Midtones'][0]}"
+   crs:ColorGradeMidtonesSat="{cg['Midtones'][1]}"
+   crs:ColorGradeHighlightsHue="{cg['Highlights'][0]}"
+   crs:ColorGradeHighlightsSat="{cg['Highlights'][1]}"
+   crs:RedPrimaryHue="{cal[0][0]}"
+   crs:RedPrimarySat="{cal[0][1]}"
+   crs:GreenPrimaryHue="{cal[1][0]}"
+   crs:GreenPrimarySat="{cal[1][1]}"
+   crs:BluePrimaryHue="{cal[2][0]}"
+   crs:BluePrimarySat="{cal[2][1]}">
+{tc_xml}  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(xmp)
+    print(f"XMP saved: {output_path}")
+    return True
+
 @router.post("/transfer")
 async def transfer_colors(source: UploadFile = File(...), reference: UploadFile = File(...)):
     """上传原图+参考图，返回色彩迁移结果"""
@@ -167,11 +330,14 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
     generate_lut(src_path, styled_path, out_path, lut_size=33)
     hald_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.png")
     generate_hald(out_path, hald_path, hald_size=64)
+    xmp_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.xmp")
+    _generate_xmp(src_path, styled_path, xmp_path)
 
     return {
         "task_id": task_id,
         "cube": f"/api/lut/download/lut_{task_id}.cube",
-        "hald": f"/api/lut/download/lut_{task_id}.png"
+        "hald": f"/api/lut/download/lut_{task_id}.png",
+        "xmp": f"/api/lut/download/lut_{task_id}.xmp"
     }
 
 
