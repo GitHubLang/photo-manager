@@ -323,11 +323,48 @@ async def extract_lut(source: UploadFile = File(...), styled: UploadFile = File(
     with open(styled_path, 'wb') as f:
         f.write(styled_bytes)
 
-    import sys
+    import sys, subprocess, shutil, tempfile as tf
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from lut_gen import generate_lut, generate_hald
+
     out_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.cube")
-    generate_lut(src_path, styled_path, out_path, lut_size=33)
+
+    # 使用 3dlut-creator (KNN+Gaussian) 生成高质量 .cube
+    tmp_a = os.path.join(tf.gettempdir(), f"3dlut_a_{task_id}")
+    tmp_b = os.path.join(tf.gettempdir(), f"3dlut_b_{task_id}")
+    os.makedirs(tmp_a, exist_ok=True)
+    os.makedirs(tmp_b, exist_ok=True)
+    # 用相同文件名实现匹配
+    pair_name = "input_pair.jpg"
+    shutil.copy2(src_path, os.path.join(tmp_a, pair_name))
+    shutil.copy2(styled_path, os.path.join(tmp_b, pair_name))
+
+    _3d_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "3dlut-creator")
+    tmp_out = os.path.join(tf.gettempdir(), f"3dlut_out_{task_id}")
+    result = subprocess.run([
+        sys.executable, os.path.join(_3d_dir, "main.py"),
+        "--photoa", tmp_a,
+        "--photob", tmp_b,
+        "--output", tmp_out,
+        "--size", "33",
+        "--formats", "cube",
+        "--title", f"LUT_{task_id}"
+    ], capture_output=True, text=True, timeout=120, cwd=_3d_dir,
+       env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+
+    generated = f"{tmp_out}.cube"
+    if os.path.exists(generated):
+        shutil.copy2(generated, out_path)
+    else:
+        # 回退到原来的算法
+        from lut_gen import generate_lut
+        generate_lut(src_path, styled_path, out_path, lut_size=33)
+
+    # 清 temp
+    for d in [tmp_a, tmp_b]: shutil.rmtree(d, ignore_errors=True)
+    if os.path.exists(f"{tmp_out}.cube"): os.remove(f"{tmp_out}.cube")
+
+    # HALD + XMP 仍用现有逻辑
+    from lut_gen import generate_hald
     hald_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.png")
     generate_hald(out_path, hald_path, hald_size=64)
     xmp_path = os.path.join(OUTPUT_DIR, f"lut_{task_id}.xmp")
