@@ -119,10 +119,16 @@ function App() {
     }
   }, []);
 
-  const pollScoreStatus = useCallback(async (imageId, maxAttempts = 60) => {
+  // 用 ref 避免 poll 闭包陷阱
+  const imageHookRef = useRef(imageHook);
+  useEffect(() => { imageHookRef.current = imageHook; });
+
+  const pollScoreStatus = useCallback(async (imageId, maxAttempts = 90) => {
     let attempts = 0;
+    let errCount = 0;
     const poll = async () => {
-      if (attempts >= maxAttempts) {
+      if (attempts >= maxAttempts || errCount > 30) {
+        message.warning(String(imageId) + ' 评分超时，请手动重试');
         setScoringIds(prev => { const s = new Set(prev); s.delete(imageId); return s; });
         return;
       }
@@ -132,7 +138,10 @@ function App() {
         if (status.status === 'completed') {
           const updatedImage = await fetchScoreResults(imageId);
           if (updatedImage && updatedImage.id) {
-            imageHook.loadImages(imageHook.selectedFolder, imageHook.currentPage);
+            const hook = imageHookRef.current;
+            if (hook.selectedFolder) {
+              hook.loadImages(hook.selectedFolder, hook.currentPage);
+            }
           }
           setScoringIds(prev => { const s = new Set(prev); s.delete(imageId); return s; });
           return;
@@ -143,11 +152,12 @@ function App() {
         }
         setTimeout(poll, 10000);
       } catch (err) {
+        errCount++;
         setTimeout(poll, 5000);
       }
     };
     poll();
-  }, [imageHook, scoreHook]);
+  }, [scoreHook]);
 
   // 批量评分
   const handleBatchScore = useCallback(async () => {
