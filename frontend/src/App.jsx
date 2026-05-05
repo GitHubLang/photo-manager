@@ -314,6 +314,7 @@ function App() {
       </Space>
       <Space>
         <Select value={imageHook.sortBy} onChange={(v) => imageHook.handleSortChange(v, imageHook.sortOrder)} style={{ width: 120 }}>
+          <Select.Option value="created_at">创建时间</Select.Option>
           <Select.Option value="filename">文件名</Select.Option>
           <Select.Option value="total_score">评分</Select.Option>
           <Select.Option value="file_size">大小</Select.Option>

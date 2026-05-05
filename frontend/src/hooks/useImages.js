@@ -14,8 +14,8 @@ export function useImages() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState('filename');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // 内部 refs
   const loadedPagesSet = useRef(new Set());
