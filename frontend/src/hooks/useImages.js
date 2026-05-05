@@ -204,6 +204,15 @@ export function useImages() {
               const cTop = contentEl.getBoundingClientRect().top;
               contentEl.scrollTop += (newTop - cTop) - anchorOffsetY;
             }
+            // 更新保存的状态为当前浏览位置
+            saveState({
+              last_folder_path: selectedFolder,
+              last_page: prevPage,
+              last_sort_by: sortBy,
+              last_sort_order: sortOrder,
+              last_scroll_top: contentEl ? contentEl.scrollTop : 0,
+              last_image_index: getFirstVisibleImageIndex()
+            });
           });
         });
       }
@@ -214,7 +223,7 @@ export function useImages() {
       setLoadingMore(false);
       scrollBusyRef.current = false;
     }
-  }, [currentPage, selectedFolder, sortBy, sortOrder]);
+  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState, getFirstVisibleImageIndex]);
 
 
   // 更新单张图片数据（评分完成后原地更新，不用重刷列表）
