@@ -24,6 +24,20 @@ export function useImages() {
   const scrollBusyRef = useRef(false);
   const contentRef = useRef(null);
 
+  // 获取当前视口第一个可见图片的（估算）索引
+  const getFirstVisibleImageIndex = useCallback(() => {
+    if (!contentRef.current) return 0;
+    const cards = contentRef.current.querySelectorAll('.ant-col');
+    const containerRect = contentRef.current.getBoundingClientRect();
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect();
+      if (rect.bottom > containerRect.top + 10) {
+        return Math.max(0, i);
+      }
+    }
+    return 0;
+  }, []);
+
   // 持久化状态到 localStorage
   const persistState = useCallback((state) => {
     try {
@@ -111,7 +125,8 @@ export function useImages() {
           last_page: page,
           last_sort_by: sortBy,
           last_sort_order: sortOrder,
-          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0
+          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0,
+          last_image_index: getFirstVisibleImageIndex()
         });
       }
     } catch (err) {
@@ -127,13 +142,14 @@ export function useImages() {
           last_page: page,
           last_sort_by: sortBy,
           last_sort_order: sortOrder,
-          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0
+          last_scroll_top: contentRef.current ? contentRef.current.scrollTop : 0,
+          last_image_index: getFirstVisibleImageIndex()
         });
       }
     }
   }, [sortBy, sortOrder, saveState]);
 
-  // 加载上一页（向上翻页，保持当前位置）
+  // 加载上一页（向上翻页，靠 DOM 锚点保持位置）
   const loadPrevPage = useCallback(async () => {
     if (isRestoringRef.current || scrollBusyRef.current) return;
     if (loadedPagesSet.current.has(1)) return;
@@ -149,6 +165,23 @@ export function useImages() {
     loadingPagesSet.current.add(prevPage);
     setLoadingMore(true);
 
+    // 记录当前第一个可见卡片作为锚点
+    const contentEl = contentRef.current;
+    let anchorEl = null;
+    let anchorOffsetY = 0;
+    if (contentEl) {
+      const cards = contentEl.querySelectorAll('.ant-col');
+      const cRect = contentEl.getBoundingClientRect();
+      for (const card of cards) {
+        const r = card.getBoundingClientRect();
+        if (r.bottom > cRect.top + 1) {
+          anchorEl = card;
+          anchorOffsetY = r.top - cRect.top;
+          break;
+        }
+      }
+    }
+
     try {
       const data = await fetchImages(selectedFolder, {
         page: prevPage,
@@ -158,31 +191,20 @@ export function useImages() {
       });
 
       if (data.images && data.images.length > 0) {
-        const contentEl = contentRef.current;
-        const scrollTopBefore = contentEl ? contentEl.scrollTop : 0;
-        const clientHeight = contentEl ? contentEl.clientHeight : 0;
-        const scrollHeightBefore = contentEl ? contentEl.scrollHeight : 0;
-        const bottomBoundary = scrollHeightBefore - scrollTopBefore - clientHeight;
-
         setImages(prev => [...data.images, ...prev]);
         setCurrentPage(prevPage);
         loadedPagesSet.current.add(prevPage);
         loadingPagesSet.current.delete(prevPage);
 
-        saveState({
-          last_folder_path: selectedFolder,
-          last_page: prevPage,
-          last_sort_by: sortBy,
-          last_sort_order: sortOrder,
-          last_scroll_top: 0
-        });
-
+        // 恢复滚动：把锚点卡片拉到刚才的位置
         requestAnimationFrame(() => {
-          if (contentEl) {
-            const scrollHeightAfter = contentEl.scrollHeight;
-            const newScrollTop = Math.max(0, scrollHeightAfter - clientHeight - bottomBoundary);
-            contentEl.scrollTop = newScrollTop;
-          }
+          requestAnimationFrame(() => {
+            if (anchorEl && anchorEl.isConnected && contentEl) {
+              const newTop = anchorEl.getBoundingClientRect().top;
+              const cTop = contentEl.getBoundingClientRect().top;
+              contentEl.scrollTop += (newTop - cTop) - anchorOffsetY;
+            }
+          });
         });
       }
     } catch (err) {
@@ -192,7 +214,7 @@ export function useImages() {
       setLoadingMore(false);
       scrollBusyRef.current = false;
     }
-  }, [currentPage, selectedFolder, sortBy, sortOrder, saveState]);
+  }, [currentPage, selectedFolder, sortBy, sortOrder]);
 
 
   // 更新单张图片数据（评分完成后原地更新，不用重刷列表）
@@ -313,11 +335,26 @@ export function useImages() {
         setSortBy(state.last_sort_by || 'created_at');
         setSortOrder(state.last_sort_order || 'desc');
 
-        // 先加载图片
+        // 加载保存的页面
         await loadImages(matched.path, state.last_page || 1);
 
-        // 恢复滚动位置
-        if (contentRef.current && state.last_scroll_top > 0) {
+        // 如果有保存的图片索引，滚动到对应位置
+        const savedIndex = state.last_image_index ?? 0;
+        if (savedIndex > 0 && contentRef.current) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const el = contentRef.current;
+              if (!el) return;
+              const cards = el.querySelectorAll('.ant-col');
+              if (cards.length > savedIndex) {
+                const card = cards[savedIndex];
+                card.scrollIntoView({ block: 'start', behavior: 'instant' });
+              } else if (state.last_scroll_top > 0) {
+                el.scrollTop = state.last_scroll_top;
+              }
+            });
+          });
+        } else if (state.last_scroll_top > 0 && contentRef.current) {
           requestAnimationFrame(() => {
             if (contentRef.current) {
               contentRef.current.scrollTop = state.last_scroll_top;

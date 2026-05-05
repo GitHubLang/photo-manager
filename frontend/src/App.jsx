@@ -532,7 +532,7 @@ function App() {
         )}
 
         {/* 内容区 */}
-        <Content className="content-area" ref={imageHook.contentRef} style={{ overflowAnchor: 'none' }}
+        <Content className="content-area" ref={imageHook.contentRef}
           onScroll={(e) => {
             const { scrollTop, scrollHeight, clientHeight } = e.target;
             if (scrollHeight - scrollTop - clientHeight < 600) {
