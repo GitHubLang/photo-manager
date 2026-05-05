@@ -175,3 +175,30 @@ async def download_lut(filename: str):
     if not os.path.exists(path):
         return {"error": "File not found"}
     return FileResponse(path, filename=filename, media_type='application/octet-stream')
+
+
+@router.post("/preview")
+async def preview_lut(lut: UploadFile = File(...), test_image: UploadFile = File(...)):
+    """上传 LUT 文件 + 测试图 → 返回套用 LUT 后的预览图"""
+    import tempfile
+    task_id = uuid.uuid4().hex[:8]
+
+    lut_bytes = await lut.read()
+    img_bytes = await test_image.read()
+
+    lut_path = os.path.join(tempfile.gettempdir(), f"preview_lut_{task_id}.cube")
+    img_path = os.path.join(tempfile.gettempdir(), f"preview_img_{task_id}.jpg")
+
+    with open(lut_path, 'wb') as f:
+        f.write(lut_bytes)
+    with open(img_path, 'wb') as f:
+        f.write(img_bytes)
+
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from lut_gen import apply_lut
+
+    out_path = os.path.join(OUTPUT_DIR, f"preview_{task_id}.jpg")
+    apply_lut(img_path, lut_path, out_path)
+
+    return {"task_id": task_id, "url": f"/api/lut/output/preview_{task_id}.jpg"}

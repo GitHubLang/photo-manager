@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Button, Image, Space, Card, Divider, Typography, message, Spin } from 'antd';
-import { InboxOutlined, SwapOutlined, DownloadOutlined, CopyOutlined } from '@ant-design/icons';
+import { InboxOutlined, SwapOutlined, DownloadOutlined, CopyOutlined, EyeOutlined, ExportOutlined } from '@ant-design/icons';
 
 const { Dragger } = Upload;
 const { Title, Text } = Typography;
@@ -42,6 +42,10 @@ export default function LutPage() {
   const [lutUrl, setLutUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [testFile, setTestFile] = useState(null);
+  const [testPreview, setTestPreview] = useState(null);
+  const [prevResultUrl, setPrevResultUrl] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const handleUpload = (file, setFile, setPreview) => {
     setFile(file);
@@ -95,6 +99,38 @@ export default function LutPage() {
       message.error('提取失败: ' + e.message);
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!lutUrl || !testFile) {
+      message.warning('请先提取 LUT 并上传测试图');
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const lutBlob = await fetch(lutUrl).then(r => r.blob());
+      const form = new FormData();
+      form.append('lut', new File([lutBlob], 'test.cube'));
+      form.append('test_image', testFile);
+      const r = await fetch(API + '/preview', { method: 'POST', body: form });
+      if (!r.ok) throw new Error('Preview failed');
+      const data = await r.json();
+      setPrevResultUrl(API + '/output/' + data.url.split('/').pop());
+      message.success('预览生成完成');
+    } catch (e) {
+      message.error('预览失败: ' + e.message);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (prevResultUrl) {
+      const a = document.createElement('a');
+      a.href = prevResultUrl;
+      a.download = 'preview_result.jpg';
+      a.click();
     }
   };
 
@@ -196,16 +232,59 @@ export default function LutPage() {
       )}
 
       {lutUrl && (
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <Button type="primary" size="large" icon={<DownloadOutlined />}
-            onClick={() => window.open(lutUrl)}>
-            下载 .cube LUT 文件
-          </Button>
-          <br />
-          <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
-            导入 Lightroom/PS/DaVinci 即可使用
-          </Text>
-        </div>
+        <>
+          <Divider />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card title="测试预览" size="small">
+              <Dragger
+                accept="image/*"
+                maxCount={1}
+                beforeUpload={(f) => { handleUpload(f, setTestFile, setTestPreview); return false; }}
+                showUploadList={false}
+              >
+                {testPreview ? (
+                  <Image src={testPreview} preview={false} style={{ maxHeight: 120, objectFit: 'contain' }} />
+                ) : (
+                  <div>
+                    <InboxOutlined style={{ fontSize: 24, color: '#999' }} />
+                    <p style={{ fontSize: 12 }}>上传测试图</p>
+                  </div>
+                )}
+              </Dragger>
+              <div style={{ marginTop: 8, textAlign: 'center' }}>
+                <Space>
+                  <Button size="small" icon={<EyeOutlined />} onClick={handlePreview}
+                    disabled={!testFile} loading={previewing}>
+                    预览
+                  </Button>
+                  <Button size="small" icon={<ExportOutlined />} onClick={handleExport}
+                    disabled={!prevResultUrl}>
+                    导出
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+            <Card title="预览结果" size="small">
+              {prevResultUrl ? (
+                <Image src={prevResultUrl} />
+              ) : (
+                <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+                  上传测试图后点击预览
+                </div>
+              )}
+            </Card>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <Button type="primary" size="large" icon={<DownloadOutlined />}
+              onClick={() => window.open(lutUrl)}>
+              下载 .cube LUT 文件
+            </Button>
+            <br />
+            <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
+              导入 Lightroom/PS/DaVinci 即可使用
+            </Text>
+          </div>
+        </>
       )}
     </div>
   );
