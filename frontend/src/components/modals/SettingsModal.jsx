@@ -35,8 +35,8 @@ export default function SettingsModal({ visible, onClose }) {
   };
 
   const modelOptions = models.map(m => ({
-    value: m.model_name,
-    label: m.name + ' (' + m.model_type + ')'
+    value: m.name,
+    label: m.name
   }));
 
   const items = [
