@@ -35,8 +35,8 @@ export default function SettingsModal({ visible, onClose }) {
   };
 
   const modelOptions = [
-    { value: '', label: '(不指定)' },
-    ...models.map(m => ({ value: String(m.id), label: m.name + ' (' + m.model_name + ')' }))
+    { value: 'local', label: '本地模型 (LM Studio)' },
+    ...models.map(m => ({ value: m.name, label: m.name + ' (' + m.model_name + ')' }))
   ];
 
   const items = [
