@@ -23,6 +23,7 @@ import CaptionInstructionsModal from './components/modals/CaptionInstructionsMod
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
+import SettingsModal from './components/modals/SettingsModal';
 import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
 
 const LS_SCORING = 'pm_scoring_model_id';
