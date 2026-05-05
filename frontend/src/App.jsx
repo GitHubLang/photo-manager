@@ -24,7 +24,7 @@ import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
 import SettingsModal from './components/modals/SettingsModal';
-import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, getProxyUrl } from './api/imageApi';
+import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, fetchBatchImages, getProxyUrl } from './api/imageApi';
 
 const LS_SCORING = 'pm_scoring_model_id';
 const LS_CAPTION = 'pm_caption_model_id';
@@ -524,7 +524,7 @@ function App() {
               if (found.length === parsedIds.length) {
                 captionHook.setCaptionModalImages(found);
               } else {
-                fetch('/api/images/batch?ids=' + parsedIds.join(',')).then(r => r.json()).then(d => captionHook.setCaptionModalImages(d.images || [])).catch(() => captionHook.setCaptionModalImages([]));
+                fetchBatchImages(parsedIds).then(d => captionHook.setCaptionModalImages(d.images || [])).catch(() => captionHook.setCaptionModalImages([]));
               }
               captionHook.setCaptionModalVisible(true);
             }}
