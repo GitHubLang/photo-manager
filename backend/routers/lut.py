@@ -157,8 +157,8 @@ def _generate_xmp(src_path, styled_path, output_path):
     contrast_ratio = 0.7 * (r_std / max(s_std, 1e-6)) + 0.3 * (r_range / max(s_range, 1e-6))
     contrast = max(-100, min(100, int((contrast_ratio - 1.0) * 100)))
 
-    # --- 色温/色调 ---
-    temp = int((np.mean(ref_lab[:,:,2]) - np.mean(src_lab[:,:,2])) * 0.5)
+    # --- 色温/色调 (Lightroom用Kelvin, 加5500基准) ---
+    temp = max(2000, min(50000, 5500 + int((np.mean(ref_lab[:,:,2]) - np.mean(src_lab[:,:,2])) * 5)))
     tint = int((np.mean(ref_lab[:,:,1]) - np.mean(src_lab[:,:,1])) * 0.5)
 
     # --- 高光/阴影/白色/黑色 (百分位) ---

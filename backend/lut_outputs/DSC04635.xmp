@@ -1,50 +1,71 @@
 <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Photo Manager XMP Generator">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
   <rdf:Description rdf:about=""
-   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-   <crs:Version>15.0</crs:Version>
-   <crs:ProcessVersion>15.4</crs:ProcessVersion>
-   <crs:Exposure2012>+0.3500</crs:Exposure2012>
-   <crs:Contrast2012>-1</crs:Contrast2012>
-   <crs:Highlights2012>0</crs:Highlights2012>
-   <crs:Shadows2012>18</crs:Shadows2012>
-   <crs:Temperature>5037</crs:Temperature>
-   <crs:Tint>229</crs:Tint>
-   <crs:Saturation>212</crs:Saturation>
-   <crs:Vibrance>137</crs:Vibrance>
-   <crs:HueAdjustmentRed>3</crs:HueAdjustmentRed>
-   <crs:SaturationAdjustmentRed>24</crs:SaturationAdjustmentRed>
-   <crs:LuminanceAdjustmentRed>9</crs:LuminanceAdjustmentRed>
-   <crs:HueAdjustmentOrange>0</crs:HueAdjustmentOrange>
-   <crs:SaturationAdjustmentOrange>11</crs:SaturationAdjustmentOrange>
-   <crs:LuminanceAdjustmentOrange>14</crs:LuminanceAdjustmentOrange>
-   <crs:HueAdjustmentYellow>-1</crs:HueAdjustmentYellow>
-   <crs:SaturationAdjustmentYellow>8</crs:SaturationAdjustmentYellow>
-   <crs:LuminanceAdjustmentYellow>13</crs:LuminanceAdjustmentYellow>
-   <crs:HueAdjustmentGreen>-1</crs:HueAdjustmentGreen>
-   <crs:SaturationAdjustmentGreen>23</crs:SaturationAdjustmentGreen>
-   <crs:LuminanceAdjustmentGreen>7</crs:LuminanceAdjustmentGreen>
-   <crs:HueAdjustmentAqua>0</crs:HueAdjustmentAqua>
-   <crs:SaturationAdjustmentAqua>25</crs:SaturationAdjustmentAqua>
-   <crs:LuminanceAdjustmentAqua>7</crs:LuminanceAdjustmentAqua>
-   <crs:HueAdjustmentBlue>-2</crs:HueAdjustmentBlue>
-   <crs:SaturationAdjustmentBlue>19</crs:SaturationAdjustmentBlue>
-   <crs:LuminanceAdjustmentBlue>5</crs:LuminanceAdjustmentBlue>
-   <crs:HueAdjustmentPurple>0</crs:HueAdjustmentPurple>
-   <crs:SaturationAdjustmentPurple>10</crs:SaturationAdjustmentPurple>
-   <crs:LuminanceAdjustmentPurple>2</crs:LuminanceAdjustmentPurple>
-   <crs:HueAdjustmentMagenta>-55</crs:HueAdjustmentMagenta>
-   <crs:SaturationAdjustmentMagenta>21</crs:SaturationAdjustmentMagenta>
-   <crs:LuminanceAdjustmentMagenta>6</crs:LuminanceAdjustmentMagenta>
-   <crs:ParametricRedSplit>91 93 66 46 -1 0 0 0 0 0 0 0 0 0 0</crs:ParametricRedSplit>
-   <crs:ParametricGreenSplit>92 83 69 42 0 0 0 0 0 0 0 0 0 0 0</crs:ParametricGreenSplit>
-   <crs:ParametricBlueSplit>39 63 61 47 0 0 0 0 0 0 0 0 0 0 0</crs:ParametricBlueSplit>
-   <crs:ShadowTint>0</crs:ShadowTint>
-   <crs:ShadowTintSaturation>1</crs:ShadowTintSaturation>
-   <crs:HighlightTint>0</crs:HighlightTint>
-   <crs:HighlightTintSaturation>0</crs:HighlightTintSaturation>
+   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+   crs:Version="15.0"
+   crs:ProcessVersion="15.4"
+   crs:Temperature="5516"
+   crs:Tint="0"
+   crs:Exposure2012="0.25"
+   crs:Contrast2012="-3"
+   crs:Highlights2012="0"
+   crs:Shadows2012="4"
+   crs:Whites2012="0"
+   crs:Blacks2012="0"
+   crs:Texture="0"
+   crs:Clarity="-1"
+   crs:Dehaze="0"
+   crs:Vibrance="4"
+   crs:Saturation="7"
+    crs:HueAdjustmentRed="0"
+    crs:SaturationAdjustmentRed="7"
+    crs:LuminanceAdjustmentRed="14"
+    crs:HueAdjustmentOrange="0"
+    crs:SaturationAdjustmentOrange="14"
+    crs:LuminanceAdjustmentOrange="12"
+    crs:HueAdjustmentYellow="0"
+    crs:SaturationAdjustmentYellow="9"
+    crs:LuminanceAdjustmentYellow="8"
+    crs:HueAdjustmentGreen="1"
+    crs:SaturationAdjustmentGreen="3"
+    crs:LuminanceAdjustmentGreen="6"
+    crs:HueAdjustmentAqua="0"
+    crs:SaturationAdjustmentAqua="0"
+    crs:LuminanceAdjustmentAqua="8"
+    crs:HueAdjustmentBlue="0"
+    crs:SaturationAdjustmentBlue="0"
+    crs:LuminanceAdjustmentBlue="13"
+    crs:HueAdjustmentPurple="0"
+    crs:SaturationAdjustmentPurple="0"
+    crs:LuminanceAdjustmentPurple="0"
+    crs:HueAdjustmentMagenta="0"
+    crs:SaturationAdjustmentMagenta="0"
+    crs:LuminanceAdjustmentMagenta="0"
+   crs:ColorGradeShadowsHue="6"
+   crs:ColorGradeShadowsSat="-9"
+   crs:ColorGradeMidtonesHue="0"
+   crs:ColorGradeMidtonesSat="2"
+   crs:ColorGradeHighlightsHue="0"
+   crs:ColorGradeHighlightsSat="0"
+   crs:RedPrimaryHue="7"
+   crs:RedPrimarySat="5"
+   crs:GreenPrimaryHue="0"
+   crs:GreenPrimarySat="5"
+   crs:BluePrimaryHue="0"
+   crs:BluePrimarySat="5">
+    <crs:ToneCurvePV2012>
+     <rdf:Seq>
+      <rdf:li>0.000000 0.000000</rdf:li>
+      <rdf:li>0.043137 0.101961</rdf:li>
+      <rdf:li>0.082353 0.188235</rdf:li>
+      <rdf:li>0.227451 0.388235</rdf:li>
+      <rdf:li>0.513726 0.654902</rdf:li>
+      <rdf:li>0.839216 0.831373</rdf:li>
+      <rdf:li>1.000000 1.000000</rdf:li>
+     </rdf:Seq>
+    </crs:ToneCurvePV2012>
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>
-<?xpacket end="r"?>
+<?xpacket end="w"?>
