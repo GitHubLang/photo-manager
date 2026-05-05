@@ -14,7 +14,8 @@ if %errorlevel%==0 (
 ) else (
     echo [Backend] Starting...
     cd /d D:\MySoftware\photo-manager\backend
-    start "photo-backend" cmd /k "python main.py"
+    set PYTHON=C:\Users\ADMIN\AppData\Local\Programs\Python\Python311\python.exe
+    start "photo-backend" cmd /k "%PYTHON% -m uvicorn main:app --host 0.0.0.0 --port 8000"
 )
 
 :: Check frontend
