@@ -24,6 +24,7 @@ import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
 import SettingsModal from './components/modals/SettingsModal';
+import LutPage from './pages/LutPage';
 import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, fetchBatchImages, getProxyUrl } from './api/imageApi';
 
 const LS_SCORING = 'pm_scoring_model_id';
@@ -563,7 +564,13 @@ function App() {
           />
         )}
 
+        {/* LUT 克隆页面 */}
+        {!isMobile && activeMenu === 'lut' && (
+          <LutPage />
+        )}
+
         {/* 内容区 */}
+        {activeMenu !== 'lut' && (
         <Content className="content-area" ref={imageHook.contentRef}
           onScroll={(e) => {
             const { scrollTop, scrollHeight, clientHeight } = e.target;
@@ -590,6 +597,7 @@ function App() {
             onDownload={handleDownload}
           />
         </Content>
+        )}
       </Layout>
 
       {/* 图片预览 */}
