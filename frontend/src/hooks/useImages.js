@@ -70,8 +70,10 @@ export function useImages() {
     }
   }, []);
 
-  // 加载图片
-  const loadImages = useCallback(async (folderPath, page = 1, append = false) => {
+  // 加载图片（可传入 sort 覆写，避免 useState 闭包陷阱）
+  const loadImages = useCallback(async (folderPath, page = 1, append = false, _sortBy, _sortOrder) => {
+    const effectiveSortBy = _sortBy ?? sortBy;
+    const effectiveSortOrder = _sortOrder ?? sortOrder;
     if (!folderPath) return;
 
     if (page === 1 && !append) {
@@ -84,8 +86,8 @@ export function useImages() {
       const data = await fetchImages(folderPath, {
         page,
         pageSize: 50,
-        sortBy,
-        sortOrder
+        sortBy: effectiveSortBy,
+        sortOrder: effectiveSortOrder
       });
 
       if (append) {
@@ -275,12 +277,12 @@ export function useImages() {
     }
   }, [selectedFolder, loadImages, loadFolders]);
 
-  // 排序变化
+  // 排序变化（直接传新值给 loadImages，跳过闭包陷阱）
   const handleSortChange = useCallback((by, order) => {
     setSortBy(by);
     setSortOrder(order);
     if (selectedFolder) {
-      loadImages(selectedFolder, 1);
+      loadImages(selectedFolder, 1, false, by, order);
     }
   }, [selectedFolder, loadImages]);
 
@@ -308,8 +310,8 @@ export function useImages() {
 
       if (matched) {
         isRestoringRef.current = true;
-        setSortBy(state.last_sort_by || 'filename');
-        setSortOrder(state.last_sort_order || 'asc');
+        setSortBy(state.last_sort_by || 'created_at');
+        setSortOrder(state.last_sort_order || 'desc');
 
         // 先加载图片
         await loadImages(matched.path, state.last_page || 1);
