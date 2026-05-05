@@ -287,7 +287,7 @@ function App() {
   displayImages = searchHook.searchResults !== null ? searchHook.searchResults : imageHook.images;
 
   const folderTreeData = imageHook.folders.map(f => ({
-    title: <span><span style={{ marginLeft: 8 }}>{f.imageCount}</span></span>,
+    title: <span>{f.name}<span style={{ marginLeft: 8 }}>{f.imageCount}</span></span>,
     key: f.path,
     path: f.path,
   }));

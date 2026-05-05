@@ -408,7 +408,7 @@
 .folder-drawer {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 900;
   pointer-events: none;
 }
 
@@ -469,7 +469,7 @@
 .score-panel {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 900;
   pointer-events: none;
 }
 
@@ -515,7 +515,7 @@
 .caption-panel {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 900;
   pointer-events: none;
 }
 
@@ -1146,6 +1146,11 @@
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* 层级: 抽屉(900) < 弹窗(1000) < 图片预览(1050) < 底部导航(1200) */
+.ant-modal-root { z-index: 1000; }
+.ant-modal-wrap { z-index: 1000; }
+.ant-image-preview-wrap { z-index: 1050; }
 
 .animate-fade-in {
   animation: fadeIn var(--transition-normal) ease;
