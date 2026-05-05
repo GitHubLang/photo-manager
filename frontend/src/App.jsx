@@ -566,7 +566,9 @@ function App() {
 
         {/* LUT 克隆页面 */}
         {!isMobile && activeMenu === 'lut' && (
-          <LutPage />
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <LutPage />
+          </div>
         )}
 
         {/* 内容区 */}
