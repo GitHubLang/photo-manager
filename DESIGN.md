@@ -1,87 +1,80 @@
-# Photo Manager - 架构设计规范
+﻿# Photo Manager - 鏋舵瀯璁捐瑙勮寖
 
-## 一、当前架构分析
-
-### 1.1 现状
+## 涓€銆佸綋鍓嶆灦鏋勫垎鏋?
+### 1.1 鐜扮姸
 
 ```
 frontend/                          backend/
-  App.jsx     (550行, god组件)       routers/images.py (688行, 单一文件)
-  ├─ 评分状态                         ├─ 文件夹CRUD
-  ├─ 文案状态                         ├─ 图片CRUD
-  ├─ 模型管理                         ├─ 评分任务 + 线程
-  ├─ 图片选择                         ├─ 缩略图/代理
-  ├─ 预览/下载                        ├─ 扫描进度
-  └─ 所有事件传递                     └─ ...
+  App.jsx     (550琛? god缁勪欢)       routers/images.py (688琛? 鍗曚竴鏂囦欢)
+  鈹溾攢 璇勫垎鐘舵€?                        鈹溾攢 鏂囦欢澶笴RUD
+  鈹溾攢 鏂囨鐘舵€?                        鈹溾攢 鍥剧墖CRUD
+  鈹溾攢 妯″瀷绠＄悊                         鈹溾攢 璇勫垎浠诲姟 + 绾跨▼
+  鈹溾攢 鍥剧墖閫夋嫨                         鈹溾攢 缂╃暐鍥?浠ｇ悊
+  鈹溾攢 棰勮/涓嬭浇                        鈹溾攢 鎵弿杩涘害
+  鈹斺攢 鎵€鏈変簨浠朵紶閫?                    鈹斺攢 ...
   components/
     layout/
-      SideMenu.jsx (菜单硬编码)      routers/daily.py
+      SideMenu.jsx (鑿滃崟纭紪鐮?      routers/daily.py
       TopToolbar.jsx                 routers/models.py
     modals/                         services/
     image/                            image_scanner.py
     score/                            llm_scorer.py
     caption/                          daily_theme.py
-  hooks/                            main.py (路由注册)
-    useImages.js (300行)
+  hooks/                            main.py (璺敱娉ㄥ唽)
+    useImages.js (300琛?
     useScore.js
     useCaption.js
     useSearch.js
-  api/imageApi.js (所有API集中)
+  api/imageApi.js (鎵€鏈堿PI闆嗕腑)
 ```
 
-### 1.2 添加新功能需要改的文件
-
-| 当前需要改 | 文件 |
+### 1.2 娣诲姞鏂板姛鑳介渶瑕佹敼鐨勬枃浠?
+| 褰撳墠闇€瑕佹敼 | 鏂囦欢 |
 |-----------|------|
-| 1. 菜单项 | `SideMenu.jsx` - 硬编码 Menu.Item |
-| 2. 菜单状态 | `App.jsx` - `activeMenu` state |
-| 3. 组件渲染 | `App.jsx` - 条件渲染 `{activeMenu==='xxx' && <XxxPanel/>}` |
-| 4. 数据状态 | `App.jsx` - `useXxx()` hook |
-| 5. 事件传递 | `App.jsx` - props drilling 层层传递 |
-| 6. API 函数 | `imageApi.js` - 追加 export |
-| 7. 后端路由 | 可能挤进 `images.py` 或新文件 |
-| 8. 路由注册 | `main.py` - `app.include_router(...)` |
+| 1. 鑿滃崟椤?| `SideMenu.jsx` - 纭紪鐮?Menu.Item |
+| 2. 鑿滃崟鐘舵€?| `App.jsx` - `activeMenu` state |
+| 3. 缁勪欢娓叉煋 | `App.jsx` - 鏉′欢娓叉煋 `{activeMenu==='xxx' && <XxxPanel/>}` |
+| 4. 鏁版嵁鐘舵€?| `App.jsx` - `useXxx()` hook |
+| 5. 浜嬩欢浼犻€?| `App.jsx` - props drilling 灞傚眰浼犻€?|
+| 6. API 鍑芥暟 | `imageApi.js` - 杩藉姞 export |
+| 7. 鍚庣璺敱 | 鍙兘鎸よ繘 `images.py` 鎴栨柊鏂囦欢 |
+| 8. 璺敱娉ㄥ唽 | `main.py` - `app.include_router(...)` |
 
-**结论：每加一个功能要动 8 个地方，App.jsx 最核心但耦合最重。**
+**缁撹锛氭瘡鍔犱竴涓姛鑳借鍔?8 涓湴鏂癸紝App.jsx 鏈€鏍稿績浣嗚€﹀悎鏈€閲嶃€?*
 
-### 1.3 核心问题
+### 1.3 鏍稿績闂
 
-| 问题 | 表现 |
+| 闂 | 琛ㄧ幇 |
 |------|------|
-| App.jsx 是瓶颈 | 所有状态、事件、渲染集中在一个文件 |
-| 菜单硬编码 | SideMenu 里写死 `<Menu.Item key="scores">` |
-| Props 层层传递 | `handleScore` 从 App → ImageGrid → ImageCard |
-| API 集中管理 | `imageApi.js` 包含所有接口，无模块划分 |
-| 后端路由混杂 | `images.py` 688 行，文件夹+图片+评分全在一起 |
-| 无统一状态管理 | useState 散落各处，跨组件共享靠 props |
+| App.jsx 鏄摱棰?| 鎵€鏈夌姸鎬併€佷簨浠躲€佹覆鏌撻泦涓湪涓€涓枃浠?|
+| 鑿滃崟纭紪鐮?| SideMenu 閲屽啓姝?`<Menu.Item key="scores">` |
+| Props 灞傚眰浼犻€?| `handleScore` 浠?App 鈫?ImageGrid 鈫?ImageCard |
+| API 闆嗕腑绠＄悊 | `imageApi.js` 鍖呭惈鎵€鏈夋帴鍙ｏ紝鏃犳ā鍧楀垝鍒?|
+| 鍚庣璺敱娣锋潅 | `images.py` 688 琛岋紝鏂囦欢澶?鍥剧墖+璇勫垎鍏ㄥ湪涓€璧?|
+| 鏃犵粺涓€鐘舵€佺鐞?| useState 鏁ｈ惤鍚勫锛岃法缁勪欢鍏变韩闈?props |
 
 ---
 
-## 二、目标架构
+## 浜屻€佺洰鏍囨灦鏋?
+### 2.1 鏍稿績鍘熷垯
 
-### 2.1 核心原则
+1. **鍔熻兘鍗虫ā鍧?* 鈥?姣忎釜鍔熻兘鏄竴涓嫭绔嬫枃浠跺す锛屽寘鍚嚜宸辩殑璺敱/hook/缁勪欢
+2. **鑿滃崟鏁版嵁椹卞姩** 鈥?鑿滃崟閰嶇疆鏄暟鎹紝鍔犲姛鑳?= 鍔犻厤缃」 + 鍔犳枃浠跺す
+3. **Context 鏇夸唬 Props** 鈥?鍏ㄥ眬鐘舵€佺敤 React Context锛屾秷闄?drilling
+4. **鍚庣鎸夎亴璐ｆ媶鍒?* 鈥?姣忎釜 router 鏂囦欢 鈮?200 琛?5. **娣诲姞鏂板姛鑳藉彧鏀?2 涓湴鏂?* 鈥?鑿滃崟閰嶇疆 + 鏂板姛鑳芥枃浠跺す
 
-1. **功能即模块** — 每个功能是一个独立文件夹，包含自己的路由/hook/组件
-2. **菜单数据驱动** — 菜单配置是数据，加功能 = 加配置项 + 加文件夹
-3. **Context 替代 Props** — 全局状态用 React Context，消除 drilling
-4. **后端按职责拆分** — 每个 router 文件 ≤ 200 行
-5. **添加新功能只改 2 个地方** — 菜单配置 + 新功能文件夹
-
-### 2.2 目标目录结构
+### 2.2 鐩爣鐩綍缁撴瀯
 
 ```
 frontend/src/
-  App.jsx                  ← 极简，只做布局 + Context Provider
+  App.jsx                  鈫?鏋佺畝锛屽彧鍋氬竷灞€ + Context Provider
   config/
-    menu.js                ← 菜单配置（数据驱动）
-    routes.js              ← 路由配置（可选，配合 react-router）
-  context/
-    AppContext.jsx          ← 全局状态 (selectedFolder, selectedImages...)
-    ScoreContext.jsx        ← 评分任务状态
-    CaptionContext.jsx      ← 文案状态
-  pages/
-    folder/                 ← 功能模块：文件夹浏览
-      index.jsx             ← 页面入口
+    menu.js                鈫?鑿滃崟閰嶇疆锛堟暟鎹┍鍔級
+    routes.js              鈫?璺敱閰嶇疆锛堝彲閫夛紝閰嶅悎 react-router锛?  context/
+    AppContext.jsx          鈫?鍏ㄥ眬鐘舵€?(selectedFolder, selectedImages...)
+    ScoreContext.jsx        鈫?璇勫垎浠诲姟鐘舵€?    CaptionContext.jsx      鈫?鏂囨鐘舵€?  pages/
+    folder/                 鈫?鍔熻兘妯″潡锛氭枃浠跺す娴忚
+      index.jsx             鈫?椤甸潰鍏ュ彛
       components/
         ImageGrid.jsx
         ImageCard.jsx
@@ -91,52 +84,45 @@ frontend/src/
         useImageList.js
         usePagination.js
         useSelection.js
-      api.js                ← 模块专属 API
-    scores/                 ← 功能模块：评分记录
-      index.jsx
+      api.js                鈫?妯″潡涓撳睘 API
+    scores/                 鈫?鍔熻兘妯″潡锛氳瘎鍒嗚褰?      index.jsx
       components/ScoreList.jsx
       hooks/useScoreTasks.js
       api.js
-    captions/               ← 功能模块：文案记录
-      index.jsx
+    captions/               鈫?鍔熻兘妯″潡锛氭枃妗堣褰?      index.jsx
       ...
-    settings/               ← 功能模块：设置
-      index.jsx
+    settings/               鈫?鍔熻兘妯″潡锛氳缃?      index.jsx
       ...
-    upload/                 ← 未来模块：上传评分
-      index.jsx
+    upload/                 鈫?鏈潵妯″潡锛氫笂浼犺瘎鍒?      index.jsx
       ...
   components/
     layout/
-      AppLayout.jsx         ← 布局壳
-      Sidebar.jsx           ← 从配置生成菜单
-      TopBar.jsx
+      AppLayout.jsx         鈫?甯冨眬澹?      Sidebar.jsx           鈫?浠庨厤缃敓鎴愯彍鍗?      TopBar.jsx
   shared/
-    ImageThumbnail.jsx      ← 共享组件
-    useApi.js               ← 共享 hook
+    ImageThumbnail.jsx      鈫?鍏变韩缁勪欢
+    useApi.js               鈫?鍏变韩 hook
     constants.js
 
 backend/
-  main.py                   ← 极简，只注册路由
+  main.py                   鈫?鏋佺畝锛屽彧娉ㄥ唽璺敱
   routers/
-    folders.py              ← 文件夹 API (≤150行)
-    images.py               ← 图片 CRUD + 缩略图 (≤200行)
-    scoring.py              ← 评分任务 (≤200行)
-    caption.py              ← 文案 + 主题 (≤200行)
-    models.py               ← 模型管理 (≤100行)
-    upload.py               ← 未来模块
-    scan.py                 ← 扫描异步任务
+    folders.py              鈫?鏂囦欢澶?API (鈮?50琛?
+    images.py               鈫?鍥剧墖 CRUD + 缂╃暐鍥?(鈮?00琛?
+    scoring.py              鈫?璇勫垎浠诲姟 (鈮?00琛?
+    caption.py              鈫?鏂囨 + 涓婚 (鈮?00琛?
+    models.py               鈫?妯″瀷绠＄悊 (鈮?00琛?
+    upload.py               鈫?鏈潵妯″潡
+    scan.py                 鈫?鎵弿寮傛浠诲姟
   services/
-    image_scanner.py        ← 扫描逻辑
-    llm_service.py          ← 统一 LLM 调用 (本地/云端路由)
-    score_service.py        ← 评分线程管理
+    image_scanner.py        鈫?鎵弿閫昏緫
+    llm_service.py          鈫?缁熶竴 LLM 璋冪敤 (鏈湴/浜戠璺敱)
+    score_service.py        鈫?璇勫垎绾跨▼绠＄悊
   core/
-    config.py               ← 配置
-    database.py             ← 数据库
-    models/                 ← Pydantic schemas
+    config.py               鈫?閰嶇疆
+    database.py             鈫?鏁版嵁搴?    models/                 鈫?Pydantic schemas
 ```
 
-### 2.3 菜单配置（数据驱动）
+### 2.3 鑿滃崟閰嶇疆锛堟暟鎹┍鍔級
 
 ```javascript
 // frontend/src/config/menu.js
@@ -149,21 +135,20 @@ export const menuConfig = [
   {
     key: 'folder',
     icon: FolderOutlined,
-    label: '文件夹',
-    type: 'submenu',         // 子菜单（含文件夹树）
-    badge: null,             // 可选徽标
-  },
+    label: '鏂囦欢澶?,
+    type: 'submenu',         // 瀛愯彍鍗曪紙鍚枃浠跺す鏍戯級
+    badge: null,             // 鍙€夊窘鏍?  },
   {
     key: 'scores',
     icon: StarOutlined,
-    label: '评分记录',
+    label: '璇勫垎璁板綍',
     type: 'page',
-    badge: 'failedScores',   // 从 context 取徽标数
+    badge: 'failedScores',   // 浠?context 鍙栧窘鏍囨暟
   },
   {
     key: 'captions',
     icon: FileTextOutlined,
-    label: '文案记录',
+    label: '鏂囨璁板綍',
     type: 'page',
     badge: null,
   },
@@ -171,153 +156,248 @@ export const menuConfig = [
   {
     key: 'settings',
     icon: SettingOutlined,
-    label: '设置',
-    type: 'modal',           // 弹窗类型
+    label: '璁剧疆',
+    type: 'modal',           // 寮圭獥绫诲瀷
   },
-  // === 加新功能只需加一项 ===
+  // === 鍔犳柊鍔熻兘鍙渶鍔犱竴椤?===
   // {
   //   key: 'upload',
   //   icon: UploadOutlined,
-  //   label: '上传评分',
+  //   label: '涓婁紶璇勫垎',
   //   type: 'page',
   // },
 ];
 ```
 
-### 2.4 添加新功能的标准步骤（目标）
+### 2.4 娣诲姞鏂板姛鑳界殑鏍囧噯姝ラ锛堢洰鏍囷級
 
 ```
-1. 在 menu.js 加一项配置          ← 1 行
-2. 在 pages/ 下创建功能文件夹      ← 标准模板
+1. 鍦?menu.js 鍔犱竴椤归厤缃?         鈫?1 琛?2. 鍦?pages/ 涓嬪垱寤哄姛鑳芥枃浠跺す      鈫?鏍囧噯妯℃澘
    pages/xxx/
-     index.jsx        ← 页面入口
-     hooks/useXxx.js  ← 数据 hook
-     api.js           ← API 调用
-     components/      ← 功能组件（可选）
-3. 在 backend/routers/ 加路由文件（如需新 API）
-4. 在 main.py 注册路由（如需）
-```
+     index.jsx        鈫?椤甸潰鍏ュ彛
+     hooks/useXxx.js  鈫?鏁版嵁 hook
+     api.js           鈫?API 璋冪敤
+     components/      鈫?鍔熻兘缁勪欢锛堝彲閫夛級
+3. 鍦?backend/routers/ 鍔犺矾鐢辨枃浠讹紙濡傞渶鏂?API锛?4. 鍦?main.py 娉ㄥ唽璺敱锛堝闇€锛?```
 
-**改动点：2-4 个文件 vs 现在的 8 个。**
+**鏀瑰姩鐐癸細2-4 涓枃浠?vs 鐜板湪鐨?8 涓€?*
 
 ---
 
-## 三、重构步骤
-
-### 第一步：后端拆分（低风险，前端无感）
+## 涓夈€侀噸鏋勬楠?
+### 绗竴姝ワ細鍚庣鎷嗗垎锛堜綆椋庨櫓锛屽墠绔棤鎰燂級
 
 ```
-1. routers/images.py 拆分为:
-   → routers/folders.py    (文件夹接口)
-   → routers/images.py     (图片接口)
-   → routers/scoring.py    (评分接口)
-   → routers/scan.py       (扫描接口)
+1. routers/images.py 鎷嗗垎涓?
+   鈫?routers/folders.py    (鏂囦欢澶规帴鍙?
+   鈫?routers/images.py     (鍥剧墖鎺ュ彛)
+   鈫?routers/scoring.py    (璇勫垎鎺ュ彛)
+   鈫?routers/scan.py       (鎵弿鎺ュ彛)
    
-2. llm_scorer.py 的模型路由抽象为 core/model_router.py
-3. daily_theme.py → llm_service.py (Chat API 统一入口)
+2. llm_scorer.py 鐨勬ā鍨嬭矾鐢辨娊璞′负 core/model_router.py
+3. daily_theme.py 鈫?llm_service.py (Chat API 缁熶竴鍏ュ彛)
 ```
 
-### 第二步：前端 Context 化
-
+### 绗簩姝ワ細鍓嶇 Context 鍖?
 ```
-1. 创建 AppContext    — selectedFolder, selectedImages, displayImages
-2. 创建 ScoreContext  — scoreTasks, failedScores, scoringIds
-3. 创建 CaptionContext— captionHistory, generatedCaption
-4. App.jsx 变成纯 Provider 壳
-```
+1. 鍒涘缓 AppContext    鈥?selectedFolder, selectedImages, displayImages
+2. 鍒涘缓 ScoreContext  鈥?scoreTasks, failedScores, scoringIds
+3. 鍒涘缓 CaptionContext鈥?captionHistory, generatedCaption
+4. App.jsx 鍙樻垚绾?Provider 澹?```
 
-### 第三步：页面模块化
-
+### 绗笁姝ワ細椤甸潰妯″潡鍖?
 ```
-1. 每个功能变成 pages/ 下的独立模块
-2. Sidebar 从 menu.js 配置生成
-3. 核心渲染：{activeKey === 'folder' && <FolderPage/>}
+1. 姣忎釜鍔熻兘鍙樻垚 pages/ 涓嬬殑鐙珛妯″潡
+2. Sidebar 浠?menu.js 閰嶇疆鐢熸垚
+3. 鏍稿績娓叉煋锛歿activeKey === 'folder' && <FolderPage/>}
 ```
 
-### 第四步：可选优化
-
+### 绗洓姝ワ細鍙€変紭鍖?
 ```
-- TypeScript 迁移（渐进式）
-- React Router（如果需要 URL 导航）
-- 后端 Service 层抽象
-- 统一错误处理
+- TypeScript 杩佺Щ锛堟笎杩涘紡锛?- React Router锛堝鏋滈渶瑕?URL 瀵艰埅锛?- 鍚庣 Service 灞傛娊璞?- 缁熶竴閿欒澶勭悊
 ```
 
 ---
 
-## 四、影响评估
-
-| 方面 | 重构前 | 重构后 |
+## 鍥涖€佸奖鍝嶈瘎浼?
+| 鏂归潰 | 閲嶆瀯鍓?| 閲嶆瀯鍚?|
 |------|--------|--------|
-| 加新菜单 | 改 8 个文件 | 改 2-4 个文件 |
-| App.jsx 行数 | 550+ | ~80 |
-| 单文件最大行数 | 688 (后端) | ≤200 |
-| 跨组件通信 | props drilling | Context |
-| 后端路由 | 3 个大文件 | 6+ 小文件 |
-| 菜单配置 | 硬编码 JSX | 数据驱动 |
+| 鍔犳柊鑿滃崟 | 鏀?8 涓枃浠?| 鏀?2-4 涓枃浠?|
+| App.jsx 琛屾暟 | 550+ | ~80 |
+| 鍗曟枃浠舵渶澶ц鏁?| 688 (鍚庣) | 鈮?00 |
+| 璺ㄧ粍浠堕€氫俊 | props drilling | Context |
+| 鍚庣璺敱 | 3 涓ぇ鏂囦欢 | 6+ 灏忔枃浠?|
+| 鑿滃崟閰嶇疆 | 纭紪鐮?JSX | 鏁版嵁椹卞姩 |
 
 ---
 
-## 五、是否启动？
+## 浜斻€佹槸鍚﹀惎鍔紵
 
-重构分步进行，每一步独立可测。建议从**后端拆分**开始（对外无影响），然后**前端 Context 化**，最后**页面模块化**。
-
+閲嶆瀯鍒嗘杩涜锛屾瘡涓€姝ョ嫭绔嬪彲娴嬨€傚缓璁粠**鍚庣鎷嗗垎**寮€濮嬶紙瀵瑰鏃犲奖鍝嶏級锛岀劧鍚?*鍓嶇 Context 鍖?*锛屾渶鍚?*椤甸潰妯″潡鍖?*銆?
 ---
 
-## 六、未来功能适配分析
+## 鍏€佹湭鏉ュ姛鑳介€傞厤鍒嗘瀽
 
-### 6.1 规划功能清单及架构适配
+### 6.1 瑙勫垝鍔熻兘娓呭崟鍙婃灦鏋勯€傞厤
 
-| 功能 | 前端模块 | 后端路由 | 依赖 | 架构能否支撑 |
+| 鍔熻兘 | 鍓嶇妯″潡 | 鍚庣璺敱 | 渚濊禆 | 鏋舵瀯鑳藉惁鏀拺 |
 |------|---------|---------|------|------------|
-| 上传图片评分 | `pages/upload/` | `routers/upload.py` | 文件上传 + AI评分 | ✅ 独立模块 |
-| 上传记录查看 | `pages/upload/` 子页面 | 同上 | 上传历史表 | ✅ 同模块 |
-| 文件夹管理(增删改) | `pages/folders/` | `routers/folders.py` | 文件系统操作 | ✅ 扩展现有 |
-| 照片详情编辑 | `pages/detail/` | `routers/images.py` | 元数据读写 | ✅ 独立模块 |
-| 照片编辑(裁剪/调色) | `pages/editor/` | 无(纯前端) 或 `routers/image_process.py` | Canvas/PIL | ✅ 独立模块 |
-| LUT 生成 | `pages/lut/` | `routers/lut.py` | AI + 图像处理 | ✅ 独立模块 |
-| AI 对话评分 | `pages/ai/` | `routers/ai.py` | LLM Service | ✅ 独立模块 |
+| 涓婁紶鍥剧墖璇勫垎 | `pages/upload/` | `routers/upload.py` | 鏂囦欢涓婁紶 + AI璇勫垎 | 鉁?鐙珛妯″潡 |
+| 涓婁紶璁板綍鏌ョ湅 | `pages/upload/` 瀛愰〉闈?| 鍚屼笂 | 涓婁紶鍘嗗彶琛?| 鉁?鍚屾ā鍧?|
+| 鏂囦欢澶圭鐞?澧炲垹鏀? | `pages/folders/` | `routers/folders.py` | 鏂囦欢绯荤粺鎿嶄綔 | 鉁?鎵╁睍鐜版湁 |
+| 鐓х墖璇︽儏缂栬緫 | `pages/detail/` | `routers/images.py` | 鍏冩暟鎹鍐?| 鉁?鐙珛妯″潡 |
+| 鐓х墖缂栬緫(瑁佸壀/璋冭壊) | `pages/editor/` | 鏃?绾墠绔? 鎴?`routers/image_process.py` | Canvas/PIL | 鉁?鐙珛妯″潡 |
+| LUT 鐢熸垚 | `pages/lut/` | `routers/lut.py` | AI + 鍥惧儚澶勭悊 | 鉁?鐙珛妯″潡 |
+| AI 瀵硅瘽璇勫垎 | `pages/ai/` | `routers/ai.py` | LLM Service | 鉁?鐙珛妯″潡 |
 
-### 6.2 菜单配置预览（未来态）
+### 6.2 鑿滃崟閰嶇疆棰勮锛堟湭鏉ユ€侊級
 
 ```javascript
 export const menuConfig = [
-  // === 浏览 ===
-  { key: 'folder',   icon: FolderOutlined,    label: '文件夹',   type: 'submenu' },
-  { key: 'upload',   icon: UploadOutlined,    label: '上传评分', type: 'page' },
+  // === 娴忚 ===
+  { key: 'folder',   icon: FolderOutlined,    label: '鏂囦欢澶?,   type: 'submenu' },
+  { key: 'upload',   icon: UploadOutlined,    label: '涓婁紶璇勫垎', type: 'page' },
   
-  // === 管理 ===
-  { key: 'folders',  icon: FolderAddOutlined, label: '文件夹管理', type: 'page' },
-  { key: 'history',  icon: HistoryOutlined,   label: '上传记录', type: 'page' },
+  // === 绠＄悊 ===
+  { key: 'folders',  icon: FolderAddOutlined, label: '鏂囦欢澶圭鐞?, type: 'page' },
+  { key: 'history',  icon: HistoryOutlined,   label: '涓婁紶璁板綍', type: 'page' },
   
-  // === 记录 ===
-  { key: 'scores',   icon: StarOutlined,      label: '评分记录', type: 'page', badge: 'failedScores' },
-  { key: 'captions', icon: FileTextOutlined,  label: '文案记录', type: 'page' },
+  // === 璁板綍 ===
+  { key: 'scores',   icon: StarOutlined,      label: '璇勫垎璁板綍', type: 'page', badge: 'failedScores' },
+  { key: 'captions', icon: FileTextOutlined,  label: '鏂囨璁板綍', type: 'page' },
   
-  // === 工具 ===
-  { key: 'editor',   icon: EditOutlined,      label: '照片编辑', type: 'page' },
-  { key: 'lut',      icon: BgColorsOutlined,  label: 'LUT生成',  type: 'page' },
-  { key: 'ai',       icon: RobotOutlined,     label: 'AI助手',   type: 'page' },
+  // === 宸ュ叿 ===
+  { key: 'editor',   icon: EditOutlined,      label: '鐓х墖缂栬緫', type: 'page' },
+  { key: 'lut',      icon: BgColorsOutlined,  label: 'LUT鐢熸垚',  type: 'page' },
+  { key: 'ai',       icon: RobotOutlined,     label: 'AI鍔╂墜',   type: 'page' },
   
   { type: 'divider' },
-  { key: 'settings', icon: SettingOutlined,   label: '设置',     type: 'modal' },
+  { key: 'settings', icon: SettingOutlined,   label: '璁剧疆',     type: 'modal' },
 ];
 ```
 
-### 6.3 关键决策点
-
-| 问题 | 建议 | 理由 |
+### 6.3 鍏抽敭鍐崇瓥鐐?
+| 闂 | 寤鸿 | 鐞嗙敱 |
 |------|------|------|
-| 前端路由用 React Router？ | **暂不需要** | 当前基于 key 的条件渲染够用，等页面 > 8 个再引入 |
-| 状态管理用 Redux/Zustand？ | **React Context 即可** | 当前状态量不大，Context 性能足够 |
-| TypeScript 迁移？ | **后期渐进** | 先稳定架构再迁类型，不影响功能 |
-| 照片编辑纯前端还是后端？ | **轻量纯前端，重量级后端** | 裁剪/调色用 Canvas，LUT 生成用后端 PIL |
-| 文件系统 vs 数据库存储？ | **当前混合，后期统一 DB 元数据** | 图片存文件系统，元数据存 DB，保持现状 |
+| 鍓嶇璺敱鐢?React Router锛?| **鏆備笉闇€瑕?* | 褰撳墠鍩轰簬 key 鐨勬潯浠舵覆鏌撳鐢紝绛夐〉闈?> 8 涓啀寮曞叆 |
+| 鐘舵€佺鐞嗙敤 Redux/Zustand锛?| **React Context 鍗冲彲** | 褰撳墠鐘舵€侀噺涓嶅ぇ锛孋ontext 鎬ц兘瓒冲 |
+| TypeScript 杩佺Щ锛?| **鍚庢湡娓愯繘** | 鍏堢ǔ瀹氭灦鏋勫啀杩佺被鍨嬶紝涓嶅奖鍝嶅姛鑳?|
+| 鐓х墖缂栬緫绾墠绔繕鏄悗绔紵 | **杞婚噺绾墠绔紝閲嶉噺绾у悗绔?* | 瑁佸壀/璋冭壊鐢?Canvas锛孡UT 鐢熸垚鐢ㄥ悗绔?PIL |
+| 鏂囦欢绯荤粺 vs 鏁版嵁搴撳瓨鍌紵 | **褰撳墠娣峰悎锛屽悗鏈熺粺涓€ DB 鍏冩暟鎹?* | 鍥剧墖瀛樻枃浠剁郴缁燂紝鍏冩暟鎹瓨 DB锛屼繚鎸佺幇鐘?|
 
-### 6.4 架构评价
+### 6.4 鏋舵瀯璇勪环
 
-> 当前架构对「文件夹浏览 + 评分 + 文案」三个功能已经捉襟见肘（App.jsx 550 行）。
-> 加上上传、编辑、LUT、AI 等 5+ 个功能后，如果不重构，App.jsx 会膨胀到 2000+ 行，完全不可维护。
-> 
-> **现在重构是必须的，不是可选的。** 目标架构的模块化设计能轻松承载 10+ 个功能，
-> 每个功能互不干扰，加新功能只需创建文件夹 + 配菜单。
+> 褰撳墠鏋舵瀯瀵广€屾枃浠跺す娴忚 + 璇勫垎 + 鏂囨銆嶄笁涓姛鑳藉凡缁忔崏瑗熻鑲橈紙App.jsx 550 琛岋級銆?> 鍔犱笂涓婁紶銆佺紪杈戙€丩UT銆丄I 绛?5+ 涓姛鑳藉悗锛屽鏋滀笉閲嶆瀯锛孉pp.jsx 浼氳啫鑳€鍒?2000+ 琛岋紝瀹屽叏涓嶅彲缁存姢銆?> 
+> **鐜板湪閲嶆瀯鏄繀椤荤殑锛屼笉鏄彲閫夌殑銆?* 鐩爣鏋舵瀯鐨勬ā鍧楀寲璁捐鑳借交鏉炬壙杞?10+ 涓姛鑳斤紝
+> 姣忎釜鍔熻兘浜掍笉骞叉壈锛屽姞鏂板姛鑳藉彧闇€鍒涘缓鏂囦欢澶?+ 閰嶈彍鍗曘€?
+---
+
+## 涓冦€佽彍鍗曠郴缁熸灦鏋勶紙宸插疄鐜帮級
+
+### 7.1 鑿滃崟閰嶇疆 (`config/menu.js`)
+
+鑿滃崟閰嶇疆鏄暟鎹┍鍔ㄧ殑锛屾墍鏈夎彍鍗曢」瀹氫箟鍦ㄤ竴涓暟缁勪腑锛?
+```javascript
+export const menuItems = [
+  {
+    key: 'folder',       // 鍞竴鏍囪瘑
+    icon: FolderOutlined,
+    label: '鏂囦欢澶?,
+    type: 'submenu',     // submenu | page | modal | divider
+    primary: true,       // true 鈫?鍚屾椂鏄剧ず鍦ㄧЩ鍔ㄧ搴曢儴 tab
+    // children: [...]   // 鍙€夛紝浜岀骇瀛愯彍鍗曪紙浠?type='submenu' 鐢熸晥锛?  },
+  { type: 'divider' },  // 鍒嗛殧绾?  {
+    key: 'settings',
+    icon: SettingOutlined,
+    label: '璁剧疆',
+    type: 'submenu',
+    children: [
+      { key: 'settings-general', label: '閫氱敤璁剧疆' },
+      { key: 'settings-models',  label: '妯″瀷绠＄悊' },
+      { key: 'settings-theme',   label: '涓婚鍒囨崲' },
+    ],
+  },
+];
+```
+
+**瀛楁璇存槑锛?*
+
+| 瀛楁 | 绫诲瀷 | 璇存槑 |
+|------|------|------|
+| `key` | string | 鍞竴鏍囪瘑锛屽瓙鑿滃崟 key 寤鸿鐢?`parent-child` 鍛藉悕绌洪棿 |
+| `icon` | ReactNode | antd 鍥炬爣缁勪欢 |
+| `label` | string | 鏄剧ず鏂囨湰 |
+| `type` | 'submenu' \| 'page' \| 'modal' \| 'divider' | 鑿滃崟椤圭被鍨?|
+| `primary` | boolean (鍙€? | 涓?true 鏃跺湪绉诲姩绔簳閮?tab 鏍忔樉绀?|
+| `children` | array (鍙€? | 浜岀骇瀛愯彍鍗曢」锛屾瘡椤瑰惈 `{ key, label }` |
+
+**鑿滃崟椤圭被鍨嬶細**
+
+| 绫诲瀷 | 琛屼负 |
+|------|------|
+| `submenu` | 鍙睍寮€鐨勫瓙鑿滃崟锛涙湁 children 鏃舵覆鏌撲负 antd SubMenu锛屾棤 children 鐨勭壒娈?key 鍙嚜瀹氫箟鍐呴儴锛堝 folder 鏄剧ず鐩綍鏍戯級 |
+| `page` | 鐐瑰嚮鍚庡垏鎹㈠埌瀵瑰簲椤甸潰/闈㈡澘 |
+| `modal` | 鐐瑰嚮鍚庡脊鍑?Modal锛堝凡寮冪敤锛屾敼涓?submenu + children 鏂瑰紡鏇寸伒娲伙級 |
+| `divider` | 鍒嗛殧绾?|
+
+### 7.2 娓叉煋閾捐矾
+
+```
+menuItems (config/menu.js)
+  鈹溾攢鈹€ SideMenu.jsx       鈫?妗岄潰绔晶杈规爮锛堟敮鎸?SubMenu锛?  鈹溾攢鈹€ MobileDrawers.jsx  鈫?绉诲姩绔彍鍗曟娊灞夛紙閫掑綊鏋勫缓 SubMenu锛?  鈹斺攢鈹€ BottomTabs.jsx     鈫?绉诲姩绔簳閮?tab锛堝彧鍙?primary: true 鐨勯」锛?```
+
+**`SideMenu.jsx`** 鈥?妗岄潰渚ц竟鏍忥細
+- 閬嶅巻 `menuItems`锛宍type: 'submenu'` 涓旀湁 `children` 鐨勮嚜鍔ㄦ覆鏌撲负 antd `SubMenu`
+- `key: 'folder'` 鐗规畩澶勭悊锛屽瓙鏍戞覆鏌撲负鐩綍鏍戯紙Tree 缁勪欢锛?- 鍏朵粬鍗曞眰椤癸紙`type: 'page'/'modal'`锛夋覆鏌撲负 `Menu.Item`
+
+**`MobileDrawers.jsx`** 鈥?绉诲姩绔彍鍗曟娊灞夛細
+- `buildMenuTree()` 閫掑綊鏋勫缓鍚瓙鑿滃崟鐨勬爲
+- antd `Menu` 鍘熺敓鏀寔宓屽 `SubMenu`
+- 鐐瑰嚮瀛愰」鍚庤嚜鍔ㄥ叧鎶藉眽
+
+**`BottomTabs.jsx`** 鈥?绉诲姩绔簳閮?tab锛?- 浠?`menuItems` 鍙?`primary: true` 鐨勯」鍔ㄦ€佺敓鎴愭寜閽?- 涓嶉渶瑕侀澶栨敞鍐屾柊 tab
+
+### 7.3 缁熶竴鑿滃崟鍒囨崲 (`App.jsx handleMenuClick`)
+
+妗岄潰绔拰绉诲姩绔蛋鍚屼竴濂?handler锛屾寜 `isMobile` 鍒嗘祦锛?
+```javascript
+const handleMenuClick = (key) => {
+  // 1. settings-* 瀛愰」 鈫?寮圭獥锛堥€氱敤 / 妯″瀷 / 涓婚锛?  if (key.startsWith('settings-')) { ... }
+
+  // 2. 妗岄潰绔細鍒囨崲 activeMenu
+  if (!isMobile) { setActiveMenu(key); return; }
+
+  // 3. 绉诲姩绔細鎸?key 澶勭悊锛堟墦寮€鎶藉眽/闈㈡澘/椤甸潰锛?  if (key === 'folder')      鈫?toggle 鍐呰仈鏂囦欢澶规爲
+  if (key === 'scores')      鈫?鎵撳紑璇勫垎鎶藉眽
+  if (key === 'captions')    鈫?鎵撳紑鏂囨鎶藉眽
+  if (key === 'lut')         鈫?鏄剧ず LUT 鍏ㄥ睆椤甸潰
+  else                       鈫?榛樿琛屼负
+};
+```
+
+**单层页面（如加一个"历史记录"tab）：**
+1. 在 `menu.js` 的 `menuItems` 数组加一项
+2. 在 `App.jsx` 渲染对应组件 `{activeMenu === 'history' && <HistoryPage/>}`
+3. （可选）在 `handleMenuClick` 的移动端分支加对应处理
+
+**带子菜单的设置项（如"设置"→"通用设置"）：**
+1. 在 `menu.js` 配置 `type: 'submenu'` 和 `children` 数组
+2. 桌面/手机端菜单自动渲染为 SubMenu
+3. 在 `App.jsx` 的 `handleMenuClick` 加 `key.startsWith('settings-')` 分支处理弹窗
+4. 创建对应的弹窗组件（或复用现有弹窗 + `initialTab`）
+
+**关键原则：**
+- 菜单配置即界面，`menu.js` 改完，桌面和手机自动同步
+- 不需要改 `BottomTabs.jsx`、`SideMenu.jsx`、`MobileDrawers.jsx`
+- 子菜单 key 用 `parent-child` 命名空间防冲突
+
+### 7.5 相关文件清单
+
+| 文件 | 职责 |
+|------|------|
+| `frontend/src/config/menu.js` | 菜单数据配置（唯一入口） |
+| `frontend/src/components/layout/SideMenu.jsx` | 桌面侧边栏渲染器 |
+| `frontend/src/components/layout/BottomTabs.jsx` | 移动端底部 tab 渲染器 |
+| `frontend/src/components/layout/MobileDrawers.jsx` | 移动端菜单抽屉渲染器 |
+| `frontend/src/App.jsx` | `handleMenuClick` 统一路由 |
+| `frontend/src/components/modals/SettingsModal.jsx` | 设置弹窗（子菜单目标页） |
