@@ -61,15 +61,19 @@ def opencv_technical(image_path: str) -> dict:
 
 _clip_pipeline = None
 
+
 def _lazy_load_clip():
     global _clip_pipeline
     if _clip_pipeline is not None:
         return
+    import os
+    os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
     import torch
     from transformers import CLIPProcessor, CLIPModel
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = CLIPModel.from_pretrained('openai/clip-vit-large-patch14')
-    processor = CLIPProcessor.from_pretrained('openai/clip-vit-large-patch14')
+    # 从本地缓存加载（文件已预下载）
+    model = CLIPModel.from_pretrained('openai/clip-vit-large-patch14', local_files_only=True)
+    processor = CLIPProcessor.from_pretrained('openai/clip-vit-large-patch14', local_files_only=True)
     model.to(device).eval()
     _clip_pipeline = {'model': model, 'processor': processor, 'device': device}
 
@@ -85,15 +89,18 @@ def clip_aesthetic(image_path: str) -> dict:
     inputs = m['processor'](images=image, return_tensors='pt').to(m['device'])
 
     with torch.no_grad():
-        img_feat = m['model'].get_image_features(**inputs)
+        img_out = m['model'].get_image_features(**inputs)
+        img_feat = img_out.pooler_output
         img_feat = img_feat / img_feat.norm(dim=-1, keepdim=True)
 
         text = m['processor'](
-            text=["一张构图精美、曝光准确、色彩协调的优秀摄影作品",
-                  "一张普通平淡、缺乏亮点的照片"],
+            text=["an excellent photograph with beautiful composition, perfect exposure and harmonious colors",
+                  "an ordinary, flat foto lacking any highlights"],
             return_tensors='pt', padding=True
-        ).to(m['device'])
-        txt_feat = m['model'].get_text_features(**text)
+        )
+        text = {k: v.to(m['device']) for k, v in text.items()}
+        txt_out = m['model'].get_text_features(**text)
+        txt_feat = txt_out.pooler_output
         txt_feat = txt_feat / txt_feat.norm(dim=-1, keepdim=True)
 
         sim = (img_feat @ txt_feat.T).squeeze().cpu().numpy()
