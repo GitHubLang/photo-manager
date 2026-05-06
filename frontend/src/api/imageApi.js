@@ -132,8 +132,5 @@ export const saveSettings = (settings) =>
 export const getThumbnailUrl = (filePath, size = 400) =>
   API_BASE + '/image/thumbnail/' + encodeURIComponent(filePath) + '?size=' + size;
 
-export const getProxyUrl = (filePath, size) => {
-  let url = API_BASE + '/image/proxy/' + encodeURIComponent(filePath);
-  if (size) url += '?size=' + size;
-  return url;
-};
+export const getProxyUrl = (filePath) =>
+  API_BASE + '/image/proxy/' + encodeURIComponent(filePath);

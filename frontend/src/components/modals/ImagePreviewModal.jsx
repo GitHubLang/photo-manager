@@ -16,14 +16,12 @@ const DIMENSIONS = [
 export default function ImagePreviewModal({ visible, image, onClose, onScore }) {
   if (!image) return null;
   const imageUrl = getProxyUrl(image.file_path);
-  const mediumUrl = getProxyUrl(image.file_path, 1600);   // 弹窗内显示：1600px 足够
-  const hdUrl = getProxyUrl(image.file_path, 3000);        // Image preview缩放：3000px 高清
 
   return (
     <Modal open={visible} onCancel={onClose} footer={null} width={1000} centered>
       <div style={{ textAlign: 'center' }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-          <Image src={mediumUrl} alt={image.filename} style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }} preview={{ src: hdUrl }} />
+          <Image src={imageUrl} alt={image.filename} style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }} preview={{ src: imageUrl }} />
         </div>
         <Divider />
         <Row gutter={16}>
