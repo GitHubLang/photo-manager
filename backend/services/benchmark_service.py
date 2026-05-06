@@ -194,43 +194,70 @@ def musiq_score(image_path: str) -> dict:
 # ============================================================
 
 def llm_score(image_path: str) -> dict:
-    """通过现有评分系统评分（异步，需查询结果）"""
+    """通过现有评分系统评分（异步，查询结果）"""
     import requests
+    import time as ttime
+    import os
     start = time.time()
 
     try:
-        # 创建评分任务
-        with open(image_path, 'rb') as f:
-            files = {'file': f}
-            resp = requests.post(
-                'http://localhost:8000/api/images/score',
-                files=files, timeout=120
-            )
-            data = resp.json()
-            tasks = data.get('tasks', [])
-            if not tasks:
-                return {'score': 0, 'time': round(time.time() - start, 3), 'error': '评分任务创建失败'}
+        # 1. 从数据库查找 image_id
+        import mysql.connector
+        db = mysql.connector.connect(
+            host='192.168.X.X', user='root', password='REDACTED', database='photo_manager_db'
+        )
+        cur = db.cursor(dictionary=True)
+        # file_path 中提取相对路径（数据库存的是完整路径或相对路径）
+        cur.execute('SELECT id FROM images WHERE file_path = %s LIMIT 1', (image_path,))
+        row = cur.fetchone()
+        cur.close()
+        db.close()
 
-            # 等待并查询结果（最多等 60 秒）
-            import time as ttime
-            image_id = tasks[0].get('image_id')
-            for _ in range(30):
-                ttime.sleep(2)
-                res = requests.get(
-                    f'http://localhost:8000/api/images/score/results/{image_id}',
-                    timeout=10
-                )
-                if res.status_code == 200:
-                    result = res.json()
-                    total_score = result.get('total_score', 0)
+        if not row:
+            # 可能存的是相对路径，再试一次
+            db = mysql.connector.connect(
+                host='192.168.X.X', user='root', password='REDACTED', database='photo_manager_db'
+            )
+            cur = db.cursor(dictionary=True)
+            # 用文件名匹配
+            filename = os.path.basename(image_path)
+            cur.execute('SELECT id FROM images WHERE filename = %s LIMIT 1', (filename,))
+            row = cur.fetchone()
+            cur.close()
+            db.close()
+
+        if not row:
+            return {'score': 0, 'time': round(time.time() - start, 3), 'error': '未在数据库找到对应图片'}
+
+        image_id = row['id']
+
+        # 2. 调用评分 API
+        session = requests.Session()
+        resp = session.post('http://localhost:8000/api/images/score', json={
+            'image_ids': [image_id],
+        }, timeout=10)
+        if resp.status_code != 200:
+            return {'score': 0, 'time': round(time.time() - start, 3), 'error': f'评分创建失败 ({resp.status_code})'}
+
+        # 3. 等待结果
+        for _ in range(30):
+            ttime.sleep(2)
+            res = session.get(
+                f'http://localhost:8000/api/images/score/results/{image_id}',
+                timeout=10
+            )
+            if res.status_code == 200:
+                result = res.json()
+                total_score = result.get('total_score', 0)
+                if total_score:
                     elapsed = time.time() - start
                     return {
-                        'score': round(float(total_score), 2) if total_score else 0,
+                        'score': round(float(total_score), 2),
                         'time': round(elapsed, 3),
                         'details': {'评分范围': '0-100', '算法': '大模型 API'},
                     }
 
-            return {'score': 0, 'time': round(time.time() - start, 3), 'error': '评分超时'}
+        return {'score': 0, 'time': round(time.time() - start, 3), 'error': '评分超时或结果为空'}
 
     except Exception as e:
         return {'score': 0, 'time': round(time.time() - start, 3), 'error': str(e)}
