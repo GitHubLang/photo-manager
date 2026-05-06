@@ -39,7 +39,7 @@ function buildMenuTree(items, folders) {
           children: (folders || []).map(f => ({
             key: f.path,
             icon: React.createElement(FolderOutlined),
-            label: f.name,
+            label: f.name + '  ' + f.imageCount + '张',
           })),
         };
       }
