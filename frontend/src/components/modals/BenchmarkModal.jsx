@@ -13,38 +13,45 @@ const SCHEME_CONFIG = {
   llm:    { label: '大模型评分', color: 'orange', desc: '当前配置的 AI 模型评分' },
 };
 
-const STANDARDS = {
-  opencv: {
-    name: 'OpenCV 技术检测',
-    total: '0-100',
-    dims: [
-      { name: '清晰度', desc: 'Laplacian 方差', good: '≥60 清晰', bad: '<30 模糊' },
-      { name: '曝光',   desc: '直方图暗/亮部比', good: '≥60 曝光准', bad: '<30 过曝/欠曝' },
-      { name: '对比度', desc: '灰度标准差', good: '≥60 层次丰富', bad: '<30 灰蒙蒙' },
-    ],
-  },
-  clip: {
-    name: 'CLIP+MLP 美学评分',
-    total: '1-10',
-    dims: [
-      { name: '总分', desc: '与优秀摄影描述的语义相似度', good: '≥7 优秀', bad: '<4 较差' },
-    ],
-  },
-  musiq: {
-    name: 'MUSIQ 质量评分',
-    total: '0-100',
-    dims: [
-      { name: '总分', desc: 'Transformer 多尺度质量评估', good: '≥70 高质量', bad: '<40 低质量' },
-    ],
-  },
-  llm: {
-    name: '大模型评分',
-    total: '0-100',
-    dims: [
-      { name: '总分', desc: 'AI 模型综合评分', good: '≥70 好片', bad: '<40 差片' },
-    ],
-  },
+const OPENCV_TABLE = {
+  title: 'OpenCV 技术检测 — 各维度评分规则',
+  total: '总分 = 清晰度×0.4 + 曝光×0.3 + 对比度×0.3',
+  cols: ['维度', '范围', '不及格（<30）', '及格（30-60）', '良好（60-80）', '优秀（>80）'],
+  rows: [
+    ['清晰度', '0-100', '糊片/手抖', '轻微模糊', '够清晰', '极锐利'],
+    ['曝光',   '0-100', '过曝/欠曝严重', '有点偏亮/偏暗', '曝光正常', '完美曝光'],
+    ['对比度', '0-100', '灰蒙蒙', '层次不足', '对比适中', '层次丰富'],
+  ],
 };
+
+const CLIP_TABLE = {
+  title: 'CLIP+MLP 美学评分 — 评分规则',
+  total: '评分范围 1-10',
+  cols: ['维度', '范围', '较差（<4）', '一般（4-6）', '良好（6-8）', '优秀（>8）'],
+  rows: [
+    ['美学分', '1-10', '缺乏美感', '中规中矩', '美观', '非常出色'],
+  ],
+};
+
+const MUSIQ_TABLE = {
+  title: 'MUSIQ 质量评分 — 评分规则',
+  total: '评分范围 0-100',
+  cols: ['维度', '范围', '低质量（<40）', '一般（40-60）', '良好（60-80）', '优秀（>80）'],
+  rows: [
+    ['质量分', '0-100', '明显缺陷', '可用', '高质量', '顶级画质'],
+  ],
+};
+
+const LLM_TABLE = {
+  title: '大模型评分 — 评分规则',
+  total: '评分范围 0-100',
+  cols: ['维度', '范围', '差片（<40）', '一般（40-60）', '好片（60-80）', '佳作（>80）'],
+  rows: [
+    ['综合分', '0-100', '技术和内容双差', '普通', '不错', '精选级'],
+  ],
+};
+
+const TABLE_MAP = { opencv: OPENCV_TABLE, clip: CLIP_TABLE, musiq: MUSIQ_TABLE, llm: LLM_TABLE };
 
 const SCORE_LEVELS = [
   { range: '≥80', label: '优秀', color: '#52c41a' },
@@ -168,18 +175,47 @@ export default function BenchmarkModal({ visible, image, onClose }) {
                   ))}
                 </div>
               </div>
-              {/* 各方案维度说明 */}
-              <Text style={{ fontSize: 13, fontWeight: 600 }}>各方案评分细则</Text>
-              {Object.values(STANDARDS).map(s => (
-                <div key={s.name} style={{ marginTop: 8, fontSize: 13 }}>
-                  <Text strong style={{ color: '#555' }}>{s.name}（总分 {s.total}）</Text>
-                  {s.dims.map(d => (
-                    <div key={d.name} style={{ marginLeft: 12, marginTop: 2, fontSize: 12, color: '#666' }}>
-                      • {d.name}（{d.desc}）：<Text style={{ color: '#52c41a' }}>{d.good}</Text> | <Text style={{ color: '#f5222d' }}>{d.bad}</Text>
+              {/* 各方案维度说明 — 表格 */}
+              {selected.map(key => {
+                const t = TABLE_MAP[key];
+                if (!t) return null;
+                return (
+                  <div key={key} style={{ marginTop: 12 }}>
+                    <Text style={{ fontSize: 13, fontWeight: 600 }}>{t.title}</Text>
+                    <div style={{ overflowX: 'auto', marginTop: 6 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: '#fafafa' }}>
+                            {t.cols.map((c, i) => (
+                              <th key={i} style={{
+                                border: '1px solid #e8e8e8',
+                                padding: '6px 10px',
+                                textAlign: 'left',
+                                fontWeight: 600,
+                                color: i === 0 ? '#333' : i <= 2 ? '#f5222d' : i <= 3 ? '#faad14' : '#52c41a',
+                              }}>{c}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {t.rows.map((row, ri) => (
+                            <tr key={ri} style={{ background: ri % 2 === 0 ? '#fff' : '#fafafa' }}>
+                              {row.map((cell, ci) => (
+                                <td key={ci} style={{
+                                  border: '1px solid #e8e8e8',
+                                  padding: '5px 10px',
+                                  fontWeight: ci === 0 ? 600 : 400,
+                                }}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
-              ))}
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>{t.total}</Text>
+                  </div>
+                );
+              })}
             </div>
           ),
         }]}
