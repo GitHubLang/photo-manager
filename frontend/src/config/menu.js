@@ -14,20 +14,23 @@ export const menuItems = [
   {
     key: 'folder',
     icon: FolderOutlined,
-    label: '文件夹',
+    label: '主页',
     type: 'submenu',
+    primary: true,   // 显示在移动端底部 tab
   },
   {
     key: 'scores',
     icon: StarOutlined,
     label: '评分记录',
     type: 'page',
+    primary: true,
   },
   {
     key: 'captions',
     icon: FileTextOutlined,
     label: '文案记录',
     type: 'page',
+    primary: true,
   },
   { type: 'divider' },
   {

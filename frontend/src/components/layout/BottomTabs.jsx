@@ -1,23 +1,26 @@
 import React from 'react';
-import { FolderOutlined, StarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { menuItems } from '../../config/menu';
 
-export default function BottomTabs({ activeTab, onTabChange, failedScores }) {
+function iconFromConfig(iconConfig) {
+  return iconConfig ? React.createElement(iconConfig) : null;
+}
+
+export default function BottomTabs({ activeMenu, onTabChange, failedScores }) {
+  const tabs = menuItems.filter(item => item.primary);
   return (
     <div className="bottom-tabs">
       <div className="bottom-tabs-inner">
-        <button className={'bottom-tab-item ' + (activeTab === 'folder' ? 'active' : '')} onClick={() => onTabChange('folder')}>
-          <FolderOutlined />
-          <span>主页</span>
-        </button>
-        <button className={'bottom-tab-item ' + (activeTab === 'scores' ? 'active' : '')} onClick={() => onTabChange('scores')}>
-          <StarOutlined />
-          <span>评分</span>
-          {failedScores > 0 && <span className="tab-badge">{failedScores}</span>}
-        </button>
-        <button className={'bottom-tab-item ' + (activeTab === 'captions' ? 'active' : '')} onClick={() => onTabChange('captions')}>
-          <FileTextOutlined />
-          <span>文案</span>
-        </button>
+        {tabs.map(item => (
+          <button
+            key={item.key}
+            className={'bottom-tab-item ' + (activeMenu === item.key ? 'active' : '')}
+            onClick={() => onTabChange(item.key)}
+          >
+            {iconFromConfig(item.icon)}
+            <span>{item.label}</span>
+            {item.key === 'scores' && failedScores > 0 && <span className="tab-badge">{failedScores}</span>}
+          </button>
+        ))}
       </div>
     </div>
   );

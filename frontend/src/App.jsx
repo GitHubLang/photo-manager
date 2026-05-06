@@ -39,7 +39,6 @@ const { Search } = Input;
 function App() {
   // ============ 设备 & UI状态 ============
   const [isMobile, setIsMobile] = useState(false);
-  const [activeTab, setActiveTab] = useState('folder');
   const [activeMenu, setActiveMenu] = useState('folder');
   const [menuCollapsed, setMenuCollapsed] = useState(false);
 
@@ -301,27 +300,54 @@ function App() {
     setActiveMenu('folder');
   }, [imageHook]);
 
-  // ============ Tab/菜单切换 ============
+  // ============ 菜单切换（统一桌面/移动端）============
   const handleMenuClick = useCallback((key) => {
-    if (key === activeMenu && activeMenu !== 'folder') {
+    // 公共：settings 始终弹窗
+    if (key === 'settings') {
+      setSettingsModalVisible(true);
+      return;
+    }
+
+    if (!isMobile) {
+      // 桌面端：切换面板/页面（toggle）
+      if (key === activeMenu && activeMenu !== 'folder') {
+        setActiveMenu('folder');
+      } else {
+        setActiveMenu(key);
+      }
+      return;
+    }
+
+    // 移动端：根据菜单项类型处理
+    setFolderDrawerOpen(false);
+    setScoreDrawerOpen(false);
+    setCaptionDrawerOpen(false);
+    setMenuDrawerOpen(false);
+
+    if (key === 'folder') {
       setActiveMenu('folder');
+      setFolderDrawerOpen(true);
+    } else if (key === 'scores') {
+      setActiveMenu('scores');
+      setScoreDrawerOpen(true);
+      scoreHook.loadScoreTasks(scoreHook.scoreTaskFilter === 'all' ? null : scoreHook.scoreTaskFilter);
+    } else if (key === 'captions') {
+      setActiveMenu('captions');
+      setCaptionDrawerOpen(true);
+      captionHook.loadCaptionHistory(captionHook.captionKeyword, captionHook.captionTypeFilter);
+    } else if (key === 'lut') {
+      setActiveMenu('lut');
     } else {
+      // 其他新加的 page 类型默认行为
       setActiveMenu(key);
     }
-  }, [activeMenu]);
+  }, [isMobile, activeMenu, scoreHook, captionHook]);
 
   const handleFolderSelect = useCallback((path) => {
     imageHook.loadImages(path);
     setSelectedImages([]);
     setActiveMenu('folder');
   }, [imageHook]);
-
-  const handleMobileTabChange = useCallback((tab) => {
-    setActiveTab(tab);
-    if (tab === 'folder') { setFolderDrawerOpen(false); setScoreDrawerOpen(false); setCaptionDrawerOpen(false); setMenuDrawerOpen(false); }
-    if (tab === 'scores') { setScoreDrawerOpen(true); setFolderDrawerOpen(false); setCaptionDrawerOpen(false); scoreHook.loadScoreTasks(scoreHook.scoreTaskFilter === 'all' ? null : scoreHook.scoreTaskFilter); }
-    if (tab === 'captions') { setCaptionDrawerOpen(true); setFolderDrawerOpen(false); setScoreDrawerOpen(false); captionHook.loadCaptionHistory(captionHook.captionKeyword, captionHook.captionTypeFilter); }
-  }, [scoreHook, captionHook]);
 
   // ============ 操作栏按钮 ============
   const renderActionBar = () => (
@@ -441,13 +467,7 @@ function App() {
         <MenuDrawer
           open={menuDrawerOpen}
           onClose={() => setMenuDrawerOpen(false)}
-          onMenuSelect={(key) => {
-            setActiveMenu('folder');
-            if (key === 'settings') { setSettingsModalVisible(true); return; }
-            if (key === 'folder') { setActiveTab('folder'); setFolderDrawerOpen(true); return; }
-            if (key === 'lut') { setActiveMenu('lut'); setMenuDrawerOpen(false); return; }
-            handleMobileTabChange(key);
-          }}
+          onMenuSelect={handleMenuClick}
         />
       )}
       {isMobile && (
@@ -456,7 +476,7 @@ function App() {
           onClose={() => setFolderDrawerOpen(false)}
           treeData={folderTreeData}
           selectedFolder={imageHook.selectedFolder}
-          onSelect={(path) => { handleFolderSelect(path); setActiveTab('folder'); }}
+          onSelect={(path) => { handleFolderSelect(path); }}
         />
       )}
       {isMobile && (
@@ -499,7 +519,7 @@ function App() {
         />
       )}
       {isMobile && activeMenu !== 'lut' && <FABButton />}
-      {isMobile && activeMenu !== 'lut' && <BottomTabs activeTab={activeTab} onTabChange={handleMobileTabChange} failedScores={scoreHook.failedScores.length} />}
+      {isMobile && activeMenu !== 'lut' && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
 
       <Layout>
         {/* 左侧菜单（桌面端） */}
@@ -510,10 +530,7 @@ function App() {
               activeMenu={activeMenu}
               folders={imageHook.folders}
               selectedFolder={imageHook.selectedFolder}
-              onMenuClick={(key) => {
-                if (key === 'settings') { setSettingsModalVisible(true); return; }
-                handleMenuClick(key);
-              }}
+              onMenuClick={handleMenuClick}
               onFolderSelect={handleFolderSelect}
               failedScores={scoreHook.failedScores.length}
               captionCount={captionHook.captionHistory.length}
