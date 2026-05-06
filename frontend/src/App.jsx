@@ -19,6 +19,7 @@ import ImagePreviewModal from './components/modals/ImagePreviewModal';
 import ThemeModal from './components/modals/ThemeModal';
 import CaptionModal from './components/modals/CaptionModal';
 import CaptionInstructionsModal from './components/modals/CaptionInstructionsModal';
+import BenchmarkModal from './components/modals/BenchmarkModal';
 
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
@@ -74,6 +75,8 @@ function App() {
 
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [dailyTheme, setDailyTheme] = useState(null);
+  const [benchmarkVisible, setBenchmarkVisible] = useState(false);
+  const [benchmarkImage, setBenchmarkImage] = useState(null);
 
   // 文案弹窗
   const [captionInstructionsModalVisible, setCaptionInstructionsModalVisible] = useState(false);
@@ -433,6 +436,16 @@ function App() {
                 批量评分 {scoreHook.failedScores.length > 0 && <Tag color="red" style={{ marginLeft: 4 }}>{scoreHook.failedScores.length}</Tag>}
               </Button>
             </Dropdown>
+            <Button
+              icon={<ThunderboltOutlined />}
+              onClick={() => {
+                setBenchmarkImage(selectedImages[0]);
+                setBenchmarkVisible(true);
+              }}
+              disabled={selectedImages.length !== 1}
+            >
+              评分测试
+            </Button>
           </>
         )}
       </Space>
@@ -668,6 +681,13 @@ function App() {
         images={captionHook.captionModalImages}
         onClose={() => { captionHook.setCaptionModalVisible(false); captionHook.setCaptionModalImages([]); }}
         onImageClick={(img) => { setSelectedImage({ ...img, imageUrl: getProxyUrl(img.file_path) }); setPreviewVisible(true); }}
+      />
+
+      {/* 评分测试弹窗 */}
+      <BenchmarkModal
+        visible={benchmarkVisible}
+        image={benchmarkImage}
+        onClose={() => { setBenchmarkVisible(false); setBenchmarkImage(null); }}
       />
 
     </Layout>
