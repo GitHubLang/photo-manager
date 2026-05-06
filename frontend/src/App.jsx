@@ -23,7 +23,7 @@ import CaptionInstructionsModal from './components/modals/CaptionInstructionsMod
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
-import SettingsModal from './components/modals/SettingsModal';
+import SettingsPage from './pages/SettingsPage';
 import LutPage from './pages/LutPage';
 import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, fetchBatchImages, getProxyUrl } from './api/imageApi';
 
@@ -63,8 +63,7 @@ function App() {
   const captionHook = useCaption();
 
   // ============ 额外状态 ============
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const [settingsModalTab, setSettingsModalTab] = useState('general');
+  // 主题弹窗
   const [selectedImages, setSelectedImages] = useState([]);
   const [scoringIds, setScoringIds] = useState(new Set());
 
@@ -72,7 +71,6 @@ function App() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  // 主题弹窗
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [dailyTheme, setDailyTheme] = useState(null);
 
@@ -303,17 +301,9 @@ function App() {
   // ============ 菜单切换（统一桌面/移动端）============
   const handleMenuClick = useCallback((key) => {
     // 公共：设置子菜单项 → 弹窗
+    // 设置子菜单 → 切换页面（非弹窗）
     if (key.startsWith('settings-')) {
-      const tabMap = {
-        'settings-general': 'general',
-        'settings-models': 'model',
-      };
-      if (key === 'settings-theme') {
-        setThemeModalVisible(true);
-      } else {
-        setSettingsModalTab(tabMap[key] || 'general');
-        setSettingsModalVisible(true);
-      }
+      setActiveMenu(key);
       return;
     }
 
@@ -523,8 +513,8 @@ function App() {
           }}
         />
       )}
-      {isMobile && activeMenu !== 'lut' && <FABButton />}
-      {isMobile && activeMenu !== 'lut' && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
+      {isMobile && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <FABButton />}
+      {isMobile && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
 
       <Layout>
         {/* 左侧菜单（桌面端） */}
@@ -588,15 +578,22 @@ function App() {
           />
         )}
 
-        {/* LUT 克隆页面 */}
+        {/* 全屏页面：LUT 克隆 */}
         {activeMenu === 'lut' && (
           <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
             <LutPage />
           </div>
         )}
 
+        {/* 全屏页面：设置 */}
+        {activeMenu.startsWith('settings-') && (
+          <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
+            <SettingsPage activeMenu={activeMenu} />
+          </div>
+        )}
+
         {/* 内容区 */}
-        {activeMenu !== 'lut' && (
+        {activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && (
         <Content className="content-area" ref={imageHook.contentRef}
           onScroll={(e) => {
             const { scrollTop, scrollHeight, clientHeight } = e.target;
@@ -664,8 +661,6 @@ function App() {
         onImageClick={(img) => { setSelectedImage({ ...img, imageUrl: getProxyUrl(img.file_path) }); setPreviewVisible(true); }}
       />
 
-      {/* 设置弹窗 */}
-      <SettingsModal visible={settingsModalVisible} initialTab={settingsModalTab} onClose={() => setSettingsModalVisible(false)} />
     </Layout>
   );
 }
