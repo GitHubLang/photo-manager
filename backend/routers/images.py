@@ -95,9 +95,9 @@ async def thumbnail_image(path: str, size: int = Query(400, ge=100, le=1200)):
 
 
 @router.get("/image/proxy/{path:path}")
-async def proxy_image(path: str):
-    """代理图片访问"""
-    import urllib.parse
+async def proxy_image(path: str, size: int = Query(None, ge=200, le=4000)):
+    """代理图片访问，支持可选 size 参数返回缩放宽版（最长边 ≤ size px）"""
+    import urllib.parse, hashlib
     from pathlib import Path
 
     decoded_path = urllib.parse.unquote(path)
@@ -109,7 +109,26 @@ async def proxy_image(path: str):
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
 
-    return FileResponse(decoded_path)
+    if size is None:
+        # 无 size 参数：返回原图（向后兼容）
+        return FileResponse(decoded_path)
+
+    # 有 size 参数：生成并缓存缩放版本
+    cache_dir = Path(r"D:\MySoftware\photo-manager\thumbnail_cache")
+    cache_dir.mkdir(exist_ok=True)
+    path_hash = hashlib.md5(str(image_path).encode()).hexdigest()
+    cache_file = cache_dir / f"{path_hash}_{size}.jpg"
+
+    if not cache_file.exists():
+        try:
+            with PILImage.open(image_path) as img:
+                img = ImageOps.exif_transpose(img)
+                img.thumbnail((size, size), PILImage.LANCZOS)
+                img.save(cache_file, 'JPEG', quality=92, optimize=True)
+        except Exception:
+            return FileResponse(decoded_path)
+
+    return FileResponse(str(cache_file))
 
 
 @router.get("/search")

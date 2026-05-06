@@ -20,7 +20,7 @@ class UTF8JSONResponse(JSONResponse):
 import uvicorn
 
 from database import init_database
-from routers import folders, images, scoring, daily, models, lut
+from routers import folders, images, scoring, daily, models, lut, settings
 
 app = FastAPI(
     title="摄影素材管理系统",
@@ -46,6 +46,7 @@ app.include_router(scoring.router)
 app.include_router(daily.router)
 app.include_router(models.router)
 app.include_router(lut.router)
+app.include_router(settings.router)
 
 
 @app.get("/")

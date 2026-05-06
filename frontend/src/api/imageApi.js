@@ -117,9 +117,23 @@ export const saveAppState = (state) =>
     body: JSON.stringify(state)
   });
 
+// ============ 设置 API（服务端持久化）============
+export const fetchSettings = () =>
+  fetch(API_BASE + '/settings').then(r => r.json());
+
+export const saveSettings = (settings) =>
+  fetch(API_BASE + '/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  }).then(r => r.json());
+
 // ============ 图片代理/缩略图 ============
 export const getThumbnailUrl = (filePath, size = 400) =>
   API_BASE + '/image/thumbnail/' + encodeURIComponent(filePath) + '?size=' + size;
 
-export const getProxyUrl = (filePath) =>
-  API_BASE + '/image/proxy/' + encodeURIComponent(filePath);
+export const getProxyUrl = (filePath, size) => {
+  let url = API_BASE + '/image/proxy/' + encodeURIComponent(filePath);
+  if (size) url += '?size=' + size;
+  return url;
+};
