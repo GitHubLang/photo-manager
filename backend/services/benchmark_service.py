@@ -264,7 +264,7 @@ def llm_score(image_path: str) -> dict:
 
 
 # ============================================================
-# 统一调度入口
+# 统一调度入口 + 显存管理
 # ============================================================
 
 SCHEMES = {
@@ -273,6 +273,29 @@ SCHEMES = {
     'musiq':     {'name': 'MUSIQ 质量评分',      'fn': musiq_score},
     'llm':       {'name': '大模型评分',          'fn': llm_score},
 }
+
+_last_benchmark_time = 0  # 上次评分时间戳
+
+
+def _release_gpu_memory():
+    """释放 GPU 显存（清除模型引用 + CUDA cache）"""
+    global _clip_pipeline, _musiq, _last_benchmark_time
+    _clip_pipeline = None
+    _musiq = None
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    _last_benchmark_time = 0
+
+
+def _check_and_cleanup():
+    """检查距上次评分是否超过 5 分钟，是则释放显存"""
+    global _last_benchmark_time
+    if _last_benchmark_time == 0:
+        return
+    elapsed = time.time() - _last_benchmark_time
+    if elapsed > 300:  # 5 分钟
+        _release_gpu_memory()
 
 
 def _to_serializable(obj):
@@ -290,7 +313,12 @@ def _to_serializable(obj):
 
 
 def run_benchmark(image_path: str, selected_schemes: list[str]) -> dict:
-    """运行选中的评分方案"""
+    """运行选中的评分方案（自动管理显存）"""
+    global _last_benchmark_time
+
+    # 评分前检查是否需要释放
+    _check_and_cleanup()
+
     results = {}
     for key in selected_schemes:
         if key not in SCHEMES:
@@ -302,4 +330,6 @@ def run_benchmark(image_path: str, selected_schemes: list[str]) -> dict:
             results[key] = result
         except Exception as e:
             results[key] = {'score': 0, 'time': 0, 'error': str(e), 'label': SCHEMES[key]['name']}
+
+    _last_benchmark_time = time.time()
     return _to_serializable(results)
