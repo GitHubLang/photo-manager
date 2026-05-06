@@ -65,6 +65,7 @@ function App() {
 
   // ============ 额外状态 ============
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState('general');
   const [selectedImages, setSelectedImages] = useState([]);
   const [scoringIds, setScoringIds] = useState(new Set());
 
@@ -302,9 +303,18 @@ function App() {
 
   // ============ 菜单切换（统一桌面/移动端）============
   const handleMenuClick = useCallback((key) => {
-    // 公共：settings 始终弹窗
-    if (key === 'settings') {
-      setSettingsModalVisible(true);
+    // 公共：设置子菜单项 → 弹窗
+    if (key.startsWith('settings-')) {
+      const tabMap = {
+        'settings-general': 'general',
+        'settings-models': 'model',
+      };
+      if (key === 'settings-theme') {
+        setThemeModalVisible(true);
+      } else {
+        setSettingsModalTab(tabMap[key] || 'general');
+        setSettingsModalVisible(true);
+      }
       return;
     }
 
@@ -669,7 +679,7 @@ function App() {
       />
 
       {/* 设置弹窗 */}
-      <SettingsModal visible={settingsModalVisible} onClose={() => setSettingsModalVisible(false)} />
+      <SettingsModal visible={settingsModalVisible} initialTab={settingsModalTab} onClose={() => setSettingsModalVisible(false)} />
     </Layout>
   );
 }

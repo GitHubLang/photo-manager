@@ -14,8 +14,15 @@ function setStored(key, val) {
   try { localStorage.setItem(key, val); } catch {}
 }
 
-export default function SettingsModal({ visible, onClose }) {
-  const [activeTab, setActiveTab] = useState('model');
+export default function SettingsModal({ visible, initialTab = 'general', onClose }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // 当 initialTab 变化时切换 tab（从菜单栏跳转）
+  useEffect(() => {
+    if (visible && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [visible, initialTab]);
   const [models, setModels] = useState([]);
   const [scoringModel, setScoringModel] = useState(getStored(LS_SCORING));
   const [captionModel, setCaptionModel] = useState(getStored(LS_CAPTION));

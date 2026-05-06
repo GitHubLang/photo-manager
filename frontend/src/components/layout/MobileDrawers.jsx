@@ -21,13 +21,25 @@ export function FolderDrawer({ open, onClose, treeData, selectedFolder, onSelect
   );
 }
 
-export function MenuDrawer({ open, onClose, onMenuSelect }) {
-  const menuTreeItems = menuItems
+/**
+ * 递归构建 SubMenu / MenuItem 树
+ */
+function buildMenuTree(items) {
+  return items
     .filter(item => item.type !== 'divider')
-    .map(item => ({
-      key: item.key,
-      label: item.label,
-    }));
+    .map(item => {
+      const hasChildren = item.children && item.children.length > 0;
+      return {
+        key: item.key,
+        icon: item.icon,
+        label: item.label,
+        children: hasChildren ? buildMenuTree(item.children) : undefined,
+      };
+    });
+}
+
+export function MenuDrawer({ open, onClose, onMenuSelect }) {
+  const menuTreeItems = buildMenuTree(menuItems);
 
   return (
     <div className={'folder-drawer ' + (open ? 'open' : '')} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
