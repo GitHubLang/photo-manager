@@ -27,9 +27,9 @@ def opencv_technical(image_path: str) -> dict:
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # 清晰度: Laplacian 方差（对 2400 万像素照片，清晰通常 200-800）
+    # 清晰度: Laplacian 方差（校准自你照片实测: 模糊~50, 锐利~900）
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    sharpness = min(100, max(0, laplacian_var / 3))
+    sharpness = min(100, max(0, laplacian_var / 9))
 
     # 曝光: 直方图暗部/亮部占比
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
@@ -38,8 +38,8 @@ def opencv_technical(image_path: str) -> dict:
     bright_ratio = np.sum(hist[225:]) / total
     exposure = 100 - min(100, (dark_ratio + bright_ratio) * 100)
 
-    # 对比度: 灰度标准差
-    contrast = min(100, max(0, gray.std() / 1))
+    # 对比度: 灰度标准差（校准自实测: 平淡~45, 丰富~75）
+    contrast = min(100, max(0, gray.std()))
 
     # 综合分 (加权)
     score = sharpness * 0.4 + exposure * 0.3 + contrast * 0.3
