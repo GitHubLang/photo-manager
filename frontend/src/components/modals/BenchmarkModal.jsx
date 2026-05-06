@@ -249,6 +249,17 @@ export default function BenchmarkModal({ visible, image, onClose }) {
                 >
                   {result.error ? (
                     <Text type="danger">{result.error}</Text>
+                  ) : result.score === null ? (
+                    /* 无总分方案（如 OpenCV）：只展示各维度 */
+                    <div>
+                      {result.details && typeof result.details === 'object' && Object.entries(result.details).map(([k, v]) => (
+                        <div key={k} style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{k}</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: getScoreColor(v) }}>{v}</div>
+                          <div style={{ fontSize: 11, color: '#999' }}>越高越好 (0-100)</div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <>
                       <Statistic

@@ -41,11 +41,8 @@ def opencv_technical(image_path: str) -> dict:
     # 对比度: 灰度标准差（校准自实测: 平淡~45, 丰富~75）
     contrast = min(100, max(0, gray.std()))
 
-    # 综合分 (加权)
-    score = sharpness * 0.4 + exposure * 0.3 + contrast * 0.3
-
     return {
-        'score': float(round(float(score), 2)),
+        'score': None,
         'time': round(time.time() - start, 3),
         'details': {
             '清晰度': float(round(float(sharpness), 2)),
