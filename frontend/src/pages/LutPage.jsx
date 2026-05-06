@@ -242,13 +242,42 @@ export default function LutPage() {
               onMouseDown={(e) => {
                 const container = e.currentTarget.parentElement;
                 const rect = container.getBoundingClientRect();
+                const getX = (ev) => (ev.touches ? ev.touches[0].clientX : ev.clientX);
                 const onMove = (ev) => {
-                  const x = ev.clientX - rect.left;
+                  ev.preventDefault();
+                  const x = getX(ev) - rect.left;
                   setSliderPos(Math.min(100, Math.max(0, (x / rect.width) * 100)));
                 };
-                const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                const onUp = () => {
+                  document.removeEventListener('mousemove', onMove);
+                  document.removeEventListener('mouseup', onUp);
+                  document.removeEventListener('touchmove', onMove);
+                  document.removeEventListener('touchend', onUp);
+                };
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
+                document.addEventListener('touchmove', onMove, { passive: false });
+                document.addEventListener('touchend', onUp);
+              }}
+              onTouchStart={(e) => {
+                const container = e.currentTarget.parentElement;
+                const rect = container.getBoundingClientRect();
+                const getX = (ev) => (ev.touches ? ev.touches[0].clientX : ev.clientX);
+                const onMove = (ev) => {
+                  ev.preventDefault();
+                  const x = getX(ev) - rect.left;
+                  setSliderPos(Math.min(100, Math.max(0, (x / rect.width) * 100)));
+                };
+                const onUp = () => {
+                  document.removeEventListener('mousemove', onMove);
+                  document.removeEventListener('mouseup', onUp);
+                  document.removeEventListener('touchmove', onMove);
+                  document.removeEventListener('touchend', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                document.addEventListener('touchmove', onMove, { passive: false });
+                document.addEventListener('touchend', onUp);
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="#888"><path d="M8 5l-7 7 7 7M16 5l7 7-7 7"/></svg>

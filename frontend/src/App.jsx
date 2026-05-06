@@ -442,8 +442,10 @@ function App() {
           open={menuDrawerOpen}
           onClose={() => setMenuDrawerOpen(false)}
           onMenuSelect={(key) => {
+            setActiveMenu('folder');
             if (key === 'settings') { setSettingsModalVisible(true); return; }
             if (key === 'folder') { setActiveTab('folder'); setFolderDrawerOpen(true); return; }
+            if (key === 'lut') { setActiveMenu('lut'); setMenuDrawerOpen(false); return; }
             handleMobileTabChange(key);
           }}
         />
@@ -496,8 +498,8 @@ function App() {
           }}
         />
       )}
-      {isMobile && <FABButton />}
-      {isMobile && <BottomTabs activeTab={activeTab} onTabChange={handleMobileTabChange} failedScores={scoreHook.failedScores.length} />}
+      {isMobile && activeMenu !== 'lut' && <FABButton />}
+      {isMobile && activeMenu !== 'lut' && <BottomTabs activeTab={activeTab} onTabChange={handleMobileTabChange} failedScores={scoreHook.failedScores.length} />}
 
       <Layout>
         {/* 左侧菜单（桌面端） */}
@@ -565,8 +567,8 @@ function App() {
         )}
 
         {/* LUT 克隆页面 */}
-        {!isMobile && activeMenu === 'lut' && (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+        {activeMenu === 'lut' && (
+          <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
             <LutPage />
           </div>
         )}
