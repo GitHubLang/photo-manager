@@ -27,9 +27,9 @@ def opencv_technical(image_path: str) -> dict:
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # 清晰度: Laplacian 方差（校准自你照片实测: 模糊~50, 锐利~900）
+    # 清晰度: Laplacian 方差（原始值，越高越清晰）
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    sharpness = min(100, max(0, laplacian_var / 9))
+    sharpness = round(laplacian_var, 2)
 
     # 曝光: 直方图暗部/亮部占比
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
