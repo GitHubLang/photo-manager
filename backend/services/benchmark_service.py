@@ -27,9 +27,9 @@ def opencv_technical(image_path: str) -> dict:
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # 清晰度: Laplacian 方差
+    # 清晰度: Laplacian 方差（对 2400 万像素照片，清晰通常 200-800）
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    sharpness = min(100, max(0, laplacian_var / 5))
+    sharpness = min(100, max(0, laplacian_var / 3))
 
     # 曝光: 直方图暗部/亮部占比
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
@@ -39,18 +39,18 @@ def opencv_technical(image_path: str) -> dict:
     exposure = 100 - min(100, (dark_ratio + bright_ratio) * 100)
 
     # 对比度: 灰度标准差
-    contrast = min(100, max(0, gray.std() / 2))
+    contrast = min(100, max(0, gray.std() / 1))
 
     # 综合分 (加权)
     score = sharpness * 0.4 + exposure * 0.3 + contrast * 0.3
 
     return {
-        'score': round(score, 1),
+        'score': float(round(float(score), 2)),
         'time': round(time.time() - start, 3),
         'details': {
-            '清晰度': round(sharpness, 1),
-            '曝光': round(exposure, 1),
-            '对比度': round(contrast, 1),
+            '清晰度': float(round(float(sharpness), 2)),
+            '曝光': float(round(float(exposure), 2)),
+            '对比度': float(round(float(contrast), 2)),
         }
     }
 
@@ -151,7 +151,7 @@ def musiq_score(image_path: str) -> dict:
         return {'score': 0, 'time': round(time.time() - start, 3), 'error': str(e)}
 
     return {
-        'score': round(score, 1),
+        'score': round(score, 2),
         'time': round(time.time() - start, 3),
         'details': {'评分范围': '0-100', '算法': 'MUSIQ Transformer'},
     }
@@ -193,7 +193,7 @@ def llm_score(image_path: str) -> dict:
                     total_score = result.get('total_score', 0)
                     elapsed = time.time() - start
                     return {
-                        'score': round(float(total_score), 1) if total_score else 0,
+                        'score': round(float(total_score), 2) if total_score else 0,
                         'time': round(elapsed, 3),
                         'details': {'评分范围': '0-100', '算法': '大模型 API'},
                     }
