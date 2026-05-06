@@ -69,17 +69,32 @@ def _lazy_load_clip():
     import os
     os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
     import torch
+    import torch.nn as nn
     from transformers import CLIPProcessor, CLIPModel
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # 从本地缓存加载（文件已预下载）
     model = CLIPModel.from_pretrained('openai/clip-vit-large-patch14', local_files_only=True)
     processor = CLIPProcessor.from_pretrained('openai/clip-vit-large-patch14', local_files_only=True)
     model.to(device).eval()
-    _clip_pipeline = {'model': model, 'processor': processor, 'device': device}
+
+    # LAION 美学预测器（线性层，768 → 1）
+    aesthetic_path = Path(__file__).parent.parent / 'models' / 'aesthetic_linear.pth'
+    aesthetic_model = None
+    if aesthetic_path.exists():
+        try:
+            aesthetic_model = nn.Linear(768, 1)
+            aesthetic_model.load_state_dict(torch.load(str(aesthetic_path), map_location='cpu'))
+            aesthetic_model.to(device).eval()
+        except Exception:
+            aesthetic_model = None
+
+    _clip_pipeline = {
+        'model': model, 'processor': processor, 'device': device,
+        'aesthetic': aesthetic_model,
+    }
 
 
 def clip_aesthetic(image_path: str) -> dict:
-    """CLIP 美学评分：与"好照片"描述的语义相似度"""
+    """CLIP + LAION 美学评分（美学预测器优先，回退到语义对比）"""
     import torch
     start = time.time()
     _lazy_load_clip()
@@ -91,27 +106,34 @@ def clip_aesthetic(image_path: str) -> dict:
     with torch.no_grad():
         img_out = m['model'].get_image_features(**inputs)
         img_feat = img_out.pooler_output
-        img_feat = img_feat / img_feat.norm(dim=-1, keepdim=True)
 
-        text = m['processor'](
-            text=["an excellent photograph with beautiful composition, perfect exposure and harmonious colors",
-                  "an ordinary, flat foto lacking any highlights"],
-            return_tensors='pt', padding=True
-        )
-        text = {k: v.to(m['device']) for k, v in text.items()}
-        txt_out = m['model'].get_text_features(**text)
-        txt_feat = txt_out.pooler_output
-        txt_feat = txt_feat / txt_feat.norm(dim=-1, keepdim=True)
-
-        sim = (img_feat @ txt_feat.T).squeeze().cpu().numpy()
-        # 映射到 1-10 分
-        score = 5.0 + (float(sim[0]) - float(sim[1])) * 8.0
-        score = max(1.0, min(10.0, score))
+        if m['aesthetic'] is not None:
+            # LAION 美学预测器：需要先 L2 归一化再输入线性层
+            normed = img_feat.float() / img_feat.float().norm(dim=-1, keepdim=True)
+            raw = m['aesthetic'](normed).item()
+            score = max(1.0, min(10.0, raw))
+            algo = 'CLIP-ViT-L/14 + LAION 美学预测器'
+        else:
+            # 回退：语义对比
+            img_feat = img_feat / img_feat.norm(dim=-1, keepdim=True)
+            text = m['processor'](
+                text=["an excellent photograph with beautiful composition, perfect exposure and harmonious colors",
+                      "an ordinary, flat foto lacking any highlights"],
+                return_tensors='pt', padding=True
+            )
+            text = {k: v.to(m['device']) for k, v in text.items()}
+            txt_out = m['model'].get_text_features(**text)
+            txt_feat = txt_out.pooler_output
+            txt_feat = txt_feat / txt_feat.norm(dim=-1, keepdim=True)
+            sim = (img_feat @ txt_feat.T).squeeze().cpu().numpy()
+            score = 5.0 + (float(sim[0]) - float(sim[1])) * 8.0
+            score = max(1.0, min(10.0, score))
+            algo = 'CLIP-ViT-L/14 + 语义对比 (回退)'
 
     return {
         'score': round(score, 2),
         'time': round(time.time() - start, 3),
-        'details': {'评分范围': '1-10, 越高越好', '算法': 'CLIP-ViT-L/14 + 语义对比'},
+        'details': {'评分范围': '1-10, 越高越好', '算法': algo},
     }
 
 
