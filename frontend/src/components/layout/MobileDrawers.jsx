@@ -31,7 +31,7 @@ function buildMenuTree(items) {
       const hasChildren = item.children && item.children.length > 0;
       return {
         key: item.key,
-        icon: item.icon,
+        icon: item.icon ? React.createElement(item.icon) : undefined,
         label: item.label,
         children: hasChildren ? buildMenuTree(item.children) : undefined,
       };
