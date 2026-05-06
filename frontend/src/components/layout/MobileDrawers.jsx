@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tree, Button, Typography, Menu } from 'antd';
 const { Text } = Typography;
+import { FolderOutlined } from '@ant-design/icons';
 import { menuItems } from '../../config/menu';
 
 export function FolderDrawer({ open, onClose, treeData, selectedFolder, onSelect }) {
@@ -23,11 +24,25 @@ export function FolderDrawer({ open, onClose, treeData, selectedFolder, onSelect
 
 /**
  * 递归构建 SubMenu / MenuItem 树
+ * "文件夹"特殊处理：用 folders 列表动态生成子项
  */
-function buildMenuTree(items) {
+function buildMenuTree(items, folders) {
   return items
     .filter(item => item.type !== 'divider')
     .map(item => {
+      // 文件夹：子菜单项从 folders 列表动态生成
+      if (item.key === 'folder') {
+        return {
+          key: 'folder',
+          icon: item.icon ? React.createElement(item.icon) : undefined,
+          label: item.label,
+          children: (folders || []).map(f => ({
+            key: f.path,
+            icon: React.createElement(FolderOutlined),
+            label: f.name,
+          })),
+        };
+      }
       const hasChildren = item.children && item.children.length > 0;
       return {
         key: item.key,
@@ -38,8 +53,8 @@ function buildMenuTree(items) {
     });
 }
 
-export function MenuDrawer({ open, onClose, onMenuSelect }) {
-  const menuTreeItems = buildMenuTree(menuItems);
+export function MenuDrawer({ open, onClose, onMenuSelect, folders }) {
+  const menuTreeItems = buildMenuTree(menuItems, folders);
 
   return (
     <div className={'folder-drawer ' + (open ? 'open' : '')} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>

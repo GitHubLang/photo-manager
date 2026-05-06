@@ -140,38 +140,6 @@
 }
 
 /* ============================================
-   Mobile Folder Panel - Collapsible Inline Tree
-   ============================================ */
-
-.mobile-folder-panel {
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  max-height: 50vh;
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-
-.mobile-folder-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  background: var(--bg-secondary);
-  z-index: 1;
-}
-
-.mobile-folder-panel-content {
-  padding: 8px 12px;
-}
-
-.mobile-folder-panel-content .ant-tree-treenode {
-  padding: 4px 0;
-}
-
-/* ============================================
    Bottom Tab Bar - Mobile Navigation
    ============================================ */
 
