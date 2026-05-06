@@ -634,6 +634,7 @@ function App() {
       {/* 图片预览 */}
       <ImagePreviewModal
         visible={previewVisible}
+        isMobile={isMobile}
         image={selectedImage}
         onClose={() => setPreviewVisible(false)}
         onScore={handleScore}

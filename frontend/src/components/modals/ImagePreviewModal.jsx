@@ -13,13 +13,14 @@ const DIMENSIONS = [
   { key: 'uniqueness', label: '独特性', weight: '5%' },
 ];
 
-export default function ImagePreviewModal({ visible, image, onClose, onScore }) {
+export default function ImagePreviewModal({ visible, image, onClose, onScore, isMobile }) {
   if (!image) return null;
   const imageUrl = getProxyUrl(image.file_path);
 
   return (
-    <Modal open={visible} onCancel={onClose} footer={null} width={1000} centered>
-      <div style={{ textAlign: 'center' }}>
+    <Modal open={visible} onCancel={onClose} footer={null} width={1000} centered
+      className={isMobile ? 'mobile-fullscreen-modal' : ''}>
+      <div style={{ textAlign: 'center', paddingBottom: isMobile ? 80 : 0 }}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
           <Image src={imageUrl} alt={image.filename} style={{ maxHeight: '50vh', maxWidth: '100%', objectFit: 'contain' }} preview={{ src: imageUrl }} />
         </div>
