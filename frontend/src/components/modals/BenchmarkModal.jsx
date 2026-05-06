@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Checkbox, Button, Card, Row, Col, message, Spin, Tag, Typography, Divider, Statistic, Space } from 'antd';
+import { Modal, Checkbox, Button, Card, Row, Col, message, Spin, Tag, Typography, Divider, Statistic, Space, Tooltip, Collapse } from 'antd';
 const { Text, Title } = Typography;
-import { getProxyUrl, getThumbnailUrl } from '../../api/imageApi';
+import { InfoCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { getThumbnailUrl } from '../../api/imageApi';
 
 const API = window.location.protocol + '//' + window.location.hostname + ':8000/api';
 
@@ -12,21 +13,53 @@ const SCHEME_CONFIG = {
   llm:    { label: '大模型评分', color: 'orange', desc: '当前配置的 AI 模型评分' },
 };
 
+const STANDARDS = {
+  opencv: {
+    name: 'OpenCV 技术检测',
+    total: '0-100',
+    dims: [
+      { name: '清晰度', desc: 'Laplacian 方差', good: '≥60 清晰', bad: '<30 模糊' },
+      { name: '曝光',   desc: '直方图暗/亮部比', good: '≥60 曝光准', bad: '<30 过曝/欠曝' },
+      { name: '对比度', desc: '灰度标准差', good: '≥60 层次丰富', bad: '<30 灰蒙蒙' },
+    ],
+  },
+  clip: {
+    name: 'CLIP+MLP 美学评分',
+    total: '1-10',
+    dims: [
+      { name: '总分', desc: '与优秀摄影描述的语义相似度', good: '≥7 优秀', bad: '<4 较差' },
+    ],
+  },
+  musiq: {
+    name: 'MUSIQ 质量评分',
+    total: '0-100',
+    dims: [
+      { name: '总分', desc: 'Transformer 多尺度质量评估', good: '≥70 高质量', bad: '<40 低质量' },
+    ],
+  },
+  llm: {
+    name: '大模型评分',
+    total: '0-100',
+    dims: [
+      { name: '总分', desc: 'AI 模型综合评分', good: '≥70 好片', bad: '<40 差片' },
+    ],
+  },
+};
+
+const SCORE_LEVELS = [
+  { range: '≥80', label: '优秀', color: '#52c41a' },
+  { range: '60-79', label: '良好', color: '#1890ff' },
+  { range: '40-59', label: '及格', color: '#faad14' },
+  { range: '<40', label: '不及格', color: '#f5222d' },
+];
+
 export default function BenchmarkModal({ visible, image, onClose }) {
   const [selected, setSelected] = useState(Object.keys(SCHEME_CONFIG));
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [schemes, setSchemes] = useState(null);
 
-  // 加载可用方案
   useEffect(() => {
-    if (visible) {
-      fetch(API + '/benchmark/schemes')
-        .then(r => r.json())
-        .then(data => setSchemes(data.schemes))
-        .catch(() => {});
-      setResults(null);
-    }
+    if (visible) setResults(null);
   }, [visible]);
 
   const handleRun = async () => {
@@ -66,7 +99,7 @@ export default function BenchmarkModal({ visible, image, onClose }) {
       onCancel={onClose}
       footer={null}
       width={860}
-      title="📊 评分方案对比测试"
+      title="评分方案对比测试"
       destroyOnClose
     >
       {image && (
@@ -109,14 +142,54 @@ export default function BenchmarkModal({ visible, image, onClose }) {
 
       <Button type="primary" size="large" onClick={handleRun} loading={loading} disabled={selected.length === 0}
         style={{ marginBottom: 20 }}>
-        {loading ? '评分中...' : '🚀 开始对比测试'}
+        {loading ? '评分中...' : '开始对比测试'}
       </Button>
+
+      {/* 评价标准指南（可折叠） */}
+      <Collapse
+        ghost
+        style={{ marginBottom: 12 }}
+        items={[{
+          key: 'standards',
+          label: (
+            <Space size={4}>
+              <QuestionCircleOutlined style={{ color: '#1677ff' }} />
+              <Text type="secondary" style={{ fontSize: 13 }}>评价标准说明</Text>
+            </Space>
+          ),
+          children: (
+            <div style={{ padding: '4px 0' }}>
+              {/* 通用等级 */}
+              <div style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: 600 }}>通用等级</Text>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                  {SCORE_LEVELS.map(lv => (
+                    <Tag key={lv.range} color={lv.color}>{lv.range}分 {lv.label}</Tag>
+                  ))}
+                </div>
+              </div>
+              {/* 各方案维度说明 */}
+              <Text style={{ fontSize: 13, fontWeight: 600 }}>各方案评分细则</Text>
+              {Object.values(STANDARDS).map(s => (
+                <div key={s.name} style={{ marginTop: 8, fontSize: 13 }}>
+                  <Text strong style={{ color: '#555' }}>{s.name}（总分 {s.total}）</Text>
+                  {s.dims.map(d => (
+                    <div key={d.name} style={{ marginLeft: 12, marginTop: 2, fontSize: 12, color: '#666' }}>
+                      • {d.name}（{d.desc}）：<Text style={{ color: '#52c41a' }}>{d.good}</Text> | <Text style={{ color: '#f5222d' }}>{d.bad}</Text>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ),
+        }]}
+      />
 
       {/* 结果展示 */}
       {results && (
         <div>
           <Divider style={{ margin: '8px 0' }} />
-          <Title level={5}>📈 测试结果</Title>
+          <Title level={5}>测试结果</Title>
           <Row gutter={[12, 12]}>
             {Object.entries(results).map(([key, result]) => (
               <Col xs={24} sm={12} key={key}>
@@ -127,11 +200,14 @@ export default function BenchmarkModal({ visible, image, onClose }) {
                       <Tag color={SCHEME_CONFIG[key]?.color || 'default'}>
                         {result.label || SCHEME_CONFIG[key]?.label || key}
                       </Tag>
+                      <Tooltip title={`${SCHEME_CONFIG[key]?.label}评分标准`}>
+                        <InfoCircleOutlined style={{ color: '#999', cursor: 'help' }} />
+                      </Tooltip>
                     </Space>
                   }
                   extra={
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      ⏱ {result.time}s
+                      {result.time}s
                     </Text>
                   }
                 >
@@ -148,8 +224,9 @@ export default function BenchmarkModal({ visible, image, onClose }) {
                       {result.details && typeof result.details === 'object' && (
                         <div style={{ marginTop: 8 }}>
                           {Object.entries(result.details).map(([k, v]) => (
-                            <div key={k} style={{ fontSize: 12, color: '#666' }}>
-                              {k}: {v}
+                            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', borderBottom: '1px solid #f0f0f0', padding: '2px 0' }}>
+                              <span>{k}</span>
+                              <span style={{ fontWeight: 500, color: getScoreColor(v) }}>{v}</span>
                             </div>
                           ))}
                         </div>
