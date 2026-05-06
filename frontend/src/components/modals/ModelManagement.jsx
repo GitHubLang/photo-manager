@@ -22,9 +22,7 @@ export default function ModelManagement() {
     }
   }, []);
 
-  useEffect(() => {
-    loadModels();
-  }, [loadModels]);
+  useEffect(() => { loadModels(); }, [loadModels]);
 
   const handleAdd = async () => {
     try {
@@ -89,30 +87,17 @@ export default function ModelManagement() {
   };
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name', width: 150 },
-    { title: '模型名', dataIndex: 'model_name', key: 'model_name', width: 150 },
-    { title: 'API地址', dataIndex: 'api_endpoint', key: 'api_endpoint', width: 250 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 120 },
+    { title: '模型名', dataIndex: 'model_name', key: 'model_name', width: 120 },
+    { title: 'API地址', dataIndex: 'api_endpoint', key: 'api_endpoint', width: 200, ellipsis: true },
+    { title: '默认', dataIndex: 'is_default', key: 'is_default', width: 60, render: (val) => val ? '是' : '否' },
     {
-      title: '默认',
-      dataIndex: 'is_default',
-      key: 'is_default',
-      width: 80,
-      render: (val) => val ? '是' : '否',
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 150,
+      title: '操作', key: 'action', width: 120, fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           <Button type="link" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(record)} title="复制" />
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => startEdit(record)} title="编辑" />
-          <Popconfirm
-            title="确定删除?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
-          >
+          <Popconfirm title="确定删除?" onConfirm={() => handleDelete(record.id)} okText="确定" cancelText="取消">
             <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -121,53 +106,54 @@ export default function ModelManagement() {
   ];
 
   return (
-    <div style={{ padding: '16px 0' }}>
-      <div style={{ marginBottom: 16 }}>
-        {!showForm && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowForm(true)}>
-            添加模型
-          </Button>
-        )}
-      </div>
-
-      {showForm && (
-        <Form form={form} layout="inline" style={{ marginBottom: 16, padding: 16, background: '#f5f5f5', borderRadius: 4 }}>
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} style={{ marginBottom: 12 }}>
-            <Input placeholder="如: GPT-4" style={{ width: 150 }} />
-          </Form.Item>
-          <Form.Item name="model_name" label="模型名" rules={[{ required: true, message: '请输入模型名' }]} style={{ marginBottom: 12 }}>
-            <Input placeholder="如: gpt-4" style={{ width: 150 }} />
-          </Form.Item>
-          <Form.Item name="api_endpoint" label="API地址" rules={[{ required: true, message: '请输入API地址' }]} style={{ marginBottom: 12 }}>
-            <Input placeholder="https://api.openai.com/v1/chat/completions" style={{ width: 250 }} />
-          </Form.Item>
-          <Form.Item name="api_key" label="API密钥" style={{ marginBottom: 12 }}>
-            <Input.Password placeholder="可选" style={{ width: 200 }} />
-          </Form.Item>
-          <Form.Item name="is_default" valuePropName="checked" style={{ marginBottom: 12 }}>
-            <Checkbox>设为默认</Checkbox>
-          </Form.Item>
-          <Form.Item style={{ marginBottom: 12 }}>
-            <Space>
-              <Button type="primary" icon={<SaveOutlined />} onClick={editingId ? handleEdit : handleAdd}>
-                {editingId ? '保存' : '添加'}
-              </Button>
-              <Button icon={<CloseOutlined />} onClick={cancelEdit}>
-                取消
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
+    <div>
+      {!showForm && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowForm(true)} style={{ marginBottom: 16 }}>
+          添加模型
+        </Button>
       )}
 
-      <Table
-        dataSource={models}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
-        size="small"
-      />
+      {showForm && (
+        <div className="model-form-mobile" style={{ marginBottom: 16, padding: 16, background: '#f5f5f5', borderRadius: 4 }}>
+          <Form form={form} layout="vertical">
+            <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
+              <Input placeholder="如: GPT-4" />
+            </Form.Item>
+            <Form.Item name="model_name" label="模型名" rules={[{ required: true, message: '请输入模型名' }]}>
+              <Input placeholder="如: gpt-4" />
+            </Form.Item>
+            <Form.Item name="api_endpoint" label="API地址" rules={[{ required: true, message: '请输入API地址' }]}>
+              <Input placeholder="https://api.openai.com/v1/chat/completions" />
+            </Form.Item>
+            <Form.Item name="api_key" label="API密钥">
+              <Input.Password placeholder="可选" />
+            </Form.Item>
+            <Form.Item name="is_default" valuePropName="checked">
+              <Checkbox>设为默认</Checkbox>
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" icon={<SaveOutlined />} onClick={editingId ? handleEdit : handleAdd}>
+                  {editingId ? '保存' : '添加'}
+                </Button>
+                <Button icon={<CloseOutlined />} onClick={cancelEdit}>取消</Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </div>
+      )}
+
+      <div style={{ overflowX: 'auto' }}>
+        <Table
+          dataSource={models}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={false}
+          size="small"
+          scroll={{ x: 620 }}
+        />
+      </div>
     </div>
   );
 }

@@ -23,7 +23,8 @@ import CaptionInstructionsModal from './components/modals/CaptionInstructionsMod
 import { ScoreDrawer, ScorePanel } from './components/score/ScorePanel';
 import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 
-import SettingsPage from './pages/SettingsPage';
+import ModelPage from './pages/ModelPage';
+import GeneralPage from './pages/GeneralPage';
 import LutPage from './pages/LutPage';
 import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, fetchBatchImages, getProxyUrl } from './api/imageApi';
 
@@ -585,10 +586,17 @@ function App() {
           </div>
         )}
 
-        {/* 全屏页面：设置 */}
-        {activeMenu.startsWith('settings-') && (
+        {/* 全屏页面：模型管理 */}
+        {activeMenu === 'settings-models' && (
           <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
-            <SettingsPage activeMenu={activeMenu} />
+            <ModelPage />
+          </div>
+        )}
+
+        {/* 全屏页面：通用设置 */}
+        {activeMenu === 'settings-general' && (
+          <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
+            <GeneralPage />
           </div>
         )}
 
