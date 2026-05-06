@@ -14,7 +14,7 @@ export const menuItems = [
   {
     key: 'folder',
     icon: FolderOutlined,
-    label: '主页',
+    label: '文件夹',
     type: 'submenu',
     primary: true,   // 显示在移动端底部 tab
   },

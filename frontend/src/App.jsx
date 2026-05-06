@@ -12,7 +12,7 @@ import { useCaption } from './hooks/useCaption';
 import TopToolbar from './components/layout/TopToolbar';
 import SideMenu from './components/layout/SideMenu';
 import BottomTabs from './components/layout/BottomTabs';
-import { FolderDrawer, MenuDrawer } from './components/layout/MobileDrawers';
+import { MenuDrawer } from './components/layout/MobileDrawers';
 
 import ImageGrid from './components/image/ImageGrid';
 import ImagePreviewModal from './components/modals/ImagePreviewModal';
@@ -42,8 +42,8 @@ function App() {
   const [activeMenu, setActiveMenu] = useState('folder');
   const [menuCollapsed, setMenuCollapsed] = useState(false);
 
-  // 移动端抽屉
-  const [folderDrawerOpen, setFolderDrawerOpen] = useState(false);
+  // 移动端抽屉/面板
+  const [folderPanelOpen, setFolderPanelOpen] = useState(false);
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [scoreDrawerOpen, setScoreDrawerOpen] = useState(false);
   const [captionDrawerOpen, setCaptionDrawerOpen] = useState(false);
@@ -319,14 +319,15 @@ function App() {
     }
 
     // 移动端：根据菜单项类型处理
-    setFolderDrawerOpen(false);
     setScoreDrawerOpen(false);
     setCaptionDrawerOpen(false);
     setMenuDrawerOpen(false);
+    setFolderPanelOpen(false);
 
     if (key === 'folder') {
       setActiveMenu('folder');
-      setFolderDrawerOpen(true);
+      // 切换内联文件夹面板
+      setFolderPanelOpen(prev => !prev);
     } else if (key === 'scores') {
       setActiveMenu('scores');
       setScoreDrawerOpen(true);
@@ -470,14 +471,22 @@ function App() {
           onMenuSelect={handleMenuClick}
         />
       )}
-      {isMobile && (
-        <FolderDrawer
-          open={folderDrawerOpen}
-          onClose={() => setFolderDrawerOpen(false)}
-          treeData={folderTreeData}
-          selectedFolder={imageHook.selectedFolder}
-          onSelect={(path) => { handleFolderSelect(path); }}
-        />
+      {/* 移动端：内联文件夹树（可折叠）*/}
+      {isMobile && folderPanelOpen && (
+        <div className="mobile-folder-panel">
+          <div className="mobile-folder-panel-header">
+            <Text strong>文件夹</Text>
+            <Button type="text" size="small" onClick={() => setFolderPanelOpen(false)}>收起</Button>
+          </div>
+          <div className="mobile-folder-panel-content">
+            <Tree
+              treeData={folderTreeData}
+              selectedKeys={imageHook.selectedFolder ? [imageHook.selectedFolder] : []}
+              onSelect={(keys, info) => { if (info.node.path) handleFolderSelect(info.node.path); }}
+              showIcon={false}
+            />
+          </div>
+        </div>
       )}
       {isMobile && (
         <ScoreDrawer
