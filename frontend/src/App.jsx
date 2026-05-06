@@ -514,8 +514,8 @@ function App() {
           }}
         />
       )}
-      {isMobile && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <FABButton />}
-      {isMobile && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
+      {isMobile && !previewVisible && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <FABButton />}
+      {isMobile && !previewVisible && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
 
       <Layout>
         {/* 左侧菜单（桌面端） */}
