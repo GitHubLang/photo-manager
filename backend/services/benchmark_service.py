@@ -18,8 +18,11 @@ PHOTO_ROOT = r"E:\图像"
 def opencv_technical(image_path: str) -> dict:
     """OpenCV 技术质量检测：清晰度、曝光、对比度"""
     start = time.time()
-    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if img is None:
+    # 使用 PIL 读取（支持中文路径），再转 OpenCV 格式
+    try:
+        pil_img = Image.open(image_path).convert('RGB')
+        img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    except Exception:
         return {'score': 0, 'time': round(time.time() - start, 3), 'details': '无法读取图片'}
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -213,6 +216,20 @@ SCHEMES = {
 }
 
 
+def _to_serializable(obj):
+    """递归将 numpy 类型转为 Python 原生类型"""
+    import numpy as np
+    if isinstance(obj, (np.float32, np.float64)):
+        return float(obj)
+    if isinstance(obj, (np.int32, np.int64)):
+        return int(obj)
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_serializable(v) for v in obj]
+    return obj
+
+
 def run_benchmark(image_path: str, selected_schemes: list[str]) -> dict:
     """运行选中的评分方案"""
     results = {}
@@ -226,4 +243,4 @@ def run_benchmark(image_path: str, selected_schemes: list[str]) -> dict:
             results[key] = result
         except Exception as e:
             results[key] = {'score': 0, 'time': 0, 'error': str(e), 'label': SCHEMES[key]['name']}
-    return results
+    return _to_serializable(results)
