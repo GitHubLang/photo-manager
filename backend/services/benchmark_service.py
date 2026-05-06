@@ -138,51 +138,54 @@ def clip_aesthetic(image_path: str) -> dict:
 
 
 # ============================================================
-# MUSIQ — Google Transformer 模型
+# MUSIQ — 基于 pyiqa 的 Transformer 质量评估
 # ============================================================
 
-_musiq_pipeline = None
+_musiq = None
 
 def _lazy_load_musiq():
-    global _musiq_pipeline
-    if _musiq_pipeline is not None:
+    global _musiq
+    if _musiq is not None:
         return
     import torch
-    from transformers import AutoImageProcessor, AutoModelForImageQualityAssessment
+    from pyiqa import create_metric
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     try:
-        processor = AutoImageProcessor.from_pretrained('google/musiq')
-        model = AutoModelForImageQualityAssessment.from_pretrained('google/musiq')
-        model.to(device).eval()
-        _musiq_pipeline = {'model': model, 'processor': processor, 'device': device}
+        _musiq = create_metric('musiq', device=device)
     except Exception as e:
-        _musiq_pipeline = {'error': str(e)}
+        _musiq = {'error': str(e)}
 
 
 def musiq_score(image_path: str) -> dict:
-    """MUSIQ 图像质量评分"""
+    """MUSIQ 图像质量评分（通过 pyiqa，自动缩放避免 OOM）"""
     import torch
     start = time.time()
     _lazy_load_musiq()
 
-    if 'error' in _musiq_pipeline:
-        return {'score': 0, 'time': 0, 'error': 'MUSIQ 模型加载失败: ' + _musiq_pipeline['error']}
+    if isinstance(_musiq, dict) and 'error' in _musiq:
+        return {'score': 0, 'time': 0, 'error': 'MUSIQ 加载失败: ' + _musiq['error']}
 
     try:
         image = Image.open(image_path).convert('RGB')
-        inputs = _musiq_pipeline['processor'](images=image, return_tensors='pt').to(_musiq_pipeline['device'])
+        # 缩放最长边到 2048px 避免大图 OOM（MUSIQ attention 复杂度与分辨率平方成正比）
+        w, h = image.size
+        if max(w, h) > 2048:
+            ratio = 2048 / max(w, h)
+            image = image.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
 
-        with torch.no_grad():
-            outputs = _musiq_pipeline['model'](**inputs)
-            score = outputs.logits.mean().item()
-            score = max(0, min(100, score))
+        torch.cuda.empty_cache()
+        score = _musiq(image)
+        score = max(0, min(100, score.item()))
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        return {'score': 0, 'time': round(time.time() - start, 3), 'error': '显存不足'}
     except Exception as e:
         return {'score': 0, 'time': round(time.time() - start, 3), 'error': str(e)}
 
     return {
         'score': round(score, 2),
         'time': round(time.time() - start, 3),
-        'details': {'评分范围': '0-100', '算法': 'MUSIQ Transformer'},
+        'details': {'评分范围': '0-100', '算法': 'MUSIQ (pyiqa, 缩放至2048px)'},
     }
 
 
