@@ -159,7 +159,7 @@ def _generate_xmp(src_path, styled_path, output_path):
 
     # --- 色温/色调 (Lightroom用Kelvin, 加5500基准) ---
     temp = max(2000, min(50000, 5500 + int((np.mean(ref_lab[:,:,2]) - np.mean(src_lab[:,:,2])) * 5)))
-    tint = int((np.mean(ref_lab[:,:,1]) - np.mean(src_lab[:,:,1])) * 0.5)
+    tint = max(-150, min(150, int((np.mean(ref_lab[:,:,1]) - np.mean(src_lab[:,:,1])) * 0.5)))
 
     # --- 高光/阴影/白色/黑色 (百分位) ---
     tone_vals = {}
@@ -214,7 +214,7 @@ def _generate_xmp(src_path, styled_path, output_path):
         if rm.sum() > 100 and sm.sum() > 100:
             ra = ref_lab[rm][:, 1:].mean(axis=0)
             sa = src_lab[sm][:, 1:].mean(axis=0)
-            cg[name] = (int((ra[0] - sa[0]) * 0.5), int((ra[1] - sa[1]) * 0.5))
+            cg[name] = (max(-100, min(100, int((ra[0] - sa[0]) * 0.5))), max(-100, min(100, int((ra[1] - sa[1]) * 0.5))))
         else:
             cg[name] = (0, 0)
 
@@ -243,7 +243,7 @@ def _generate_xmp(src_path, styled_path, output_path):
   <rdf:Description rdf:about=""
    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
    crs:Version="15.0"
-   crs:ProcessVersion="15.4"
+   crs:ProcessVersion="15.0"
    crs:Temperature="{temp}"
    crs:Tint="{tint}"
    crs:Exposure2012="{round(exp, 2)}"
