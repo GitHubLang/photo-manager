@@ -327,33 +327,47 @@ export default function CollectionPage({ isMobile, onBack }) {
         )}
       </div>
 
+      {/* 底部进度条（独立层，始终在最底部可见） */}
+      {photos.length > 1 && (
+        <div style={{
+          position: 'absolute',
+          bottom: isMobile ? 72 : 32,
+          left: 0, right: 0,
+          display: 'flex',
+          gap: 4,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '6px 0',
+          zIndex: 15,
+        }}>
+          {photos.slice(0, Math.min(photos.length, 15)).map((_, i) => (
+            <div key={i} style={{
+              flex: 1,
+              maxWidth: 28,
+              height: i === photoIndex ? 4 : 3,
+              borderRadius: 3,
+              background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.35)',
+              transition: 'all 0.3s ease',
+              boxShadow: i === photoIndex ? '0 0 6px rgba(255,255,255,0.4)' : 'none',
+            }} />
+          ))}
+          {photos.length > 15 && (
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 2 }}>+{photos.length - 15}</Text>
+          )}
+        </div>
+      )}
+
       {/* 底部文案 */}
       <div style={{
-        position: 'absolute', bottom: isMobile ? 80 : 40, left: 0, right: 0,
-        padding: '32px 16px 16px',
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: isMobile ? '100px 16px 72px' : '80px 24px 56px',
+        background: 'linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
         zIndex: 10,
+        pointerEvents: 'none',
       }}>
-        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.5, display: 'block', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.6, display: 'block', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
           {currentCollection.description}
         </Text>
-
-        {/* 照片进度条 */}
-        {photos.length > 1 && (
-          <div style={{ display: 'flex', gap: 3, marginTop: 10, justifyContent: 'center' }}>
-            {photos.slice(0, Math.min(photos.length, 12)).map((_, i) => (
-              <div key={i} style={{
-                width: `${Math.max(4, 80 / Math.min(photos.length, 12))}px`,
-                height: 3, borderRadius: 2,
-                background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.3)',
-                transition: 'background 0.3s',
-              }} />
-            ))}
-            {photos.length > 12 && (
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 4 }}>+{photos.length - 12}</Text>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 右侧收藏 */}
