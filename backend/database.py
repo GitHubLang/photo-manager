@@ -185,6 +185,27 @@ def init_database():
     # 初始化一条记录
     cursor.execute("INSERT IGNORE INTO app_state (id) VALUES (1)")
 
+    # 创建照片合集表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS photo_collections (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            title VARCHAR(200) NOT NULL DEFAULT '',
+            description TEXT,
+            tags VARCHAR(500),
+            theme_type VARCHAR(50) DEFAULT 'theme',
+            theme_value VARCHAR(100) DEFAULT '',
+            photo_paths JSON,
+            photo_ids JSON,
+            cover_path VARCHAR(500),
+            is_favorite TINYINT(1) DEFAULT 0,
+            llm_model VARCHAR(100) DEFAULT 'local',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_is_favorite (is_favorite),
+            INDEX idx_created_at (created_at),
+            INDEX idx_theme_value (theme_value)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    
     # 创建文案指令历史表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS instruction_history (

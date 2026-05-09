@@ -5,6 +5,7 @@ import { fetchModels, fetchSettings, saveSettings } from '../api/imageApi';
 
 const LS_SCORING = 'pm_scoring_model_id';
 const LS_CAPTION = 'pm_caption_model_id';
+const LS_COLLECTION_LLM = 'pm_collection_llm_model';
 
 function getLocal(key) {
   try { return localStorage.getItem(key) || ''; } catch { return ''; }
@@ -14,6 +15,7 @@ export default function GeneralPage() {
   const [models, setModels] = useState([]);
   const [scoringModel, setScoringModel] = useState(getLocal(LS_SCORING));
   const [captionModel, setCaptionModel] = useState(getLocal(LS_CAPTION));
+  const [collectionLlmModel, setCollectionLlmModel] = useState(getLocal(LS_COLLECTION_LLM));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,10 +31,15 @@ export default function GeneralPage() {
           setCaptionModel(data.caption_model);
           try { localStorage.setItem(LS_CAPTION, data.caption_model); } catch {}
         }
+        if (data.caption_llm_model) {
+          setCollectionLlmModel(data.caption_llm_model);
+          try { localStorage.setItem(LS_COLLECTION_LLM, data.caption_llm_model); } catch {}
+        }
       }).catch(() => {
         // 服务端不可用时回退到 localStorage
         setScoringModel(getLocal(LS_SCORING));
         setCaptionModel(getLocal(LS_CAPTION));
+        setCollectionLlmModel(getLocal(LS_COLLECTION_LLM));
       }),
     ]).finally(() => setLoading(false));
   }, []);
@@ -40,7 +47,7 @@ export default function GeneralPage() {
   const handleSave = async () => {
     // 存服务端
     try {
-      await saveSettings({ scoring_model: scoringModel, caption_model: captionModel });
+      await saveSettings({ scoring_model: scoringModel, caption_model: captionModel, caption_llm_model: collectionLlmModel });
     } catch {
       // 服务端不可用时只存 localStorage
     }
@@ -48,6 +55,7 @@ export default function GeneralPage() {
     try {
       localStorage.setItem(LS_SCORING, scoringModel);
       localStorage.setItem(LS_CAPTION, captionModel);
+      localStorage.setItem(LS_COLLECTION_LLM, collectionLlmModel);
     } catch {}
     message.success('设置已保存（跨设备同步）');
   };
@@ -88,6 +96,20 @@ export default function GeneralPage() {
               placeholder="选择文案生成使用的模型"
               allowClear
             />
+          </div>
+              <div style={{ marginBottom: 16 }}>
+            <Text>合集文案模型：</Text>
+            <Select
+              value={collectionLlmModel || undefined}
+              onChange={setCollectionLlmModel}
+              options={modelOptions}
+              style={{ width: '100%', marginTop: 8 }}
+              placeholder="选择合集标题/文案生成使用的模型"
+              allowClear
+            />
+            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
+              用于照片合集的标题、文案和标签自动生成
+            </Text>
           </div>
           <Button type="primary" onClick={handleSave}>保存设置</Button>
         </div>

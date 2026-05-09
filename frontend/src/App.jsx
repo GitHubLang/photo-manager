@@ -27,6 +27,7 @@ import { CaptionDrawer, CaptionPanel } from './components/caption/CaptionPanel';
 import ModelPage from './pages/ModelPage';
 import GeneralPage from './pages/GeneralPage';
 import LutPage from './pages/LutPage';
+import CollectionPage from './pages/CollectionPage';
 import { generateCaption as apiGenerateCaption, generateDailyTheme, createScoreTask, fetchScoreStatus, fetchScoreResults, fetchBatchImages, getProxyUrl } from './api/imageApi';
 
 const LS_SCORING = 'pm_scoring_model_id';
@@ -342,8 +343,8 @@ function App() {
       setActiveMenu('captions');
       setCaptionDrawerOpen(true);
       captionHook.loadCaptionHistory(captionHook.captionKeyword, captionHook.captionTypeFilter);
-    } else if (key === 'lut') {
-      setActiveMenu('lut');
+    } else if (key === 'lut' || key === 'collections') {
+      setActiveMenu(key);
     } else {
       // 其他新加的 page 类型默认行为
       setActiveMenu(key);
@@ -527,8 +528,8 @@ function App() {
           }}
         />
       )}
-      {isMobile && !previewVisible && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <FABButton />}
-      {isMobile && !previewVisible && activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
+      {isMobile && !previewVisible && activeMenu !== 'lut' && activeMenu !== 'collections' && !activeMenu.startsWith('settings-') && <FABButton />}
+      {isMobile && !previewVisible && activeMenu !== 'lut' && activeMenu !== 'collections' && !activeMenu.startsWith('settings-') && <BottomTabs activeMenu={activeMenu} onTabChange={handleMenuClick} failedScores={scoreHook.failedScores.length} />}
 
       <Layout>
         {/* 左侧菜单（桌面端） */}
@@ -599,6 +600,13 @@ function App() {
           </div>
         )}
 
+        {/* 全屏页面：照片合集 */}
+        {activeMenu === 'collections' && (
+          <div style={{ flex: 1, overflowY: 'hidden', width: '100%' }}>
+            <CollectionPage isMobile={isMobile} onBack={() => setActiveMenu('folder')} />
+          </div>
+        )}
+
         {/* 全屏页面：模型管理 */}
         {activeMenu === 'settings-models' && (
           <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
@@ -614,7 +622,7 @@ function App() {
         )}
 
         {/* 内容区 */}
-        {activeMenu !== 'lut' && !activeMenu.startsWith('settings-') && (
+        {activeMenu !== 'lut' && activeMenu !== 'collections' && !activeMenu.startsWith('settings-') && (
         <Content className="content-area" ref={imageHook.contentRef}
           onScroll={(e) => {
             const { scrollTop, scrollHeight, clientHeight } = e.target;

@@ -128,6 +128,27 @@ export const saveSettings = (settings) =>
     body: JSON.stringify(settings)
   }).then(r => r.json());
 
+// ============ 照片合集 API ============
+export const generateCollections = (count = 20, llmModel = '') =>
+  fetch(API_BASE + '/collections/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ count, llm_model: llmModel })
+  }).then(r => r.json());
+
+export const fetchCollections = (page = 1, pageSize = 20, favoriteOnly = false) =>
+  fetch(API_BASE + '/collections?page=' + page + '&page_size=' + pageSize + '&favorite_only=' + favoriteOnly)
+    .then(r => r.json());
+
+export const fetchCollectionDetail = (id) =>
+  fetch(API_BASE + '/collections/' + id).then(r => r.json());
+
+export const toggleCollectionFavorite = (id) =>
+  fetch(API_BASE + '/collections/' + id + '/favorite', { method: 'POST' }).then(r => r.json());
+
+export const deleteCollection = (id) =>
+  fetch(API_BASE + '/collections/' + id, { method: 'DELETE' }).then(r => r.json());
+
 // ============ 图片代理/缩略图 ============
 export const getThumbnailUrl = (filePath, size = 400) =>
   API_BASE + '/image/thumbnail/' + encodeURIComponent(filePath) + '?size=' + size;

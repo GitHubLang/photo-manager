@@ -1,4 +1,4 @@
-import { FolderOutlined, StarOutlined, FileTextOutlined, SettingOutlined, BgColorsOutlined } from '@ant-design/icons';
+import { FolderOutlined, StarOutlined, FileTextOutlined, SettingOutlined, BgColorsOutlined, PictureOutlined } from '@ant-design/icons';
 
 /**
  * 菜单配置 — 数据驱动
@@ -33,6 +33,14 @@ export const menuItems = [
     key: 'captions',
     icon: FileTextOutlined,
     label: '文案记录',
+    type: 'page',
+    primary: true,
+  },
+  { type: 'divider' },
+  {
+    key: 'collections',
+    icon: PictureOutlined,
+    label: '照片合集',
     type: 'page',
     primary: true,
   },

@@ -1159,3 +1159,8 @@
 .animate-slide-up {
   animation: slideUp var(--transition-normal) ease;
 }
+
+@keyframes swipeHint {
+  0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
+  50% { transform: translateX(-50%) translateY(-8px); opacity: 0.8; }
+}
