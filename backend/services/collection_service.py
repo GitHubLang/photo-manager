@@ -1,30 +1,33 @@
 """
-照片合集服务 — 基于数据库已有 image_descriptions 的 tags 聚类分组，
-然后利用 LLM 生成合集标题/文案/tags。
+照片合集服务 — 基于 tags 聚类分组，先出照片后异步生成文案
 """
 import json
 import random
 import os
 from typing import List, Dict, Optional
-from collections import defaultdict
+from collections import defaultdict, Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from database import execute_query
 from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
 from core.model_router import is_local_model, get_model_name
 import requests
 
-# ============ 创意主题词库（LLM 不可用时回退）============
+# ============ 创意主题词库（LLM 回退用）============
 CREATIVE_THEMES = [
     "街头光影", "城市律动", "暮色温柔", "晨曦微光", "静谧蓝调",
     "绿野仙踪", "暖阳午后", "暗夜星河", "秋日私语", "黑白之间",
     "冷暖人间", "极简主义", "光影交错", "烟火人间", "城市剪影",
     "水天一色", "山野闲趣", "夜色阑珊", "时光印记", "抽象几何",
     "微观世界", "金色年华", "雨后初晴", "冬日暖阳", "夏日记忆",
-    "春风拂面", "海岛风情", "城市天际", "巷弄深处", "窗外的世界",
-    "倒影之美", "对称美学", "流动的光", "材质之美", "色彩碰撞",
-    "留白艺术", "浓墨重彩", "清新淡雅", "万物有灵", "人间草木",
+    "春风拂面", "巷弄深处", "窗外的世界", "倒影之美", "对称美学",
+    "流动的光", "材质之美", "色彩碰撞", "留白艺术", "万物有灵",
+    "人间草木", "城市记忆", "慢生活", "日常的诗", "片刻永恒",
 ]
 
+PLACEHOLDER_TITLE = "⏳ 生成中..."
+
+# ==================== 分组（快速，无LLM） ====================
 
 def _get_export_images_with_tags() -> List[Dict]:
     """获取导出目录所有图片及其描述/标签"""
@@ -51,16 +54,13 @@ def _get_export_images_with_tags() -> List[Dict]:
 
 
 def _parse_tags(tags_str: str) -> List[str]:
-    """将标签字符串解析成标签列表，去重"""
     if not tags_str:
         return []
-    # 兼容英文逗号和中文逗号，去掉首尾空格
     raw = [t.strip() for t in tags_str.replace("，", ",").split(",")]
-    # 去重、去空、清理特殊字符
     seen = set()
     result = []
     for t in raw:
-        t = t.strip().strip("，, ")
+        t = t.strip()
         if not t or len(t) < 1 or t in seen:
             continue
         seen.add(t)
@@ -68,256 +68,233 @@ def _parse_tags(tags_str: str) -> List[str]:
     return result
 
 
-def _group_by_tags(images: List[Dict], target_per_collection: int = 12) -> List[Dict]:
-    """基于已有 tags 聚类：共享高频标签的照片聚为一组"""
-    # 1. 构建 tag → [image ids] 倒排索引
+def _group_images(images: List[Dict], target_count: int = 12) -> List[Dict]:
+    """主分组逻辑：标签聚类 + 创意主题随机补充"""
+    # 1. 标签倒排索引
     tag_to_ids = defaultdict(list)
     for img in images:
         tags = _parse_tags(img['tags'])
         for tag in tags:
             tag_to_ids[tag].append(img['id'])
 
-    # 2. 只保留涵盖 4~20 张的标签（不会太大也不会太小）
-    usable_tags = {tag: ids for tag, ids in tag_to_ids.items() if 4 <= len(ids) <= 20}
+    # 2. 有效标签（涵盖 4~15 张）
+    usable = {tag: ids for tag, ids in tag_to_ids.items() if 4 <= len(ids) <= 15}
 
-    # 3. 建立 id → 图片 map
     id_to_img = {img['id']: img for img in images}
-
-    # 4. 贪心分配：标记已用图片
     used_ids = set()
-    groups = []  # [(theme_name, [photos])]
+    groups = []
 
-    # 按覆盖图片数降序排列，优先用覆盖面大的标签
-    sorted_tags = sorted(usable_tags.items(), key=lambda x: -len(x[1]))
-    for tag, ids in sorted_tags:
+    # 3. 贪心取标签组
+    for tag, ids in sorted(usable.items(), key=lambda x: -len(x[1])):
         available = [iid for iid in ids if iid not in used_ids]
         if len(available) < 4:
             continue
-        # 最多取 target_per_collection 张
-        take = min(target_per_collection, len(available))
+        take = min(target_count, len(available))
         taken = available[:take]
         for tid in taken:
             used_ids.add(tid)
-        groups.append((tag, [id_to_img[tid] for tid in taken]))
+        groups.append({
+            "theme_type": "tag",
+            "theme_value": tag,
+            "photos": [id_to_img[tid] for tid in taken],
+        })
 
-    return groups
-
-
-def _randomly_partition_remaining(remaining: List[Dict], target_per_collection: int = 12) -> List[Dict]:
-    """将未被聚类的剩余图片随机分区，赋予创意主题"""
-    if not remaining:
-        return []
+    # 4. 剩余图片随机分区
+    remaining = [p for p in images if p['id'] not in used_ids]
     random.shuffle(remaining)
-    groups = []
-    theme_cycle = list(CREATIVE_THEMES)
-    random.shuffle(theme_cycle)
+    theme_pool = list(CREATIVE_THEMES)
+    random.shuffle(theme_pool)
 
     idx = 0
     while idx < len(remaining):
-        count = min(target_per_collection, len(remaining) - idx)
+        count = min(target_count, len(remaining) - idx)
         if count < 3:
             break
         chunk = remaining[idx:idx + count]
         idx += count
-        theme = theme_cycle.pop(0) if theme_cycle else "随拍合集"
-        groups.append((theme, chunk))
+        theme = theme_pool.pop(0) if theme_pool else "随拍"
+        groups.append({
+            "theme_type": "theme",
+            "theme_value": theme,
+            "photos": chunk,
+        })
 
+    random.shuffle(groups)
     return groups
 
 
-def _select_photos_for_collections(total_collections: int, target_per_collection: int = 12) -> List[Dict]:
-    """主入口：先用 tags 聚类，再用创意主题随机补充"""
-    images = _get_export_images_with_tags()
-    if not images:
-        return []
+# ==================== LLM 生成元数据（可并行） ====================
 
-    # 第一步：标签聚类
-    tag_groups = _group_by_tags(images, target_per_collection)
-    used_ids = set()
-    for _, photos in tag_groups:
-        for p in photos:
-            used_ids.add(p['id'])
-
-    print(f"[collection] tag groups: {len(tag_groups)} groups, {len(used_ids)} photos used")
-
-    # 第二步：剩余图片随机分区
-    remaining = [p for p in images if p['id'] not in used_ids]
-    random_groups = _randomly_partition_remaining(remaining, target_per_collection)
-    print(f"[collection] random groups: {len(random_groups)} groups")
-
-    # 合并，优先放 tag 组的
-    all_groups = []
-    for theme, photos in tag_groups:
-        all_groups.append({
-            "theme_type": "tag",
-            "theme_value": theme,
-            "photos": photos,
-        })
-    for theme, photos in random_groups:
-        all_groups.append({
-            "theme_type": "theme",
-            "theme_value": theme,
-            "photos": photos,
-        })
-
-    # 截取目标数量
-    random.shuffle(all_groups)
-    return all_groups[:total_collections]
-
-
-def _generate_collection_metadata(
-    photos: List[Dict],
-    theme_type: str,
-    theme_value: str,
-    collection_index: int,
-    llm_model: str = "local"
-) -> Dict:
-    """用 LLM 生成合集标题、文案、tags，或回退到已有标签"""
-    # 收集这批照片的已有描述和标签
-    existing_descs = []
-    existing_tags = []
+def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str, llm_model: str = "local") -> Dict:
+    """为单组合成元数据（可被并发调用）"""
+    # 收集共有标签和描述
+    all_tags = []
+    all_descs = []
     for p in photos:
-        if p.get('description'):
-            existing_descs.append(p['description'][:100])
-        if p.get('tags'):
-            parsed = _parse_tags(p['tags'])
-            existing_tags.extend(parsed)
+        all_tags.extend(_parse_tags(p.get('tags', '')))
+        desc = p.get('description', '')
+        if desc:
+            all_descs.append(desc[:150])
 
-    # 统计共同出现的标签
-    from collections import Counter
-    tag_counter = Counter(existing_tags)
-    common_tags = [t for t, c in tag_counter.most_common(8) if c >= 1]
+    tag_counter = Counter(all_tags)
+    common_tags = [t for t, _ in tag_counter.most_common(10)]
 
-    # ====== LLM 生成 ======
-    prompt_variants = [
-        f"""角色：抖音图集内容策划。
+    # 高权重标签（出现最多的）
+    top_tags = tag_counter.most_common(5)
+    top_tag_str = ", ".join(f"{t}({c}张)" for t, c in top_tags)
 
-这批照片共 {len(photos)} 张，核心主题标签是：{', '.join(common_tags[:5])}
+    # 拼摘要
+    desc_excerpts = all_descs[:6]
 
-已有描述片段（供参考风格）：
-{chr(10).join([f'- {d}' for d in existing_descs[:5]])}
+    prompt = f"""你是一个摄影集内容策划专家。这是【一组照片合集】，包含 {len(photos)} 张照片。
 
-请生成一组抖音图集文案，返回JSON（只返回JSON）：
+这些照片的共有标签（括号内为出现次数）：
+{top_tag_str}
+
+各照片描述摘要（供参考画面风格）：
+{chr(10).join(f"- {d}" for d in desc_excerpts)}
+
+⚠️ 这是【一组照片的合集】，不是单张照片！
+请根据这些照片的【共同视觉特征、整体氛围、给人带来的情绪感受】来创作。
+
+要求：
+1. 标题：15字以内，有画面感、有情绪，不要只写"风景"、"蓝色"等单一标签词
+2. 文案：60字以内，描述这组照片【整体给人什么感觉、什么情绪价值】，不要只说某张照片的内容
+3. tags：5个话题标签，空格分隔，以#开头
+
+返回JSON（只返回JSON，不要多余文字）：
 {{{{
-    "title": "合集标题（15字以内，简洁有吸引力，贴合标签）",
-    "description": "文案（80字以内，文艺/治愈/生活化风格，带适当emoji）",
-    "tags": "5个话题标签，空格分隔，以#开头"
-}}}}""",
-        f"""照片主题：{theme_value if theme_type == 'tag' else '创意摄影'}
-图片数量：{len(photos)} 张
-常见标签：{', '.join(common_tags[:5])}
-
-请创作抖音图集内容（只返回JSON，不要多余文字）：
-{{{{
-    "title": "标题（15字内）",
-    "description": "文案（80字内，有温度）",
+    "title": "合集标题",
+    "description": "整体文案",
     "tags": "#标签1 #标签2 #标签3 #标签4 #标签5"
-}}}}""",
-    ]
+}}}}"""
 
-    prompt = prompt_variants[collection_index % len(prompt_variants)]
-
+    # 尝试 LLM
     try:
         messages = [{"role": "user", "content": prompt}]
         if is_local_model(llm_model):
             api_url = f"{LOCAL_LLM_API}/v1/chat/completions"
             model_name = get_model_name(llm_model)
             payload = {
-                "model": model_name,
-                "messages": messages,
-                "max_tokens": 1024,
-                "temperature": 0.8 + (collection_index % 3) * 0.05,
+                "model": model_name, "messages": messages,
+                "max_tokens": 1024, "temperature": 0.9,
             }
             headers = {}
         else:
             api_url = MINIMAX_API_URL
             payload = {
-                "model": "MiniMax-M2.7",
-                "messages": messages,
-                "max_tokens": 1024,
-                "temperature": 0.8 + (collection_index % 3) * 0.05,
+                "model": "MiniMax-M2.7", "messages": messages,
+                "max_tokens": 1024, "temperature": 0.9,
             }
-            headers = {
-                "Authorization": f"Bearer {MINIMAX_API_KEY}",
-                "Content-Type": "application/json",
-            }
+            headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
 
         response = requests.post(api_url, json=payload, headers=headers, timeout=120)
         response.raise_for_status()
         content = response.json()["choices"][0]["message"]["content"]
-
         json_start = content.find("{")
         json_end = content.rfind("}") + 1
         if json_start >= 0 and json_end > json_start:
             data = json.loads(content[json_start:json_end])
             return {
-                "title": data.get("title", f"📸 {theme_value}"),
-                "description": data.get("description", ""),
-                "tags": data.get("tags", f"#{' #'.join(common_tags[:5])}"),
+                "title": data.get("title", "").strip(),
+                "description": data.get("description", "").strip(),
+                "tags": data.get("tags", "").strip(),
             }
     except Exception as e:
-        print(f"[collection] LLM error: {e}")
+        print(f"[collection] LLM meta error for group: {e}")
 
-    # ====== 回退：用已有标签生成 ======
-    fallback_title = common_tags[0] if common_tags else theme_value
-    fallback_tags = " ".join(f"#{t}" for t in common_tags[:5]) if common_tags else f"#{theme_value} #摄影 #记录生活"
-    fallback_desc = f"一组关于{fallback_title}的照片记录 📸"
-    if existing_descs:
-        fallback_desc = random.choice(existing_descs)[:80] + " 📸"
+    # 回退：基于共有标签生成
+    ct = common_tags[:3]
+    if not ct:
+        ct = [theme_value]
+    fallback_title = " · ".join(ct)
+    fallback_desc = f"一组关于{ct[0]}的照片，记录生活中的光影与情绪 📸"
+    if all_descs:
+        # 从现有描述中合成
+        keywords = []
+        for d in all_descs:
+            for word in ["温暖", "宁静", "治愈", "清新", "梦幻", "浪漫", "复古", "生动", "平和", "诗意"]:
+                if word in d and word not in keywords:
+                    keywords.append(word)
+        if keywords:
+            fallback_desc = f"一组{ct[0]}风格的照片，{'、'.join(keywords[:3])}，感受此刻的美好 ✨"
 
     return {
-        "title": f"📸 {fallback_title}" if not fallback_title.startswith("📸") else fallback_title,
+        "title": fallback_title,
         "description": fallback_desc,
-        "tags": fallback_tags,
+        "tags": " ".join(f"#{t}" for t in ct[:5]) if ct else f"#{theme_value} #摄影 #记录生活",
     }
 
 
+# ==================== 对外接口 ====================
+
 def batch_generate_collections(count: int = 20, llm_model: str = "local") -> List[Dict]:
-    """批量生成多个不同的合集，全部入库"""
-    collections_data = _select_photos_for_collections(total_collections=count, target_per_collection=12)
-    if not collections_data:
+    """
+    1. 快速分组（无LLM）
+    2. 入库（带占位文案）
+    3. 异步生成真正文案（并行）
+    4. 返回结果（第一批用占位文案，后续异步更新）
+    """
+    images = _get_export_images_with_tags()
+    if not images:
         return []
 
+    # 1. 分组
+    groups = _group_images(images)[:count]
+    if not groups:
+        return []
+
+    # 2. 先全部插入 DB（占位）
     results = []
-    for i, data in enumerate(collections_data):
-        photos = data["photos"]
-        if not photos:
-            continue
-
-        meta = _generate_collection_metadata(
-            photos, data["theme_type"], data["theme_value"], i, llm_model
-        )
-
+    for g in groups:
+        photos = g["photos"]
         cover_path = photos[0]["file_path"]
         photo_paths = [p["file_path"] for p in photos]
         photo_ids = [p["id"] for p in photos]
 
         sql = """
             INSERT INTO photo_collections 
-                (title, description, tags, theme_type, theme_value, 
+                (title, description, tags, theme_type, theme_value,
                  photo_paths, photo_ids, cover_path, llm_model)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        collection_id = execute_query(sql, (
-            meta["title"], meta["description"], meta["tags"],
-            data["theme_type"], data["theme_value"],
+        cid = execute_query(sql, (
+            PLACEHOLDER_TITLE, "文案生成中...", "#摄影 #记录生活",
+            g["theme_type"], g["theme_value"],
             json.dumps(photo_paths), json.dumps(photo_ids),
             cover_path, llm_model,
         ), fetch=False)
 
         results.append({
-            "id": collection_id,
-            "title": meta["title"],
-            "description": meta["description"],
-            "tags": meta["tags"],
-            "theme_type": data["theme_type"],
-            "theme_value": data["theme_value"],
+            "id": cid,
+            "title": PLACEHOLDER_TITLE,
+            "description": "文案生成中...",
+            "tags": "#摄影 #记录生活",
+            "theme_type": g["theme_type"],
+            "theme_value": g["theme_value"],
             "photo_paths": photo_paths,
             "photo_ids": photo_ids,
             "cover_path": cover_path,
             "photo_count": len(photos),
             "is_favorite": False,
         })
+
+    # 3. 异步并行生成文案（后台线程）
+    def update_meta(cid, photos, theme_type, theme_value, model):
+        try:
+            meta = _generate_meta_for_one(photos, theme_type, theme_value, model)
+            execute_query(
+                "UPDATE photo_collections SET title=%s, description=%s, tags=%s WHERE id=%s",
+                (meta["title"], meta["description"], meta["tags"], cid),
+                fetch=False
+            )
+            print(f"[collection] meta updated for #{cid}: {meta['title']}")
+        except Exception as e:
+            print(f"[collection] async meta error #{cid}: {e}")
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        for r, g in zip(results, groups):
+            pool.submit(update_meta, r["id"], g["photos"], g["theme_type"], g["theme_value"], llm_model)
 
     return results
 
@@ -340,32 +317,23 @@ def get_collections(page: int = 1, page_size: int = 20, favorite_only: bool = Fa
 
     collections = []
     for row in rows:
-        collections.append({
-            "id": row["id"],
-            "title": row["title"],
-            "description": row["description"],
-            "tags": row["tags"],
-            "theme_type": row["theme_type"],
-            "theme_value": row["theme_value"],
-            "photo_paths": json.loads(row["photo_paths"]) if isinstance(row["photo_paths"], str) else row["photo_paths"],
-            "photo_ids": json.loads(row["photo_ids"]) if isinstance(row["photo_ids"], str) else row["photo_ids"],
-            "cover_path": row["cover_path"],
-            "photo_count": len(json.loads(row["photo_paths"])) if isinstance(row["photo_paths"], str) else len(row["photo_paths"]),
-            "is_favorite": bool(row["is_favorite"]),
-            "created_at": str(row["created_at"]) if row["created_at"] else None,
-        })
+        collections.append(_row_to_dict(row))
 
     return {"collections": collections, "total": total, "page": page, "page_size": page_size}
 
 
 def get_collection_detail(collection_id: int) -> Optional[Dict]:
-    """获取单个合集详情"""
-    rows = execute_query(
-        "SELECT * FROM photo_collections WHERE id = %s", (collection_id,)
-    )
+    rows = execute_query("SELECT * FROM photo_collections WHERE id = %s", (collection_id,))
     if not rows:
         return None
-    row = rows[0]
+    return _row_to_dict(rows[0])
+
+
+def _row_to_dict(row) -> Dict:
+    paths = row["photo_paths"]
+    ids = row["photo_ids"]
+    photo_paths = json.loads(paths) if isinstance(paths, str) else paths
+    photo_ids = json.loads(ids) if isinstance(ids, str) else ids
     return {
         "id": row["id"],
         "title": row["title"],
@@ -373,17 +341,16 @@ def get_collection_detail(collection_id: int) -> Optional[Dict]:
         "tags": row["tags"],
         "theme_type": row["theme_type"],
         "theme_value": row["theme_value"],
-        "photo_paths": json.loads(row["photo_paths"]) if isinstance(row["photo_paths"], str) else row["photo_paths"],
-        "photo_ids": json.loads(row["photo_ids"]) if isinstance(row["photo_ids"], str) else row["photo_ids"],
+        "photo_paths": photo_paths,
+        "photo_ids": photo_ids,
         "cover_path": row["cover_path"],
-        "photo_count": len(json.loads(row["photo_paths"])) if isinstance(row["photo_paths"], str) else len(row["photo_paths"]),
+        "photo_count": len(photo_paths),
         "is_favorite": bool(row["is_favorite"]),
         "created_at": str(row["created_at"]) if row["created_at"] else None,
     }
 
 
 def toggle_favorite(collection_id: int) -> Dict:
-    """切换收藏状态"""
     rows = execute_query("SELECT is_favorite FROM photo_collections WHERE id = %s", (collection_id,))
     if not rows:
         return {"success": False, "error": "合集不存在"}
@@ -393,13 +360,10 @@ def toggle_favorite(collection_id: int) -> Dict:
 
 
 def delete_collection(collection_id: int) -> Dict:
-    """删除合集"""
     execute_query("DELETE FROM photo_collections WHERE id = %s", (collection_id,), fetch=False)
     return {"success": True}
 
 
-# ---------- cleanup ----------
 def clear_all_collections() -> Dict:
-    """清空所有合集（方便重新生成）"""
     execute_query("DELETE FROM photo_collections", fetch=False)
     return {"success": True, "message": "已清空所有合集"}

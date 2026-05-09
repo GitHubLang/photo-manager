@@ -5,15 +5,8 @@ import { generateCollections, fetchCollections, toggleCollectionFavorite, getPro
 import { fetchSettings } from '../api/imageApi';
 
 const { Text } = Typography;
+const PLACEHOLDER = '⏳ 生成中...';
 
-/**
- * 抖音图集风格照片合集页面
- * - 竖向滑动切换合集（上滑下一个 / 下滑上一个）
- * - 横向滑动切换合集内照片
- * - 自动轮播（3秒）
- * - 收藏功能
- * - 醒目照片序号浮层
- */
 export default function CollectionPage({ isMobile, onBack }) {
   const [collections, setCollections] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -27,35 +20,64 @@ export default function CollectionPage({ isMobile, onBack }) {
   const containerRef = useRef(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
   const initializedRef = useRef(false);
+  const pollRef = useRef(null);
 
-  // 加载设置中的 LLM 模型
+  // 加载设定
   useEffect(() => {
     fetchSettings()
-      .then(data => {
-        if (data.caption_llm_model) setLlmModel(data.caption_llm_model);
-      })
+      .then(data => { if (data.caption_llm_model) setLlmModel(data.caption_llm_model); })
       .catch(() => {});
   }, []);
 
-  // 生成合集（清空旧的再生成）
-  const handleGenerate = useCallback(async (model) => {
+  // 检查是否有合集还在"生成中"，有则轮询
+  const hasPlaceholder = useCallback((cols) => {
+    return cols.some(c => c.title === PLACEHOLDER);
+  }, []);
+
+  // 刷新合集列表（用于轮询）
+  const refreshFromServer = useCallback(async () => {
+    try {
+      const data = await fetchCollections(1, 50, favoriteOnly);
+      if (data.collections) {
+        setCollections(data.collections);
+        return data.collections;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }, [favoriteOnly]);
+
+  // 轮询效果：当有合集仍在"生成中"时，每3秒刷新
+  useEffect(() => {
+    if (collections.length > 0 && hasPlaceholder(collections)) {
+      pollRef.current = setInterval(async () => {
+        const updated = await refreshFromServer();
+        if (updated && !hasPlaceholder(updated)) {
+          clearInterval(pollRef.current);
+        }
+      }, 3000);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [collections, hasPlaceholder, refreshFromServer]);
+
+  // 生成合集
+  const handleGenerate = useCallback(async () => {
     setGenerating(true);
     setLoading(true);
     try {
-      // 先清空旧的
       await clearAllCollections();
-      // 再生成新的
-      const data = await generateCollections(20, model || llmModel);
+      const data = await generateCollections(20, llmModel);
       if (data.success && data.collections && data.collections.length > 0) {
         setCollections(data.collections);
         setCurrentIndex(0);
         setPhotoIndex(0);
-        message.success(`生成了 ${data.collections.length} 个合集`);
+        message.success(`生成了 ${data.collections.length} 个合集（文案后台生成中...）`);
       } else {
         message.error('生成失败');
       }
     } catch (err) {
-      console.error('生成合集失败:', err);
+      console.error(err);
       message.error('生成请求失败');
     } finally {
       setGenerating(false);
@@ -71,7 +93,7 @@ export default function CollectionPage({ isMobile, onBack }) {
     }
   }, [favoriteOnly, handleGenerate]);
 
-  // 收藏模式：从数据库加载
+  // 收藏模式下加载
   useEffect(() => {
     if (favoriteOnly) {
       setLoading(true);
@@ -99,97 +121,54 @@ export default function CollectionPage({ isMobile, onBack }) {
         setPhotoIndex(prev => (prev + 1) % photos.length);
       }, 3000);
     }
-    return () => {
-      if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-    };
+    return () => { if (autoPlayRef.current) clearInterval(autoPlayRef.current); };
   }, [autoPlay, currentIndex, collections]);
 
   // 切换合集
   const goToPrevCollection = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      setPhotoIndex(0);
-    }
+    if (currentIndex > 0) { setCurrentIndex(prev => prev - 1); setPhotoIndex(0); }
   }, [currentIndex]);
-
   const goToNextCollection = useCallback(() => {
-    if (currentIndex < collections.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setPhotoIndex(0);
-    }
+    if (currentIndex < collections.length - 1) { setCurrentIndex(prev => prev + 1); setPhotoIndex(0); }
   }, [currentIndex, collections.length]);
 
-  // 横向切换照片
   const nextPhoto = useCallback(() => {
     const photos = collections[currentIndex]?.photo_paths || [];
-    if (photos.length > 1) {
-      setPhotoIndex(prev => (prev + 1) % photos.length);
-      setAutoPlay(false);
-      setTimeout(() => setAutoPlay(true), 5000);
-    }
+    if (photos.length > 1) { setPhotoIndex(prev => (prev + 1) % photos.length); setAutoPlay(false); setTimeout(() => setAutoPlay(true), 5000); }
   }, [currentIndex, collections]);
-
   const prevPhoto = useCallback(() => {
     const photos = collections[currentIndex]?.photo_paths || [];
-    if (photos.length > 1) {
-      setPhotoIndex(prev => (prev - 1 + photos.length) % photos.length);
-      setAutoPlay(false);
-      setTimeout(() => setAutoPlay(true), 5000);
-    }
+    if (photos.length > 1) { setPhotoIndex(prev => (prev - 1 + photos.length) % photos.length); setAutoPlay(false); setTimeout(() => setAutoPlay(true), 5000); }
   }, [currentIndex, collections]);
 
-  // 收藏
   const handleFavorite = async (e) => {
     e.stopPropagation();
     const col = collections[currentIndex];
     if (!col) return;
-    try {
-      const data = await toggleCollectionFavorite(col.id);
-      if (data.success) {
-        const newCols = [...collections];
-        newCols[currentIndex] = { ...newCols[currentIndex], is_favorite: data.is_favorite };
-        setCollections(newCols);
-        message.success(data.is_favorite ? '已收藏' : '已取消收藏');
-      }
-    } catch (err) {
-      message.error('操作失败');
+    const data = await toggleCollectionFavorite(col.id);
+    if (data.success) {
+      const newCols = [...collections];
+      newCols[currentIndex] = { ...newCols[currentIndex], is_favorite: data.is_favorite };
+      setCollections(newCols);
+      message.success(data.is_favorite ? '已收藏' : '已取消收藏');
     }
   };
 
-  // 触摸事件
-  const handleTouchStart = (e) => {
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-
+  // 触摸
+  const handleTouchStart = (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
   const handleTouchEnd = (e) => {
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const deltaX = endX - touchStartRef.current.x;
-    const deltaY = endY - touchStartRef.current.y;
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-    if (Math.max(absX, absY) < 50) return;
-    if (absY > absX) {
-      if (deltaY < 0) goToNextCollection();
-      else goToPrevCollection();
-    } else {
-      if (deltaX < 0) nextPhoto();
-      else prevPhoto();
-    }
+    const endX = e.changedTouches[0].clientX, endY = e.changedTouches[0].clientY;
+    const dx = endX - touchStartRef.current.x, dy = endY - touchStartRef.current.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 50) return;
+    if (Math.abs(dy) > Math.abs(dx)) { dy < 0 ? goToNextCollection() : goToPrevCollection(); }
+    else { dx < 0 ? nextPhoto() : prevPhoto(); }
   };
-
   const handleWheel = (e) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      if (e.deltaX > 0) nextPhoto();
-      else prevPhoto();
-    } else {
-      if (e.deltaY > 0) goToNextCollection();
-      else goToPrevCollection();
-    }
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { e.deltaX > 0 ? nextPhoto() : prevPhoto(); }
+    else { e.deltaY > 0 ? goToNextCollection() : goToPrevCollection(); }
   };
-
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const h = (e) => {
       switch (e.key) {
         case 'ArrowDown': goToNextCollection(); break;
         case 'ArrowUp': goToPrevCollection(); break;
@@ -197,11 +176,12 @@ export default function CollectionPage({ isMobile, onBack }) {
         case 'ArrowLeft': prevPhoto(); break;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
   }, [goToNextCollection, goToPrevCollection, nextPhoto, prevPhoto]);
 
-  // 加载中
+  // ==== 渲染 ====
+
   if (loading && collections.length === 0) {
     return (
       <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff' }}>
@@ -216,9 +196,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff' }}>
         <Empty description={<Text style={{ color: '#999' }}>还没有照片合集</Text>} />
         <Button type="primary" size="large" onClick={handleGenerate} loading={generating}
-          style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px' }}>
-          生成合集
-        </Button>
+          style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px' }}>生成合集</Button>
       </div>
     );
   }
@@ -236,6 +214,7 @@ export default function CollectionPage({ isMobile, onBack }) {
   const photos = currentCollection.photo_paths || [];
   const currentPhoto = photos[photoIndex];
   const isFav = currentCollection.is_favorite;
+  const isPlaceholder = currentCollection.title === PLACEHOLDER;
 
   return (
     <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
@@ -260,45 +239,19 @@ export default function CollectionPage({ isMobile, onBack }) {
         )}
       </div>
 
-      {/* ====== 醒目的照片序号浮层 ====== */}
+      {/* 照片序号浮层 */}
       {photos.length > 1 && (
-        <div style={{
-          position: 'absolute',
-          top: isMobile ? 100 : 80,
-          right: 16,
-          background: 'rgba(0,0,0,0.55)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          borderRadius: 20,
-          padding: '6px 14px',
-          zIndex: 15,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>
-            {photoIndex + 1}
-          </Text>
-          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-            / {photos.length}
-          </Text>
+        <div style={{ position: 'absolute', top: isMobile ? 100 : 80, right: 16, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderRadius: 20, padding: '6px 14px', zIndex: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>{photoIndex + 1}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>/ {photos.length}</Text>
         </div>
       )}
 
-      {/* 顶部信息 */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0,
-        padding: isMobile ? '40px 16px 16px' : '20px 24px',
-        background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
-        zIndex: 10,
-      }}>
+      {/* 顶部 */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: isMobile ? '40px 16px 16px' : '20px 24px', background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%)', zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <Button type="text" icon={<LeftOutlined />} onClick={onBack} style={{ color: '#fff', fontSize: 18 }}>返回</Button>
-
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
-            合集 {currentIndex + 1} / {collections.length}
-          </Text>
-
+          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>合集 {currentIndex + 1} / {collections.length}</Text>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button type={favoriteOnly ? 'primary' : 'default'} size="small" ghost={!favoriteOnly}
               onClick={() => setFavoriteOnly(prev => !prev)}
@@ -306,71 +259,46 @@ export default function CollectionPage({ isMobile, onBack }) {
               {favoriteOnly ? '❤️ 收藏' : '收藏'}
             </Button>
             <Button size="small" ghost onClick={handleGenerate} loading={generating}
-              style={{ borderRadius: 20, fontSize: 12, color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>
-              刷新
-            </Button>
+              style={{ borderRadius: 20, fontSize: 12, color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>刷新</Button>
           </div>
         </div>
 
         <Text style={{ color: '#fff', fontSize: 22, fontWeight: 700, display: 'block', textShadow: '0 2px 8px rgba(0,0,0,0.5)', lineHeight: 1.3 }}>
-          {currentCollection.title}
+          {isPlaceholder ? (
+            <>
+              <Spin indicator={<LoadingOutlined style={{ fontSize: 18, color: '#fff' }} spin />} />
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, marginLeft: 8 }}>文案生成中...</Text>
+            </>
+          ) : currentCollection.title}
         </Text>
 
-        {currentCollection.tags && (
+        {currentCollection.tags && !isPlaceholder && (
           <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {currentCollection.tags.split(' ').filter(Boolean).slice(0, 5).map((tag, i) => (
-              <span key={i} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, background: 'rgba(255,255,255,0.15)', padding: '2px 10px', borderRadius: 12 }}>
-                {tag}
-              </span>
+              <span key={i} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, background: 'rgba(255,255,255,0.15)', padding: '2px 10px', borderRadius: 12 }}>{tag}</span>
             ))}
           </div>
         )}
       </div>
 
-      {/* 底部进度条（独立层，始终在最底部可见） */}
+      {/* 底部进度条 */}
       {photos.length > 1 && (
-        <div style={{
-          position: 'absolute',
-          bottom: isMobile ? 72 : 32,
-          left: 0, right: 0,
-          display: 'flex',
-          gap: 4,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '6px 0',
-          zIndex: 15,
-        }}>
+        <div style={{ position: 'absolute', bottom: isMobile ? 72 : 32, left: 0, right: 0, display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center', padding: '6px 0', zIndex: 15 }}>
           {photos.slice(0, Math.min(photos.length, 15)).map((_, i) => (
-            <div key={i} style={{
-              flex: 1,
-              maxWidth: 28,
-              height: i === photoIndex ? 4 : 3,
-              borderRadius: 3,
-              background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.35)',
-              transition: 'all 0.3s ease',
-              boxShadow: i === photoIndex ? '0 0 6px rgba(255,255,255,0.4)' : 'none',
-            }} />
+            <div key={i} style={{ flex: 1, maxWidth: 28, height: i === photoIndex ? 4 : 3, borderRadius: 3, background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.3s ease', boxShadow: i === photoIndex ? '0 0 6px rgba(255,255,255,0.4)' : 'none' }} />
           ))}
-          {photos.length > 15 && (
-            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 2 }}>+{photos.length - 15}</Text>
-          )}
+          {photos.length > 15 && <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 2 }}>+{photos.length - 15}</Text>}
         </div>
       )}
 
       {/* 底部文案 */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: isMobile ? '100px 16px 72px' : '80px 24px 56px',
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}>
-        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.6, display: 'block', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
-          {currentCollection.description}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: isMobile ? '100px 16px 72px' : '80px 24px 56px', background: 'linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)', zIndex: 10, pointerEvents: 'none' }}>
+        <Text style={{ color: isPlaceholder ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.6, display: 'block', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+          {isPlaceholder ? '正在为这组合成文案，稍后自动更新...' : currentCollection.description}
         </Text>
       </div>
 
-      {/* 右侧收藏 */}
+      {/* 收藏 */}
       <div style={{ position: 'absolute', right: 16, bottom: isMobile ? 160 : 100, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
         <Button type="text"
           icon={isFav ? <HeartFilled style={{ color: '#ff4d4f', fontSize: 28 }} /> : <HeartOutlined style={{ color: '#fff', fontSize: 28 }} />}
