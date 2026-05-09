@@ -203,21 +203,50 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
     except Exception as e:
         print(f"[collection] LLM meta error for group: {e}")
 
-    # 回退：基于共有标签生成
+    # 回退：基于描述内容生成有创意的标题和文案
     ct = common_tags[:3]
     if not ct:
         ct = [theme_value]
-    fallback_title = " · ".join(ct)
-    fallback_desc = f"一组关于{ct[0]}的照片，记录生活中的光影与情绪 📸"
-    if all_descs:
-        # 从现有描述中合成
-        keywords = []
-        for d in all_descs:
-            for word in ["温暖", "宁静", "治愈", "清新", "梦幻", "浪漫", "复古", "生动", "平和", "诗意"]:
-                if word in d and word not in keywords:
-                    keywords.append(word)
-        if keywords:
-            fallback_desc = f"一组{ct[0]}风格的照片，{'、'.join(keywords[:3])}，感受此刻的美好 ✨"
+
+    # 从描述中提取关键词用于标题
+    desc_text = " ".join(all_descs[:6])
+    desc_keywords = []
+    for word in ["温暖", "宁静", "治愈", "清新", "梦幻", "浪漫", "复古", "生动",
+                 "平和", "诗意", "壮丽", "神秘", "活泼", "慵懒", "温柔", "深邃",
+                 "灿烂", "素雅", "繁华", "寂寥", "热闹", "静谧", "通透", "朦胧"]:
+        if word in desc_text and word not in desc_keywords:
+            desc_keywords.append(word)
+
+    # 场景/类型关键词
+    scene_words = []
+    for word in ["城市", "街道", "建筑", "自然", "风景", "人像", "街拍", "夜景",
+                 "旅行", "日常", "花卉", "美食", "动物", "天空", "水面", "光影",
+                 "夕阳", "清晨", "午后", "夜晚", "室内", "户外", "公园", "海边"]:
+        if word in desc_text and word not in scene_words:
+            scene_words.append(word)
+
+    if desc_keywords:
+        mood = desc_keywords[0]
+        scene = scene_words[0] if scene_words else ""
+        if scene:
+            fallback_title = f"{mood}的{scene}"
+        else:
+            fallback_title = f"{mood}时刻"
+    elif scene_words:
+        fallback_title = scene_words[0]
+    else:
+        fallback_title = theme_value
+
+    # 文案：从描述中提取情绪
+    if desc_keywords:
+        keyword_str = "、".join(desc_keywords[:3])
+        fallback_desc = f"{keyword_str}，一切刚刚好。用镜头记录下此刻的感受 ✨"
+        if scene_words:
+            fallback_desc = f"关于{scene_words[0]}的{desc_keywords[0]}记忆，{keyword_str}，一切都刚刚好 ✨"
+    elif scene_words:
+        fallback_desc = f"在{scene_words[0]}中捕捉生活的美好瞬间 📸"
+    else:
+        fallback_desc = f"记录生活中的光影与情绪 📸"
 
     return {
         "title": fallback_title,
@@ -292,7 +321,7 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
         except Exception as e:
             print(f"[collection] async meta error #{cid}: {e}")
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         for r, g in zip(results, groups):
             pool.submit(update_meta, r["id"], g["photos"], g["theme_type"], g["theme_value"], llm_model)
 

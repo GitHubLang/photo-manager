@@ -281,40 +281,39 @@ export default function CollectionPage({ isMobile, onBack }) {
         )}
       </div>
 
-      {/* 底部统一叠加层：进度条 + 文案 */}
+      {/* 底部统一叠加层：进度条 + 文案 — 使用纯 div 避开 antd Typography 的 CSS 干扰 */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: isMobile ? '140px 16px 24px' : '120px 24px 20px',
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)',
+        padding: isMobile ? '120px 16px 20px' : '100px 24px 16px',
+        background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 55%, transparent 100%)',
         zIndex: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
       }}>
-        {/* 文案（在上方，有留白） */}
-        <div style={{ marginBottom: isMobile ? 36 : 28 }}>
-          <Text style={{
-            color: isPlaceholder ? 'rgba(255,255,255,0.5)' : '#fff',
-            fontSize: isMobile ? 13 : 14,
-            lineHeight: 1.6,
-            display: 'block',
-            textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          }}>
-            {isPlaceholder ? '正在生成文案，稍后自动更新...' : currentCollection.description}
-          </Text>
+        {/* 文案 — 纯 div，不用 antd Text */}
+        <div style={{
+          color: isPlaceholder ? 'rgba(255,255,255,0.5)' : '#fff',
+          fontSize: isMobile ? 13 : 14,
+          lineHeight: 1.6,
+          textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        }}>
+          {isPlaceholder ? '正在生成文案，稍后自动更新...' : currentCollection.description}
         </div>
 
-        {/* 进度条（在底部） */}
+        {/* 进度条 */}
         {photos.length > 1 && (
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
             {photos.slice(0, Math.min(photos.length, 15)).map((_, i) => (
               <div key={i} style={{
-                flex: 1, maxWidth: 28, height: i === photoIndex ? 5 : 3,
+                flex: 1, maxWidth: 24, height: i === photoIndex ? 5 : 3,
                 borderRadius: 3,
                 background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.4)',
                 transition: 'all 0.3s ease',
-                boxShadow: i === photoIndex ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
               }} />
             ))}
             {photos.length > 15 && (
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>+{photos.length - 15}</Text>
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>+{photos.length - 15}</span>
             )}
           </div>
         )}
