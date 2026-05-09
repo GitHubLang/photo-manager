@@ -6,12 +6,12 @@ from typing import Optional
 from pydantic import BaseModel
 
 from services.collection_service import (
-    create_collection,
     batch_generate_collections,
     get_collections,
     get_collection_detail,
     toggle_favorite,
     delete_collection,
+    clear_all_collections,
 )
 
 router = APIRouter(prefix="/api", tags=["collections"])
@@ -59,3 +59,9 @@ def api_toggle_favorite(collection_id: int):
 def api_delete_collection(collection_id: int):
     """删除合集"""
     return delete_collection(collection_id)
+
+
+@router.post("/collections/clear")
+def api_clear_collections():
+    """清空所有合集（方便重新生成）"""
+    return clear_all_collections()

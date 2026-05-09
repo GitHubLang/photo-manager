@@ -149,6 +149,9 @@ export const toggleCollectionFavorite = (id) =>
 export const deleteCollection = (id) =>
   fetch(API_BASE + '/collections/' + id, { method: 'DELETE' }).then(r => r.json());
 
+export const clearAllCollections = () =>
+  fetch(API_BASE + '/collections/clear', { method: 'POST' }).then(r => r.json());
+
 // ============ 图片代理/缩略图 ============
 export const getThumbnailUrl = (filePath, size = 400) =>
   API_BASE + '/image/thumbnail/' + encodeURIComponent(filePath) + '?size=' + size;
