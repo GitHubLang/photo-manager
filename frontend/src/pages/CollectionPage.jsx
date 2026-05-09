@@ -281,42 +281,49 @@ export default function CollectionPage({ isMobile, onBack }) {
         )}
       </div>
 
-      {/* 底部统一叠加层：进度条 + 文案 — 使用纯 div 避开 antd Typography 的 CSS 干扰 */}
+      {/* 底部文案（恢复第一版样式） */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: isMobile ? '120px 16px 20px' : '100px 24px 16px',
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 55%, transparent 100%)',
-        zIndex: 12,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
+        position: 'absolute',
+        bottom: isMobile ? 80 : 40,
+        left: 0, right: 0,
+        padding: '32px 16px 16px',
+        background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
+        zIndex: 10,
       }}>
-        {/* 文案 — 纯 div，不用 antd Text */}
-        <div style={{
-          color: isPlaceholder ? 'rgba(255,255,255,0.5)' : '#fff',
-          fontSize: isMobile ? 13 : 14,
-          lineHeight: 1.6,
-          textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        <Text style={{
+          color: isPlaceholder ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.85)',
+          fontSize: 14,
+          lineHeight: 1.5,
+          display: 'block',
+          textShadow: '0 1px 4px rgba(0,0,0,0.3)',
         }}>
-          {isPlaceholder ? '正在生成文案，稍后自动更新...' : currentCollection.description}
-        </div>
+          {isPlaceholder ? '正在生成文案...' : currentCollection.description}
+        </Text>
 
-        {/* 进度条 */}
+        {/* 照片进度指示器 */}
         {photos.length > 1 && (
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'center' }}>
-            {photos.slice(0, Math.min(photos.length, 15)).map((_, i) => (
+          <div style={{ display: 'flex', gap: 3, marginTop: 10, justifyContent: 'center' }}>
+            {photos.slice(0, Math.min(photos.length, 12)).map((_, i) => (
               <div key={i} style={{
-                flex: 1, maxWidth: 24, height: i === photoIndex ? 5 : 3,
-                borderRadius: 3,
-                background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.4)',
-                transition: 'all 0.3s ease',
+                width: `${Math.max(4, 80 / Math.min(photos.length, 12))}px`,
+                height: 3,
+                borderRadius: 2,
+                background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.3)',
+                transition: 'background 0.3s',
               }} />
             ))}
-            {photos.length > 15 && (
-              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>+{photos.length - 15}</span>
+            {photos.length > 12 && (
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 4 }}>+{photos.length - 12}</Text>
             )}
           </div>
         )}
+
+        {/* 照片序号 */}
+        <div style={{ textAlign: 'center', marginTop: 6 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+            {photoIndex + 1} / {photos.length}
+          </Text>
+        </div>
       </div>
 
       {/* 收藏 */}

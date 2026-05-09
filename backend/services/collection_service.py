@@ -6,7 +6,7 @@ import random
 import os
 from typing import List, Dict, Optional
 from collections import defaultdict, Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 from database import execute_query
 from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
@@ -203,50 +203,47 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
     except Exception as e:
         print(f"[collection] LLM meta error for group: {e}")
 
-    # 回退：基于描述内容生成有创意的标题和文案
+    # 回退：用精心准备的标题库做有质感的回退
     ct = common_tags[:3]
     if not ct:
         ct = [theme_value]
 
-    # 从描述中提取关键词用于标题
+    # 提取场景关键词
     desc_text = " ".join(all_descs[:6])
-    desc_keywords = []
-    for word in ["温暖", "宁静", "治愈", "清新", "梦幻", "浪漫", "复古", "生动",
-                 "平和", "诗意", "壮丽", "神秘", "活泼", "慵懒", "温柔", "深邃",
-                 "灿烂", "素雅", "繁华", "寂寥", "热闹", "静谧", "通透", "朦胧"]:
-        if word in desc_text and word not in desc_keywords:
-            desc_keywords.append(word)
+    scene_hints = []
+    for w in ["城市", "街道", "夜景", "建筑", "自然", "风景", "人像", "旅行",
+              "日常", "花卉", "天空", "光影", "夕阳", "清晨", "午后", "夜晚"]:
+        if w in desc_text and w not in scene_hints:
+            scene_hints.append(w)
 
-    # 场景/类型关键词
-    scene_words = []
-    for word in ["城市", "街道", "建筑", "自然", "风景", "人像", "街拍", "夜景",
-                 "旅行", "日常", "花卉", "美食", "动物", "天空", "水面", "光影",
-                 "夕阳", "清晨", "午后", "夜晚", "室内", "户外", "公园", "海边"]:
-        if word in desc_text and word not in scene_words:
-            scene_words.append(word)
+    scene = scene_hints[0] if scene_hints else ""
 
-    if desc_keywords:
-        mood = desc_keywords[0]
-        scene = scene_words[0] if scene_words else ""
-        if scene:
-            fallback_title = f"{mood}的{scene}"
-        else:
-            fallback_title = f"{mood}时刻"
-    elif scene_words:
-        fallback_title = scene_words[0]
+    # 精选标题库，轮换使用
+    FALLBACK_TITLES = [
+        "片刻即永恒",
+        "光与影的叙事",
+        "平凡中的闪光",
+        "视线所及的美好",
+        "城市的另一面",
+        "日子发着光",
+        "把时间揉进画面里",
+        "生活本该如此",
+        "眼睛里看到的温柔",
+        "收藏世界的一天",
+        "不需要滤镜的瞬间",
+        "按下快门的理由",
+        "镜头里的小确幸",
+        "一些关于光的记录",
+        "日常的诗意",
+        "风把故事吹进画面",
+    ]
+    if scene:
+        scene_titles = [f"{scene}漫游", f"{scene}切片", f"{scene}独白", f"{scene}印象", f"流动的{scene}"]
+        fallback_title = scene_titles[hash(str(photos[0]['id'])) % len(scene_titles)]
     else:
-        fallback_title = theme_value
+        fallback_title = FALLBACK_TITLES[hash(str(photos[0]['id'])) % len(FALLBACK_TITLES)]
 
-    # 文案：从描述中提取情绪
-    if desc_keywords:
-        keyword_str = "、".join(desc_keywords[:3])
-        fallback_desc = f"{keyword_str}，一切刚刚好。用镜头记录下此刻的感受 ✨"
-        if scene_words:
-            fallback_desc = f"关于{scene_words[0]}的{desc_keywords[0]}记忆，{keyword_str}，一切都刚刚好 ✨"
-    elif scene_words:
-        fallback_desc = f"在{scene_words[0]}中捕捉生活的美好瞬间 📸"
-    else:
-        fallback_desc = f"记录生活中的光影与情绪 📸"
+    fallback_desc = "在寻常的角落里，发现生活的质感。每一帧都是对日常的重新审视 📷"
 
     return {
         "title": fallback_title,
@@ -259,10 +256,7 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
 
 def batch_generate_collections(count: int = 20, llm_model: str = "local") -> List[Dict]:
     """
-    1. 快速分组（无LLM）
-    2. 入库（带占位文案）
-    3. 异步生成真正文案（并行）
-    4. 返回结果（第一批用占位文案，后续异步更新）
+    分组后同步生成文案（确保LLM结果可靠再入库）
     """
     images = _get_export_images_with_tags()
     if not images:
@@ -273,10 +267,12 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
     if not groups:
         return []
 
-    # 2. 先全部插入 DB（占位）
+    # 2. 同步生成每个合集的元数据并入库
     results = []
-    for g in groups:
+    for i, g in enumerate(groups):
         photos = g["photos"]
+        meta = _generate_meta_for_one(photos, g["theme_type"], g["theme_value"], llm_model)
+
         cover_path = photos[0]["file_path"]
         photo_paths = [p["file_path"] for p in photos]
         photo_ids = [p["id"] for p in photos]
@@ -288,17 +284,18 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cid = execute_query(sql, (
-            PLACEHOLDER_TITLE, "文案生成中...", "#摄影 #记录生活",
+            meta["title"], meta["description"], meta["tags"],
             g["theme_type"], g["theme_value"],
             json.dumps(photo_paths), json.dumps(photo_ids),
             cover_path, llm_model,
         ), fetch=False)
 
+        print(f"[collection] #{cid}: {meta['title']}")
         results.append({
             "id": cid,
-            "title": PLACEHOLDER_TITLE,
-            "description": "文案生成中...",
-            "tags": "#摄影 #记录生活",
+            "title": meta["title"],
+            "description": meta["description"],
+            "tags": meta["tags"],
             "theme_type": g["theme_type"],
             "theme_value": g["theme_value"],
             "photo_paths": photo_paths,
@@ -307,23 +304,6 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
             "photo_count": len(photos),
             "is_favorite": False,
         })
-
-    # 3. 异步并行生成文案（后台线程）
-    def update_meta(cid, photos, theme_type, theme_value, model):
-        try:
-            meta = _generate_meta_for_one(photos, theme_type, theme_value, model)
-            execute_query(
-                "UPDATE photo_collections SET title=%s, description=%s, tags=%s WHERE id=%s",
-                (meta["title"], meta["description"], meta["tags"], cid),
-                fetch=False
-            )
-            print(f"[collection] meta updated for #{cid}: {meta['title']}")
-        except Exception as e:
-            print(f"[collection] async meta error #{cid}: {e}")
-
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for r, g in zip(results, groups):
-            pool.submit(update_meta, r["id"], g["photos"], g["theme_type"], g["theme_value"], llm_model)
 
     return results
 
