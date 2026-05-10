@@ -3,6 +3,7 @@ import { Card, Tag, Button, Space, Spin, Empty, Select, Input, Typography } from
 const { Text } = Typography;
 import { getThumbnailUrl, fetchBatchImages, getProxyUrl } from '../api/imageApi';
 import CaptionModal from '../components/modals/CaptionModal';
+import ImagePreviewModal from '../components/modals/ImagePreviewModal';
 import '../styles/captions.css';
 
 /**
@@ -21,6 +22,8 @@ export default function CaptionsPage({ captionHook }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCaption, setModalCaption] = useState(null);
   const [modalImages, setModalImages] = useState([]);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     if (!initialLoaded) {
@@ -147,7 +150,13 @@ export default function CaptionsPage({ captionHook }) {
         caption={modalCaption}
         images={modalImages}
         onClose={() => { setModalVisible(false); setModalImages([]); }}
-        onImageClick={(img) => { /* future: image preview within captions page */ }}
+        onImageClick={(img) => { setPreviewImage({ ...img, imageUrl: getProxyUrl(img.file_path) }); setPreviewVisible(true); }}
+      />
+
+      <ImagePreviewModal
+        visible={previewVisible}
+        image={previewImage}
+        onClose={() => setPreviewVisible(false)}
       />
     </div>
   );
