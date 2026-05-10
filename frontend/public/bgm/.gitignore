@@ -1,0 +1,11 @@
+# 完整 BGM 曲库不提交 git（200首, 700MB）
+# 仅保留每 mood 1 首样本
+*.mp3
+!ambient/Ahjay*.mp3
+!calm/Ahjay*.mp3
+!cinematic/Ahjay*.mp3
+!lofi/Ahjay*.mp3
+!upbeat/Ahjay*.mp3
+
+# manifest 本地生成，不提交
+manifest.json

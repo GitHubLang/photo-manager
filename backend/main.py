@@ -1,0 +1,75 @@
+"""
+摄影素材管理系统 - FastAPI 后端
+"""
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import json
+
+class UTF8JSONResponse(JSONResponse):
+    """FastAPI JSON response with explicit charset=utf-8 in Content-Type."""
+    def __init__(self, content, **kwargs):
+        kwargs.setdefault("media_type", "application/json; charset=utf-8")
+        super().__init__(content, **kwargs)
+    
+    def render(self, content) -> bytes:
+        # Use ensure_ascii=True to escape all non-ASCII chars as \uXXXX
+        # This ensures maximum compatibility across all browsers/proxies
+        return json.dumps(content, ensure_ascii=True).encode("utf-8")
+
+import uvicorn
+
+from database import init_database
+from routers import folders, images, scoring, daily, models, lut, settings, benchmark, collections, bgm
+
+app = FastAPI(
+    title="摄影素材管理系统",
+    description="用于管理摄影素材、AI评分、主题总结和文案生成",
+    version="1.0.0",
+    default_response_class=UTF8JSONResponse
+)
+
+# CORS 配置，允许前端访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 生产环境应该限制具体域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# 注册路由
+app.include_router(folders.router)
+app.include_router(images.router)
+app.include_router(scoring.router)
+app.include_router(daily.router)
+app.include_router(models.router)
+app.include_router(lut.router)
+app.include_router(settings.router)
+app.include_router(benchmark.router)
+app.include_router(collections.router)
+app.include_router(bgm.router)
+
+
+@app.get("/")
+async def root():
+    return {"message": "摄影素材管理系统 API", "version": "1.0.0"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+
+@app.on_event("startup")
+async def startup_event():
+    """启动时初始化数据库"""
+    print("正在初始化数据库...")
+    init_database()
+    print("数据库初始化完成")
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
