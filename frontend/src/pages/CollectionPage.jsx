@@ -22,6 +22,8 @@ export default function CollectionPage({ isMobile, onBack }) {
   const touchStartRef = useRef({ x: 0, y: 0 });
   const initializedRef = useRef(false);
   const pollRef = useRef(null);
+  const pendingRefreshRef = useRef(new Set());
+  const llmModelRef = useRef('');
 
   // 加载设定
   useEffect(() => {
@@ -29,6 +31,9 @@ export default function CollectionPage({ isMobile, onBack }) {
       .then(data => { if (data.caption_llm_model) setLlmModel(data.caption_llm_model); })
       .catch(() => {});
   }, []);
+
+  // llmModel 同步到 ref
+  useEffect(() => { llmModelRef.current = llmModel; }, [llmModel]);
 
   // 检查是否有合集还在"生成中"，有则轮询
   const hasPlaceholder = useCallback((cols) => {
@@ -75,8 +80,12 @@ export default function CollectionPage({ isMobile, onBack }) {
         setPhotoIndex(0);
         message.success(`生成了 ${data.collections.length} 个合集（文案生成中...）`);
 
+        // 重置防重复标记
+        pendingRefreshRef.current = new Set();
+
         // 自动刷新前 5 个合集的文案（并发）
         const firstIds = data.collections.slice(0, 5).map(c => c.id);
+        firstIds.forEach(id => pendingRefreshRef.current.add(id));
         refreshCollectionMeta(firstIds, llmModel).then(res => {
           if (res.success && res.updated?.length > 0) {
             // 文案刷新后，从服务端拉最新数据
@@ -121,6 +130,35 @@ export default function CollectionPage({ isMobile, onBack }) {
         .finally(() => setLoading(false));
     }
   }, [favoriteOnly]);
+
+  // ============ 预加载：刷到第N个合集时，提前生成 N+1~N+4 的文案 ============
+  useEffect(() => {
+    if (collections.length === 0 || generating) return;
+
+    // 找当前合集往后 4 个需要刷新的
+    const aheadIds = [];
+    for (let i = currentIndex + 1; i <= Math.min(currentIndex + 4, collections.length - 1); i++) {
+      const col = collections[i];
+      if (!col) continue;
+      if (col.title === PLACEHOLDER && !pendingRefreshRef.current.has(col.id)) {
+        aheadIds.push(col.id);
+      }
+    }
+
+    if (aheadIds.length === 0) return;
+
+    // 标记为已提交，防重复
+    aheadIds.forEach(id => pendingRefreshRef.current.add(id));
+
+    const model = llmModelRef.current;
+    refreshCollectionMeta(aheadIds, model).then(res => {
+      if (res.success && res.updated?.length > 0) {
+        refreshFromServer();
+      }
+    }).catch(() => {
+      aheadIds.forEach(id => pendingRefreshRef.current.delete(id));
+    });
+  }, [currentIndex, collections, generating]);
 
   // 自动轮播
   useEffect(() => {
