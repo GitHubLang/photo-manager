@@ -105,11 +105,31 @@ export default function CollectionPage({ isMobile, onBack }) {
     }
   }, [llmModel]);
 
-  // 首次进入：直接生成
+  // 首次进入：优先加载已有合集，为空才生成
   useEffect(() => {
     if (!initializedRef.current && !favoriteOnly) {
       initializedRef.current = true;
-      handleGenerate();
+      setLoading(true);
+      fetchCollections(1, 50, false).then(data => {
+        if (data.collections && data.collections.length > 0) {
+          setCollections(data.collections);
+          setCurrentIndex(0);
+          setPhotoIndex(0);
+          setLoading(false);
+          // 刷新未完成的合集文案
+          const todoIds = data.collections
+            .filter(c => c.title === PLACEHOLDER && !pendingRefreshRef.current.has(c.id))
+            .map(c => c.id);
+          if (todoIds.length > 0) {
+            todoIds.forEach(id => pendingRefreshRef.current.add(id));
+            refreshCollectionMeta(todoIds, llmModel).then(res => {
+              if (res.success && res.updated?.length > 0) refreshFromServer();
+            }).catch(() => {});
+          }
+        } else {
+          handleGenerate();
+        }
+      }).catch(() => { setLoading(false); });
     }
   }, [favoriteOnly, handleGenerate]);
 

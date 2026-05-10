@@ -442,5 +442,6 @@ def delete_collection(collection_id: int) -> Dict:
 
 
 def clear_all_collections() -> Dict:
-    execute_query("DELETE FROM photo_collections", fetch=False)
-    return {"success": True, "message": "已清空所有合集"}
+    """清空非收藏合集（保留收藏的）"""
+    execute_query("DELETE FROM photo_collections WHERE is_favorite = 0", fetch=False)
+    return {"success": True, "message": "已清空合集（收藏的保留）"}
