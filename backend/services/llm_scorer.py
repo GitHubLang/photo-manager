@@ -1,14 +1,15 @@
 """
-LLM 评分和描述服务 - 支持本地模型和 MiniMax
+LLM 评分和描述服务 - 支持本地模型和 MiniMax (Async)
 """
+import asyncio
 import base64
 import io
 import json
-import requests
+import httpx
 from PIL import Image as PILImage, ImageOps
 from typing import Dict, Optional
 from config import LOCAL_LLM_API, MINIMAX_API_KEY, MINIMAX_API_URL, MINIMAX_MODEL, MINIMAX_VISION_API_URL, MINIMAX_VISION_MODEL
-from database import execute_query as _db_query
+from db import DB
 from core.model_router import is_local_model, get_model_name
 
 SCORING_PROMPT = """你是一位专业摄影比赛评委。请根据专业摄影比赛标准对这张照片进行评分。
@@ -82,8 +83,8 @@ def parse_llm_response(content: str) -> Optional[Dict]:
     return None
 
 
-def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Optional[str]:
-    """调用支持 Vision 的 LLM"""
+async def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Optional[str]:
+    """调用支持 Vision 的 LLM (Async)"""
     image_b64 = encode_image_for_llm(image_path)
 
     if is_local_model(model):
@@ -106,7 +107,7 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         }
         headers = {}
     else:
-        # 使用 MiniMax Vision API (MiniMax-VL-01)
+        # 使用 MiniMax Vision API
         api_url = MINIMAX_VISION_API_URL
         payload = {
             "prompt": prompt,
@@ -118,16 +119,16 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         }
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=180)
-        print(f"MiniMax Vision API response status: {response.status_code}")
-        response.raise_for_status()
-        result = response.json()
-        print(f"MiniMax Vision API response: {result}")
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            print(f"LLM Vision API response status: {response.status_code}")
+            response.raise_for_status()
+            result = response.json()
+            print(f"LLM Vision API response: {result}")
         
         if is_local_model(model):
             return result["choices"][0]["message"]["content"]
         else:
-            # MiniMax Vision API 返回格式
             return result.get("content", "")
     except Exception as e:
         print(f"LLM call error: {e}")
@@ -136,28 +137,26 @@ def call_llm_vision(image_path: str, prompt: str, model: str = "minimax") -> Opt
         return None
 
 
-def score_image_with_vision(image_path: str, model: str = "minimax") -> Optional[Dict]:
-    """使用 Vision LLM 评分"""
-    content = call_llm_vision(image_path, SCORING_PROMPT, model)
+async def score_image_with_vision(image_path: str, model: str = "minimax") -> Optional[Dict]:
+    """使用 Vision LLM 评分 (Async)"""
+    content = await call_llm_vision(image_path, SCORING_PROMPT, model)
     if content:
         return parse_llm_response(content)
     return None
 
 
-def describe_image_with_vision(image_path: str, model: str = "minimax") -> Optional[str]:
-    """使用 Vision LLM 生成描述"""
-    content = call_llm_vision(image_path, DESCRIPTION_PROMPT, model)
+async def describe_image_with_vision(image_path: str, model: str = "minimax") -> Optional[str]:
+    """使用 Vision LLM 生成描述 (Async)"""
+    content = await call_llm_vision(image_path, DESCRIPTION_PROMPT, model)
     return content  # 返回原始字符串，由调用方解析 JSON
 
 
 def save_score_to_db(image_id: int, scores_data: Dict, model: str):
     """保存评分到数据库"""
-    from database import execute_query
     import json
     
     scores = scores_data
     print(f"[DEBUG] save_score_to_db called with image_id={image_id}, model={model}")
-    print(f"[DEBUG] scores_data type: {type(scores_data)}, keys: {scores_data.keys() if isinstance(scores_data, dict) else 'N/A'}")
     
     # 处理 total 可能是 "87.5/100" 格式
     total_raw = scores.get("total", 0)
@@ -173,7 +172,6 @@ def save_score_to_db(image_id: int, scores_data: Dict, model: str):
         if not isinstance(d, dict):
             return 0
         score = d.get("score", 0)
-        # 处理 "87.5/100" 或 "87/100" 格式
         if isinstance(score, str) and "/" in score:
             score = score.split("/")[0]
         try:
@@ -189,38 +187,7 @@ def save_score_to_db(image_id: int, scores_data: Dict, model: str):
         d = scores.get(dimension, {})
         return d.get("suggestion", "") if isinstance(d, dict) else ""
     
-    sql = """
-        INSERT INTO image_scores (
-            image_id, total_score,
-            impact_score, impact_analysis, impact_suggestion,
-            composition_score, composition_analysis, composition_suggestion,
-            sharpness_score, sharpness_analysis, sharpness_suggestion,
-            exposure_score, exposure_analysis, exposure_suggestion,
-            color_score, color_analysis, color_suggestion,
-            uniqueness_score, uniqueness_analysis, uniqueness_suggestion,
-            raw_response, llm_model
-        ) VALUES (
-            %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s
-        )
-        ON DUPLICATE KEY UPDATE
-            total_score = VALUES(total_score),
-            impact_score = VALUES(impact_score), impact_analysis = VALUES(impact_analysis), impact_suggestion = VALUES(impact_suggestion),
-            composition_score = VALUES(composition_score), composition_analysis = VALUES(composition_analysis), composition_suggestion = VALUES(composition_suggestion),
-            sharpness_score = VALUES(sharpness_score), sharpness_analysis = VALUES(sharpness_analysis), sharpness_suggestion = VALUES(sharpness_suggestion),
-            exposure_score = VALUES(exposure_score), exposure_analysis = VALUES(exposure_analysis), exposure_suggestion = VALUES(exposure_suggestion),
-            color_score = VALUES(color_score), color_analysis = VALUES(color_analysis), color_suggestion = VALUES(color_suggestion),
-            uniqueness_score = VALUES(uniqueness_score), uniqueness_analysis = VALUES(uniqueness_analysis), uniqueness_suggestion = VALUES(uniqueness_suggestion),
-            raw_response = VALUES(raw_response), llm_model = VALUES(llm_model),
-            scored_at = CURRENT_TIMESTAMP
-    """
-    params = (
+    DB.score_save(
         image_id, total,
         get_score("impact"), get_analysis("impact"), get_suggestion("impact"),
         get_score("composition"), get_analysis("composition"), get_suggestion("composition"),
@@ -231,43 +198,33 @@ def save_score_to_db(image_id: int, scores_data: Dict, model: str):
         json.dumps(scores_data, ensure_ascii=False),
         model
     )
-    execute_query(sql, params, fetch=False)
 
 
 def save_description_to_db(image_id: int, description: str, tags: str, model: str):
     """保存描述到数据库"""
-    from database import execute_query
-    
-    print(f"[DEBUG] save_description_to_db called with image_id={image_id}, desc type={type(description)}, tags type={type(tags)}")
-    sql = """
-        INSERT INTO image_descriptions (image_id, description, tags, llm_model)
-        VALUES (%s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE description = VALUES(description), tags = VALUES(tags)
-    """
-    result = execute_query(sql, (image_id, description, tags, model), fetch=False)
-    print(f"[DEBUG] save_description_to_db result type: {type(result)}, value: {result}")
+    print(f"[DEBUG] save_description_to_db called with image_id={image_id}")
+    DB.description_save(image_id, description, tags, model)
 
 
-def score_and_describe_image(image_id: int, image_path: str, model: str = "local") -> Dict:
-    """对图片进行评分和描述"""
+async def score_and_describe_image_async(image_id: int, image_path: str, model: str = "local") -> Dict:
+    """对图片进行评分和描述 (Async)"""
     result = {"image_id": image_id, "scored": False, "described": False}
     
     # 尝试评分
-    score_result = score_image_with_vision(image_path, model)
+    score_result = await score_image_with_vision(image_path, model)
     if score_result:
-        save_score_to_db(image_id, score_result, model)
+        await asyncio.to_thread(save_score_to_db, image_id, score_result, model)
         result["scored"] = True
         result["scores"] = score_result
         result["score_model"] = model
     
-    # 尝试描述 (MiniMax-VL-01 返回纯文本，需要解析)
-    desc_content = describe_image_with_vision(image_path, model)
+    # 尝试描述
+    desc_content = await describe_image_with_vision(image_path, model)
     if desc_content:
-        # 尝试解析 JSON 格式
         desc_result = parse_llm_response(desc_content)
         if desc_result:
-            save_description_to_db(
-                image_id, 
+            await asyncio.to_thread(save_description_to_db,
+                image_id,
                 desc_result.get("description", desc_content),
                 desc_result.get("tags", ""),
                 model
@@ -276,15 +233,16 @@ def score_and_describe_image(image_id: int, image_path: str, model: str = "local
             result["description"] = desc_result.get("description", desc_content)
             result["tags"] = desc_result.get("tags", "")
         else:
-            # 如果不是 JSON 格式，直接保存纯文本描述
-            save_description_to_db(
-                image_id, 
-                desc_content,
-                "",
-                model
+            await asyncio.to_thread(save_description_to_db,
+                image_id, desc_content, "", model
             )
             result["described"] = True
             result["description"] = desc_content
             result["tags"] = ""
     
     return result
+
+
+def score_and_describe_image(image_id: int, image_path: str, model: str = "local") -> Dict:
+    """对图片进行评分和描述 (Sync wrapper)"""
+    return asyncio.run(score_and_describe_image_async(image_id, image_path, model))

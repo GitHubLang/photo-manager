@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
-from database import execute_query
+from db import DB
 from services.daily_theme import (
     generate_daily_theme,
     recommend_photo_set,
@@ -26,19 +26,16 @@ class CaptionRequest(BaseModel):
 @router.get("/daily-theme/{date_str}")
 async def get_daily_theme(date_str: str):
     """获取某日的主题总结"""
-    theme = execute_query(
-        "SELECT * FROM daily_themes WHERE date = %s",
-        (date_str,)
-    )
+    theme = DB.daily_theme_get(date_str)
     if theme:
-        return theme[0]
+        return theme
     return None
 
 
 @router.post("/daily-theme/{date_str}/generate")
 async def create_daily_theme(date_str: str):
     """生成某日的主题总结"""
-    result = generate_daily_theme(date_str)
+    result = await generate_daily_theme(date_str)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "生成失败"))
     return result
@@ -50,7 +47,7 @@ async def get_recommend_set(
     set_type: str = Query("xiaohongshu", enum=["douyin", "xiaohongshu", "weibo"])
 ):
     """获取推荐图片组合"""
-    result = recommend_photo_set(date_str, set_type)
+    result = await recommend_photo_set(date_str, set_type)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "推荐失败"))
     return result
@@ -60,7 +57,7 @@ async def get_recommend_set(
 async def create_caption(req: CaptionRequest):
     """生成文案"""
     print(f"[DEBUG] create_caption: date={req.date}, set_type={req.set_type}, image_ids={req.image_ids}, user_instructions={req.user_instructions}")
-    result = generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions, llm_model=req.llm_model)
+    result = await generate_caption(req.date, req.image_ids, req.set_type, user_instructions=req.user_instructions, llm_model=req.llm_model)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "生成失败"))
     return result
@@ -90,20 +87,10 @@ async def get_caption_history_all(
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-    count_sql = f"SELECT COUNT(*) as total FROM photo_sets WHERE {where_sql}"
-    total = execute_query(count_sql, params)[0]['total']
+    total = DB.photo_sets_count(where_sql, params)
 
     offset = (page - 1) * page_size
-    query_sql = f"""
-        SELECT ps.*, i.file_path as cover_filename
-        FROM photo_sets ps
-        LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
-        WHERE {where_sql}
-        ORDER BY ps.created_at DESC
-        LIMIT %s OFFSET %s
-    """
-    params.extend([page_size, offset])
-    results = execute_query(query_sql, params)
+    results = DB.photo_sets_search(where_sql, params, page_size, offset)
 
     return {
         "captions": results,
@@ -119,39 +106,29 @@ async def get_caption_history_by_date(
     set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu", "weibo"])
 ):
     """按日期获取文案"""
-    if set_type:
-        sql = """SELECT ps.*, i.file_path as cover_filename FROM photo_sets ps
-           LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
-           WHERE ps.date = %s AND ps.set_type = %s ORDER BY ps.created_at DESC"""
-        results = execute_query(sql, (date_str, set_type))
-    else:
-        sql = """SELECT ps.*, i.file_path as cover_filename FROM photo_sets ps
-           LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
-           WHERE ps.date = %s ORDER BY ps.created_at DESC"""
-        results = execute_query(sql, (date_str,))
-    return results
+    return DB.photo_sets_get_by_date(date_str, set_type)
 
 
 @router.post("/daily-report/{date_str}")
 async def create_daily_report(date_str: str):
     """一键生成当日完整报告（主题+推荐+文案）"""
-    theme_result = generate_daily_theme(date_str)
+    theme_result = await generate_daily_theme(date_str)
     if not theme_result.get("success"):
         return {"success": False, "error": "主题生成失败", "details": theme_result}
 
-    xiaohongshu_set = recommend_photo_set(date_str, "xiaohongshu")
-    douyin_set = recommend_photo_set(date_str, "douyin")
+    xiaohongshu_set = await recommend_photo_set(date_str, "xiaohongshu")
+    douyin_set = await recommend_photo_set(date_str, "douyin")
 
     douyin_caption = None
     xiaohongshu_caption = None
 
     if xiaohongshu_set.get("success") and xiaohongshu_set.get("selected_images"):
         image_ids = [img['id'] for img in xiaohongshu_set["selected_images"]]
-        xiaohongshu_caption = generate_caption(date_str, image_ids, "xiaohongshu")
+        xiaohongshu_caption = await generate_caption(date_str, image_ids, "xiaohongshu")
 
     if douyin_set.get("success") and douyin_set.get("selected_images"):
         image_ids = [img['id'] for img in douyin_set["selected_images"]]
-        douyin_caption = generate_caption(date_str, image_ids, "douyin")
+        douyin_caption = await generate_caption(date_str, image_ids, "douyin")
 
     return {
         "success": True,
@@ -170,16 +147,7 @@ async def create_daily_report(date_str: str):
 @router.get("/instruction-history")
 async def get_instruction_history(set_type: Optional[str] = Query(None, enum=["douyin", "xiaohongshu"])):
     """获取文案指令历史"""
-    if set_type:
-        rows = execute_query(
-            "SELECT id, instruction, set_type, created_at FROM instruction_history WHERE set_type = %s ORDER BY created_at DESC LIMIT 20",
-            (set_type,)
-        )
-    else:
-        rows = execute_query(
-            "SELECT id, instruction, set_type, created_at FROM instruction_history ORDER BY created_at DESC LIMIT 20"
-        )
-    return {"history": rows}
+    return {"history": DB.instruction_history_get_all(set_type)}
 
 
 class InstructionHistoryRequest(BaseModel):
@@ -194,14 +162,6 @@ async def save_instruction_history(req: InstructionHistoryRequest):
     if not instruction:
         return {"success": False, "error": "指令不能为空"}
     # trim 后避免重复
-    existing = execute_query(
-        "SELECT id FROM instruction_history WHERE TRIM(instruction) = %s AND set_type = %s LIMIT 1",
-        (instruction, req.set_type)
-    )
-    if not existing:
-        execute_query(
-            "INSERT INTO instruction_history (instruction, set_type) VALUES (%s, %s)",
-            (instruction, req.set_type),
-            fetch=False
-        )
+    if not DB.instruction_history_check_duplicate(instruction, req.set_type):
+        DB.instruction_history_save(instruction, req.set_type)
     return {"success": True}

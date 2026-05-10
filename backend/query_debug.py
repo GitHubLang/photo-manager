@@ -1,14 +1,16 @@
-from database import execute_query
+from db import DB
 import json
 
-scores = execute_query("SELECT * FROM image_scores WHERE image_id = 3628")
+scores = DB.score_results_get(3628)
+if not scores:
+    scores = []
 print("=== image_scores ===")
 print(json.dumps(scores, default=str, ensure_ascii=False))
 
-descs = execute_query("SELECT * FROM image_descriptions WHERE image_id = 3628")
+descs = ""
 print("\n=== image_descriptions ===")
 print(json.dumps(descs, default=str, ensure_ascii=False))
 
-tasks = execute_query("SELECT * FROM score_tasks WHERE image_id = 3628 ORDER BY created_at DESC LIMIT 5")
+task_status = DB.score_tasks_get_status(3628)
 print("\n=== score_tasks ===")
-print(json.dumps(tasks, default=str, ensure_ascii=False))
+print(json.dumps(task_status or {}, default=str, ensure_ascii=False))

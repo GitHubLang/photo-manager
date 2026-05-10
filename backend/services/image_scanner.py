@@ -12,7 +12,7 @@ THUMBNAIL_ROOT = r"D:\MySoftware\photo-manager\thumbnails"
 THUMBNAIL_SIZE = (400, 400)  # 最大尺寸
 
 from config import PHOTO_ROOT, IMAGE_EXTENSIONS
-from database import execute_query, execute_many
+from db import DB
 
 
 def scan_folders() -> List[Dict]:
@@ -224,28 +224,17 @@ def index_folder(folder_path: str) -> Dict:
     """扫描并索引指定文件夹的图片到数据库（跳过已入库的）"""
     # 1. 先查 DB 已有的路径
     try:
-        existing_rows = execute_query(
-            "SELECT file_path FROM images WHERE folder_path = %s AND is_deleted = 0",
-            (folder_path,)
-        )
-        existing_paths = {row['file_path'] for row in existing_rows}
+        existing_paths = DB.images_get_existing_paths(folder_path)
     except:
         existing_paths = set()
 
     # 标记已删除的文件
     try:
-        all_db_records = execute_query(
-            "SELECT file_path FROM images WHERE folder_path = %s",
-            (folder_path,)
-        )
+        all_db_records = DB.images_get_all_paths(folder_path)
         for record in all_db_records:
             fp = record['file_path']
             exists = os.path.isfile(fp) if fp else False
-            execute_query(
-                "UPDATE images SET is_deleted = %s WHERE file_path = %s AND folder_path = %s",
-                (0 if exists else 1, fp, folder_path),
-                fetch=False
-            )
+            DB.images_mark_deleted(fp, folder_path, 0 if exists else 1)
     except Exception as e:
         print(f"Error updating is_deleted flags: {e}")
 
@@ -265,18 +254,13 @@ def index_folder(folder_path: str) -> Dict:
     to_insert = [_get_image_info(fp, folder_path) for fp in new_files]
 
     # 5. 批量插入数据库
-    insert_sql = """
-        INSERT INTO images (file_path, filename, folder_date, folder_path,
-                          file_size, width, height, orientation, perceptual_hash, is_deleted)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
-    """
     params = [
         (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],
          img['file_size'], img['width'], img['height'], img['orientation'], img['perceptual_hash'])
         for img in to_insert
     ]
     try:
-        execute_many(insert_sql, params)
+        DB.images_insert_many(params)
     except Exception as e:
         print(f"Error inserting images: {e}")
 

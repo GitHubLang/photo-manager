@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, message, Spin, Typography, Empty } from 'antd';
-import { HeartOutlined, HeartFilled, LoadingOutlined, LeftOutlined } from '@ant-design/icons';
+import { Button, message, Typography } from 'antd';
+import { HeartOutlined, HeartFilled } from '@ant-design/icons';
 import { generateCollections, refreshCollectionMeta, fetchCollections, toggleCollectionFavorite, getProxyUrl, clearAllCollections } from '../api/imageApi';
 import { fetchSettings } from '../api/imageApi';
 import BgmPlayer from '../components/bgm/BgmPlayer';
 
 const { Text } = Typography;
 const PLACEHOLDER = '⏳ 生成中...';
+
+import CollectionLoading from '../components/collection/CollectionLoading';
+import CollectionHeader from '../components/collection/CollectionHeader';
+import CollectionFooter from '../components/collection/CollectionFooter';
+import CollectionSlide from '../components/collection/CollectionSlide';
 
 export default function CollectionPage({ isMobile, onBack }) {
   const [collections, setCollections] = useState([]);
@@ -347,28 +352,13 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   // ==== 渲染 ====
 
+  // 加载/空状态
   if (loading && collections.length === 0) {
-    return (
-      <div style={{ width: '100%', height: isMobile ? '100dvh' : '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
-        <Spin indicator={<LoadingOutlined style={{ fontSize: 36, color: '#fff' }} spin />} />
-        <Text style={{ color: '#999', marginTop: 16 }}>生成合集中...</Text>
-      </div>
-    );
+    return <CollectionLoading loading={true} collections={collections} generating={generating} isMobile={isMobile} favoriteOnly={favoriteOnly} setFavoriteOnly={setFavoriteOnly} handleGenerate={handleGenerate} />;
   }
 
   if (collections.length === 0 && !generating) {
-    return (
-      <div style={{ width: '100%', height: isMobile ? '100dvh' : '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
-        <Empty description={<Text style={{ color: '#999' }}>{favoriteOnly ? '还没有收藏的合集' : '还没有照片合集'}</Text>} />
-        {favoriteOnly ? (
-          <Button type="default" size="large" ghost onClick={() => setFavoriteOnly(false)}
-            style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px', color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>查看全部合集</Button>
-        ) : (
-          <Button type="primary" size="large" onClick={handleGenerate} loading={generating}
-            style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px' }}>生成合集</Button>
-        )}
-      </div>
-    );
+    return <CollectionLoading loading={false} collections={collections} generating={generating} isMobile={isMobile} favoriteOnly={favoriteOnly} setFavoriteOnly={setFavoriteOnly} handleGenerate={handleGenerate} />;
   }
 
   const currentCollection = collections[currentIndex];
@@ -384,7 +374,6 @@ export default function CollectionPage({ isMobile, onBack }) {
   const photos = currentCollection.photo_paths || [];
   const currentPhoto = photos[photoIndex];
   const isFav = currentCollection.is_favorite;
-  const isPlaceholder = currentCollection.title === PLACEHOLDER;
 
   return (
     <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
@@ -425,24 +414,6 @@ export default function CollectionPage({ isMobile, onBack }) {
         }}
       >
 
-      {/* 照片背景层（滑动时露出下一个/上一个） */}
-      {photoSliding && pendingPhotoIdx !== null && photos[pendingPhotoIdx] && (() => {
-        const np = photos[pendingPhotoIdx];
-        return (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              background: `center/cover no-repeat url('${getProxyUrl(np)}')`,
-              filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
-            }} />
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src={getProxyUrl(np)} alt="" draggable={false}
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
-            </div>
-          </div>
-        );
-      })()}
-
       {/* 当前照片层（滑动出/入） */}
       <div
         onTransitionEnd={onPhotoSlideEnd}
@@ -452,122 +423,33 @@ export default function CollectionPage({ isMobile, onBack }) {
           transition: photoSliding ? 'transform 0.35s cubic-bezier(0.22, 0.28, 0.17, 1)' : 'none',
         }}
       >
-        {/* 模糊背景 */}
-        {currentPhoto && (
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            background: `center/cover no-repeat url('${getProxyUrl(currentPhoto)}')`,
-            filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
-          }} />
-        )}
-
-        {/* 主图 */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {currentPhoto ? (
-            <img src={getProxyUrl(currentPhoto)} alt="" draggable={false}
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
-          ) : (
-            <Text style={{ color: '#666' }}>图片加载失败</Text>
-          )}
-        </div>
+        <CollectionSlide
+          currentPhoto={currentPhoto}
+          photoIndex={photoIndex}
+          photos={photos}
+          getProxyUrl={getProxyUrl}
+        />
       </div>
 
-      {/* 照片序号浮层 */}
-      {photos.length > 1 && (
-        <div style={{ position: 'absolute', top: isMobile ? 100 : 80, right: 16, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderRadius: 20, padding: '6px 14px', zIndex: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>{photoIndex + 1}</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>/ {photos.length}</Text>
-        </div>
-      )}
+      <CollectionHeader
+        isMobile={isMobile}
+        currentIndex={currentIndex}
+        collections={collections}
+        favoriteOnly={favoriteOnly}
+        setFavoriteOnly={setFavoriteOnly}
+        handleGenerate={handleGenerate}
+        generating={generating}
+        onBack={onBack}
+        currentCollection={currentCollection}
+        savedAllIndexRef={savedAllIndexRef}
+      />
 
-      {/* 顶部 */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: isMobile ? '40px 16px 16px' : '20px 24px', background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%)', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Button type="text" icon={<LeftOutlined />} onClick={onBack} style={{ color: '#fff', fontSize: 18 }}>返回</Button>
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>合集 {currentIndex + 1} / {collections.length}</Text>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* 合集/收藏 切换 */}
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', borderRadius: 20, overflow: 'hidden' }}>
-              <button onClick={() => setFavoriteOnly(false)}
-                style={{
-                  border: 'none', background: !favoriteOnly ? 'rgba(255,255,255,0.25)' : 'transparent',
-                  color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
-                  fontWeight: !favoriteOnly ? 600 : 400, transition: 'background 0.2s',
-                }}>全部</button>
-              <button onClick={() => { savedAllIndexRef.current = currentIndex; setFavoriteOnly(true); }}
-                style={{
-                  border: 'none', background: favoriteOnly ? '#ff4d4f' : 'transparent',
-                  color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
-                  fontWeight: favoriteOnly ? 600 : 400, transition: 'background 0.2s',
-                }}>我的收藏</button>
-            </div>
-            <Button size="small" ghost onClick={handleGenerate} loading={generating}
-              style={{ borderRadius: 20, fontSize: 12, color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>刷新</Button>
-          </div>
-        </div>
-
-        <Text style={{ color: '#fff', fontSize: 22, fontWeight: 700, display: 'block', textShadow: '0 2px 8px rgba(0,0,0,0.5)', lineHeight: 1.3 }}>
-          {isPlaceholder ? (
-            <>
-              <Spin indicator={<LoadingOutlined style={{ fontSize: 18, color: '#fff' }} spin />} />
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, marginLeft: 8 }}>文案生成中...</Text>
-            </>
-          ) : currentCollection.title}
-        </Text>
-
-        {currentCollection.tags && !isPlaceholder && (
-          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {currentCollection.tags.split(' ').filter(Boolean).slice(0, 5).map((tag, i) => (
-              <span key={i} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, background: 'rgba(255,255,255,0.15)', padding: '2px 10px', borderRadius: 12 }}>{tag}</span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 底部文案（恢复第一版样式） */}
-      <div style={{
-        position: 'absolute',
-        bottom: `calc(0px + env(safe-area-inset-bottom, 0px))`,
-        left: 0, right: 0,
-        padding: '32px 16px 16px',
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
-        zIndex: 10,
-      }}>
-        <Text style={{
-          color: isPlaceholder ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.85)',
-          fontSize: 14,
-          lineHeight: 1.5,
-          display: 'block',
-          textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-        }}>
-          {isPlaceholder ? '正在生成文案...' : currentCollection.description}
-        </Text>
-
-        {/* 照片进度指示器 */}
-        {photos.length > 1 && (
-          <div style={{ display: 'flex', gap: 3, marginTop: 10, justifyContent: 'center' }}>
-            {photos.slice(0, Math.min(photos.length, 12)).map((_, i) => (
-              <div key={i} style={{
-                width: `${Math.max(4, 80 / Math.min(photos.length, 12))}px`,
-                height: 3,
-                borderRadius: 2,
-                background: i === photoIndex ? '#fff' : 'rgba(255,255,255,0.3)',
-                transition: 'background 0.3s',
-              }} />
-            ))}
-            {photos.length > 12 && (
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginLeft: 4 }}>+{photos.length - 12}</Text>
-            )}
-          </div>
-        )}
-
-        {/* 照片序号 */}
-        <div style={{ textAlign: 'center', marginTop: 6 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-            {photoIndex + 1} / {photos.length}
-          </Text>
-        </div>
-      </div>
+      <CollectionFooter
+        currentCollection={currentCollection}
+        photoIndex={photoIndex}
+        photos={photos}
+        isMobile={isMobile}
+      />
 
       {/* BGM 播放器 */}
       <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} isMobile={isMobile} />

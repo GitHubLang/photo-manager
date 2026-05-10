@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 
-from database import execute_query
+from db import DB
 from services.image_scanner import scan_folders, index_folder
 
 router = APIRouter(prefix="/api", tags=["folders"])
@@ -42,57 +42,11 @@ async def get_folder_images(
     """获取指定文件夹的图片列表"""
     folder_path = folder_path.replace('/', '\\')
 
-    where_clauses = ["i.is_deleted = 0", "i.folder_path = %s"]
-    params = [folder_path]
-
-    if min_score is not None:
-        where_clauses.append("s.total_score >= %s")
-        params.append(min_score)
-
-    if search:
-        where_clauses.append("(i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)")
-        pattern = f"%{search}%"
-        params.extend([pattern, pattern, pattern])
-
-    where_sql = " AND ".join(where_clauses)
-    sort_column = {
-        "filename": "i.filename", "total_score": "s.total_score",
-        "file_size": "i.file_size", "created_at": "i.created_at"
-    }.get(sort_by, "i.filename")
-    sort_dir = "DESC" if sort_order == "desc" else "ASC"
-
-    count_sql = f"""
-        SELECT COUNT(*) as total FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE {where_sql}
-    """
-    total = execute_query(count_sql, params)[0]['total']
-
-    offset = (page - 1) * page_size
-    query_sql = f"""
-        SELECT i.*,
-               s.total_score,
-               s.impact_score, s.impact_analysis, s.impact_suggestion,
-               s.composition_score, s.composition_analysis, s.composition_suggestion,
-               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
-               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
-               s.color_score, s.color_analysis, s.color_suggestion,
-               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
-               d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON s.id = (
-            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
-        )
-        LEFT JOIN image_descriptions d ON d.id = (
-            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE {where_sql}
-        ORDER BY {sort_column} {sort_dir}
-        LIMIT %s OFFSET %s
-    """
-    params.extend([page_size, offset])
-    images = execute_query(query_sql, params)
+    total = DB.images_count_by_folder(folder_path, min_score=min_score, search=search)
+    images = DB.images_get_by_folder(
+        folder_path, page, page_size,
+        sort_by=sort_by, sort_order=sort_order,
+        min_score=min_score, search=search)
 
     return {
         "images": images, "total": total, "page": page,

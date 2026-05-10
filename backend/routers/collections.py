@@ -29,18 +29,18 @@ class RefreshMetaRequest(BaseModel):
 
 
 @router.post("/collections/generate")
-def api_generate_collections(req: GenerateRequest):
+async def api_generate_collections(req: GenerateRequest):
     """生成一批照片合集"""
     model = req.llm_model or "local"
-    collections = batch_generate_collections(count=req.count, llm_model=model)
+    collections = await batch_generate_collections(count=req.count, llm_model=model)
     return {"success": True, "collections": collections, "count": len(collections)}
 
 
 @router.post("/collections/refresh-meta")
-def api_refresh_collections_meta(req: RefreshMetaRequest):
+async def api_refresh_collections_meta(req: RefreshMetaRequest):
     """为指定合集刷新生文案（并发调用LLM）"""
     model = req.llm_model or "local"
-    updated = refresh_collections_meta(req.collection_ids, llm_model=model)
+    updated = await refresh_collections_meta(req.collection_ids, llm_model=model)
     return {"success": True, "updated": updated}
 
 

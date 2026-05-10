@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Optional
 from PIL import Image as PILImage, ImageOps
 
-from database import execute_query
+from db import DB
 from config import PHOTO_ROOT
 
 router = APIRouter(prefix="/api", tags=["images"])
@@ -20,45 +20,17 @@ async def get_images_batch(ids: str = Query(..., description="逗号分隔的图
     if not id_list:
         return {"images": []}
     placeholders = ','.join(['%s'] * len(id_list))
-    images = execute_query(
-        f"""
-        SELECT i.id, i.filename, i.file_path, i.width, i.height, i.file_size,
-               s.total_score, d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON s.id = (
-            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
-        )
-        LEFT JOIN image_descriptions d ON d.id = (
-            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE i.id IN ({placeholders}) AND i.is_deleted = 0
-        """,
-        tuple(id_list)
-    )
+    images = DB.images_get_by_ids(id_list)
     return {"images": images}
 
 
 @router.get("/images/{image_id}")
 async def get_image(image_id: int):
     """获取单张图片详情"""
-    image = execute_query("""
-        SELECT i.*,
-               s.total_score,
-               s.impact_score, s.impact_analysis, s.impact_suggestion,
-               s.composition_score, s.composition_analysis, s.composition_suggestion,
-               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
-               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
-               s.color_score, s.color_analysis, s.color_suggestion,
-               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
-               d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.id = %s AND i.is_deleted = 0
-    """, (image_id,))
+    image = DB.images_get_detail(image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    return image[0]
+    return image
 
 
 @router.get("/image/thumbnail/{path:path}")
@@ -120,37 +92,7 @@ async def search_images(
 ):
     """全局搜索图片"""
     pattern = f"%{keyword}%"
-    count_sql = """
-        SELECT COUNT(*) as total FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.is_deleted = 0 AND (i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)
-    """
-    total = execute_query(count_sql, (pattern, pattern, pattern))[0]['total']
-
-    offset = (page - 1) * page_size
-    query_sql = """
-        SELECT i.*,
-               s.total_score,
-               s.impact_score, s.impact_analysis, s.impact_suggestion,
-               s.composition_score, s.composition_analysis, s.composition_suggestion,
-               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
-               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
-               s.color_score, s.color_analysis, s.color_suggestion,
-               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
-               d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON s.id = (
-            SELECT id FROM image_scores WHERE image_id = i.id ORDER BY scored_at DESC LIMIT 1
-        )
-        LEFT JOIN image_descriptions d ON d.id = (
-            SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE i.is_deleted = 0 AND (i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)
-        ORDER BY s.total_score DESC
-        LIMIT %s OFFSET %s
-    """
-    images = execute_query(query_sql, (pattern, pattern, pattern, page_size, offset))
+    total, images = DB.images_search(keyword, page, page_size)
     return {"images": images, "total": total, "page": page, "page_size": page_size}
 
 
@@ -165,19 +107,13 @@ class AppStateUpdate(BaseModel):
 @router.get("/app-state")
 async def get_app_state():
     """获取应用状态"""
-    result = execute_query(
-        "SELECT last_folder_path, last_page, last_sort_by, last_sort_order, last_scroll_top, updated_at FROM app_state WHERE id = 1"
-    )
-    if result:
-        return result[0]
-    return {"last_folder_path": None, "last_page": 1, "last_sort_by": "filename", "last_sort_order": "asc", "last_scroll_top": 0}
+    return DB.app_state_get()
 
 
 @router.post("/app-state")
 async def update_app_state(state: AppStateUpdate):
     """更新应用状态"""
     fields = []
-    params = []
     for col, val in [
         ("last_folder_path", state.last_folder_path),
         ("last_page", state.last_page),
@@ -186,9 +122,7 @@ async def update_app_state(state: AppStateUpdate):
         ("last_scroll_top", state.last_scroll_top),
     ]:
         if val is not None:
-            fields.append(f"{col} = %s")
-            params.append(val)
+            fields.append((col, val))
     if fields:
-        execute_query(f"UPDATE app_state SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                      tuple(params), fetch=False)
+        DB.app_state_update(fields)
     return {"success": True}

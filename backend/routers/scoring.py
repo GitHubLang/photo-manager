@@ -6,7 +6,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import threading
 
-from database import execute_query, get_connection
+from db import DB
+from database import get_connection
 from services.llm_scorer import score_and_describe_image
 
 router = APIRouter(prefix="/api", tags=["scoring"])
@@ -29,40 +30,26 @@ async def score_images(req: ScoreRequest):
 
     for image_id in req.image_ids:
         # 检查是否有处理中任务
-        processing = execute_query(
-            "SELECT id, created_at FROM score_tasks WHERE image_id = %s AND status = 'processing'",
-            (image_id,)
-        )
+        processing = DB.score_tasks_check_processing(image_id)
         if processing:
-            task = processing[0]
-            created_at = task['created_at']
+            created_at = processing['created_at']
             from datetime import datetime, timedelta, timezone
             try:
                 now = datetime.now(timezone.utc).astimezone() if created_at.tzinfo else datetime.now()
                 age = now - created_at
                 if age > timedelta(minutes=2):
-                    execute_query(
-                        "UPDATE score_tasks SET status = 'failed', error_message = '处理超时自动重置' WHERE id = %s",
-                        (task['id'],)
-                    )
+                    DB.score_tasks_fail_old(processing['id'], '处理超时自动重置')
                 else:
                     continue
             except Exception:
                 continue
 
         # 检查待处理
-        existing = execute_query(
-            "SELECT id FROM score_tasks WHERE image_id = %s AND status = 'pending'",
-            (image_id,)
-        )
-        if existing:
+        if DB.score_tasks_check_pending(image_id):
             continue
 
         # 创建任务
-        task_id = execute_query(
-            "INSERT INTO score_tasks (image_id, status, model) VALUES (%s, 'pending', %s)",
-            (image_id, req.model), fetch=False
-        )
+        task_id = DB.score_tasks_create(image_id, req.model)
         task_ids.append({"image_id": image_id, "task_id": task_id})
 
     for tid in task_ids:
@@ -82,10 +69,7 @@ async def score_images(req: ScoreRequest):
                 cursor.execute("SELECT file_path FROM images WHERE id = %s AND is_deleted = 0", (image_id,))
                 img = cursor.fetchone()
                 if not img:
-                    cursor.execute(
-                        "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
-                        (task_id,)
-                    )
+                    DB.score_tasks_fail_for_image(image_id, task_id, 'Image not found')
                     conn.commit()
                     return
 
@@ -96,10 +80,7 @@ async def score_images(req: ScoreRequest):
                         (task_id,)
                     )
                 else:
-                    cursor.execute(
-                        "UPDATE score_tasks SET status = 'failed', error_message = 'LLM call failed' WHERE id = %s",
-                        (task_id,)
-                    )
+                    DB.score_tasks_fail_for_image(image_id, task_id, 'LLM call failed')
                 conn.commit()
             except Exception as e:
                 cursor.execute(
@@ -121,37 +102,16 @@ async def score_images(req: ScoreRequest):
 @router.get("/images/score/status/{image_id}")
 async def get_score_status(image_id: int):
     """获取图片评分状态"""
-    result = execute_query(
-        "SELECT status, error_message, completed_at FROM score_tasks WHERE image_id = %s ORDER BY id DESC LIMIT 1",
-        (image_id,)
-    )
+    result = DB.score_tasks_get_status(image_id)
     if result:
-        return result[0]
+        return result
     return {"status": "not_found"}
 
 
 @router.get("/images/score/results/{image_id}")
 async def get_score_results(image_id: int):
     """获取图片评分结果"""
-    result = execute_query(
-        """SELECT i.*,
-               s.total_score,
-               s.impact_score, s.impact_analysis, s.impact_suggestion,
-               s.composition_score, s.composition_analysis, s.composition_suggestion,
-               s.sharpness_score, s.sharpness_analysis, s.sharpness_suggestion,
-               s.exposure_score, s.exposure_analysis, s.exposure_suggestion,
-               s.color_score, s.color_analysis, s.color_suggestion,
-               s.uniqueness_score, s.uniqueness_analysis, s.uniqueness_suggestion,
-               d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.id = %s""",
-        (image_id,)
-    )
-    if result:
-        return result[0]
-    return None
+    return DB.score_results_get(image_id)
 
 
 @router.get("/score-tasks")
@@ -161,29 +121,7 @@ async def get_score_tasks(
     page_size: int = Query(50, ge=1, le=100)
 ):
     """获取评分任务列表"""
-    where_sql = "WHERE 1=1"
-    params = []
-    if status:
-        where_sql += " AND t.status = %s"
-        params.append(status)
-
-    count_sql = f"SELECT COUNT(*) as total FROM score_tasks t {where_sql}"
-    total = execute_query(count_sql, params)[0]['total']
-
-    offset = (page - 1) * page_size
-    query_sql = f"""
-        SELECT t.id, t.image_id, t.status, t.model, t.error_message,
-               t.created_at, t.completed_at,
-               i.filename, i.file_path, i.width, i.height
-        FROM score_tasks t
-        LEFT JOIN images i ON t.image_id = i.id
-        {where_sql}
-        ORDER BY t.created_at DESC
-        LIMIT %s OFFSET %s
-    """
-    params.extend([page_size, offset])
-    tasks = execute_query(query_sql, params)
-
+    total, tasks = DB.score_tasks_list(status, page, page_size)
     return {"tasks": tasks, "total": total, "page": page, "page_size": page_size}
 
 
@@ -192,17 +130,11 @@ async def retry_score_tasks(image_ids: List[int]):
     """重新评分"""
     task_ids = []
     for image_id in image_ids:
-        execute_query(
-            "UPDATE score_tasks SET status = 'pending', error_message = NULL WHERE image_id = %s AND status IN ('failed', 'processing')",
-            (image_id,), fetch=False
-        )
-        existing = execute_query(
-            "SELECT id FROM score_tasks WHERE image_id = %s AND status = 'pending'",
-            (image_id,)
-        )
+        DB.score_tasks_reset(image_id)
+        existing = DB.score_tasks_check_pending(image_id)
         if not existing:
             continue
-        task_id = existing[0]['id']
+        task_id = existing['id']
         task_ids.append({"image_id": image_id, "task_id": task_id})
 
     if not task_ids:
@@ -221,37 +153,22 @@ async def retry_score_tasks(image_ids: List[int]):
                 if cursor.rowcount == 0:
                     return
 
-                cursor.execute("SELECT file_path FROM images WHERE id = %s AND is_deleted = 0", (image_id,))
-                img = cursor.fetchone()
-                if not img:
-                    cursor.execute(
-                        "UPDATE score_tasks SET status = 'failed', error_message = 'Image not found' WHERE id = %s",
-                        (task_id,)
-                    )
+                file_path = DB.images_get_path(image_id)
+                if not file_path:
+                    DB.score_tasks_fail_for_image(image_id, task_id, 'Image not found')
                     conn.commit()
                     return
 
                 _score_semaphore.acquire()
                 try:
-                    cursor.execute("SELECT model FROM score_tasks WHERE id = %s", (task_id,))
-                    task = cursor.fetchone()
-                    model = task['model'] if task else 'local'
-                    result = score_and_describe_image(image_id, img['file_path'], model)
+                    model = DB.score_tasks_get_model(task_id) or 'local'
+                    result = score_and_describe_image(image_id, file_path, model)
                     if result.get('scored') or result.get('described'):
-                        cursor.execute(
-                            "UPDATE score_tasks SET status = 'completed', completed_at = NOW() WHERE image_id = %s",
-                            (image_id,)
-                        )
+                        DB.score_tasks_complete(image_id)
                     else:
-                        cursor.execute(
-                            "UPDATE score_tasks SET status = 'failed', error_message = 'LLM call failed' WHERE id = %s",
-                            (task_id,)
-                        )
+                        DB.score_tasks_fail_for_image(image_id, task_id, 'LLM call failed')
                 except Exception as e:
-                    cursor.execute(
-                        "UPDATE score_tasks SET status = 'failed', error_message = %s WHERE id = %s",
-                        (str(e), task_id)
-                    )
+                    DB.score_tasks_fail_for_image(image_id, task_id, str(e))
                 finally:
                     _score_semaphore.release()
                 conn.commit()

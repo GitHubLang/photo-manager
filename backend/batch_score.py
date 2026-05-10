@@ -6,7 +6,7 @@ import sys, os, io, time, threading
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-from database import execute_query
+from db import DB
 from services.llm_scorer import score_and_describe_image
 
 FOLDER = r'E:\图像\导出'
@@ -15,12 +15,7 @@ CONCURRENCY = 4
 BATCH_DELAY = 5  # seconds between batches
 
 def get_unscored():
-    return execute_query("""
-        SELECT i.id, i.file_path FROM images i
-        WHERE i.is_deleted = 0 AND i.folder_path = %s
-          AND i.id NOT IN (SELECT image_id FROM image_scores)
-        ORDER BY i.filename
-    """, (FOLDER,))
+    return DB.images_get_unscored(FOLDER)
 
 def process_one(iid, ipath):
     name = os.path.basename(ipath)

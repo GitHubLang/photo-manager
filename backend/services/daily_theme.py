@@ -1,29 +1,20 @@
 """
-每日主题总结和文案生成服务
+每日主题总结和文案生成服务 (Async)
 """
+import asyncio
 import json
-import requests
+import httpx
 from datetime import date
 from typing import List, Dict, Optional
 from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
-from database import execute_query
+from db import DB
 from core.model_router import is_local_model, get_model_name
 
 
-def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
-    """生成某日的主题总结"""
+async def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
+    """生成某日的主题总结 (Async)"""
     # 获取该日所有图片（含评分和描述）
-    images = execute_query("""
-        SELECT i.id, i.filename, i.file_path, i.folder_date,
-               s.total_score, s.impact_score, s.composition_score,
-               d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.is_deleted = 0 AND i.folder_date = %s AND s.total_score IS NOT NULL
-        ORDER BY s.total_score DESC
-        LIMIT 20
-    """, (date_str,))
+    images = await asyncio.to_thread(DB.daily_images_get, date_str)
     
     if not images:
         return {"success": False, "error": "没有已评分的图片"}
@@ -66,10 +57,11 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
             payload = {"model": "MiniMax-M2.7", "messages": messages, "max_tokens": 1024, "temperature": 0.3}
             headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
 
-        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
-        response.raise_for_status()
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
         
         # 解析 JSON
         json_start = content.find("{")
@@ -77,37 +69,19 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
         if json_start >= 0 and json_end > json_start:
             theme_data = json.loads(content[json_start:json_end])
             
-            # 保存到数据库
-            photo_count = execute_query(
-                "SELECT COUNT(*) as cnt FROM images WHERE folder_date = %s AND is_deleted = 0",
-                (date_str,)
-            )[0]['cnt']
+            # 保存到数据库（wrap DB calls）
+            photo_count = await asyncio.to_thread(DB.daily_images_count, date_str)
+            avg_score = await asyncio.to_thread(DB.daily_avg_score, date_str)
             
-            avg_score = execute_query(
-                "SELECT AVG(total_score) as avg FROM image_scores s "
-                "JOIN images i ON s.image_id = i.id AND i.is_deleted = 0 WHERE i.folder_date = %s",
-                (date_str,)
-            )[0]['avg'] or 0
-            
-            save_sql = """
-                INSERT INTO daily_themes (date, theme_title, theme_description, 
-                                        photo_count, total_score_avg, keywords)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
-                    theme_title = VALUES(theme_title),
-                    theme_description = VALUES(theme_description),
-                    keywords = VALUES(keywords),
-                    photo_count = VALUES(photo_count),
-                    total_score_avg = VALUES(total_score_avg)
-            """
-            execute_query(save_sql, (
+            await asyncio.to_thread(
+                DB.daily_theme_save,
                 date_str,
                 theme_data.get("theme_title", ""),
                 theme_data.get("theme_description", ""),
                 photo_count,
                 round(float(avg_score), 2),
                 theme_data.get("keywords", "")
-            ), fetch=False)
+            )
             
             return {
                 "success": True,
@@ -121,19 +95,9 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
     return {"success": False, "error": "未知错误"}
 
 
-def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
-    """推荐一组适合发布的图片"""
-    # 获取该日评分最高的图片
-    images = execute_query("""
-        SELECT i.id, i.filename, i.file_path, i.orientation,
-               s.total_score, d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.is_deleted = 0 AND i.folder_date = %s AND s.total_score IS NOT NULL
-        ORDER BY s.total_score DESC
-        LIMIT 12
-    """, (date_str,))
+async def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
+    """推荐一组适合发布的图片 (Async)"""
+    images = await asyncio.to_thread(DB.daily_top_images, date_str)
     
     if not images:
         return {"success": False, "error": "没有已评分的图片"}
@@ -148,10 +112,10 @@ def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
     
     if set_type == "douyin":
         system_prompt = "你是一个抖音内容策划专家。请从照片中选择9张最适合发抖音的组图，选择标准：1.评分高 2.内容多样但不重复 3.适合竖屏展示 4.能形成叙事感"
-        output_format = "返回JSON格式：{selected_ids: [1,3,5,2,4,6,7,8,9], reason: \"选择理由\"}"
+        output_format = '返回JSON格式：{selected_ids: [1,3,5,2,4,6,7,8,9], reason: "选择理由"}'
     else:
         system_prompt = "你是一个小红书内容策划专家。请从照片中选择6-9张最适合发小红书的组图，选择标准：1.评分高 2.构图多样 3.调性统一 4.适合横屏或方图展示"
-        output_format = "返回JSON格式：{selected_ids: [1,3,5,2,4,6,7,8,9], reason: \"选择理由\"}"
+        output_format = '返回JSON格式：{selected_ids: [1,3,5,2,4,6,7,8,9], reason: "选择理由"}'
     
     prompt = f"""照片列表：
 {chr(10).join(photo_summaries)}
@@ -172,14 +136,14 @@ def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
             "temperature": 0.3,
         }
         
-        response = requests.post(
-            f"{LOCAL_LLM_API}/v1/chat/completions",
-            json=payload,
-            timeout=120
-        )
-        response.raise_for_status()
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{LOCAL_LLM_API}/v1/chat/completions",
+                json=payload,
+            )
+            response.raise_for_status()
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
         
         # 解析 JSON
         json_start = content.find("{")
@@ -202,20 +166,13 @@ def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
     return {"success": False, "error": "未知错误"}
 
 
-def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaohongshu", user_instructions: Optional[str] = None, llm_model: str = "local") -> Dict:
-    """生成发布文案"""
+async def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaohongshu", user_instructions: Optional[str] = None, llm_model: str = "local") -> Dict:
+    """生成发布文案 (Async)"""
     # 获取选中图片的信息
     if not image_ids:
         return {"success": False, "error": "没有选择图片"}
     
-    placeholders = ",".join(["%s"] * len(image_ids))
-    images = execute_query(f"""
-        SELECT i.filename, i.folder_date, s.total_score, d.description, d.tags
-        FROM images i
-        LEFT JOIN image_scores s ON i.id = s.image_id
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.id IN ({placeholders}) AND i.is_deleted = 0
-    """, tuple(image_ids))
+    images = await asyncio.to_thread(DB.images_get_by_ids, image_ids)
     
     if not images:
         return {"success": False, "error": "没有找到对应的图片"}
@@ -242,11 +199,8 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
     # 获取主题信息（仅当有有效日期时）
     theme_info = {}
     if has_valid_date:
-        theme = execute_query(
-            "SELECT theme_title, theme_description, keywords FROM daily_themes WHERE date = %s",
-            (effective_date,)
-        )
-        theme_info = theme[0] if theme else {}
+        theme_row = await asyncio.to_thread(DB.photo_sets_get_theme, effective_date)
+        theme_info = theme_row if theme_row else {}
     
     # 构建图片描述摘要
     photo_desc = "\n".join([
@@ -254,7 +208,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         for img in images
     ])
     
-        # 用户要求作为最高优先级，放在最前面
+    # 用户要求作为最高优先级，放在最前面
     user_req_block = (f"\n⚠️ 最高优先级指令（必须严格遵守）：{user_instructions}\n") if user_instructions else ""
     # 动态决定emoji描述，避免spec与用户指令冲突
     if user_instructions and ("不要emoji" in user_instructions or "不用emoji" in user_instructions):
@@ -314,7 +268,6 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
 
 {xhs_fields}"""
 
-
     try:
         messages = [{"role": "user", "content": prompt}]
         if is_local_model(llm_model):
@@ -327,10 +280,11 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
             payload = {"model": "MiniMax-M2.7", "messages": messages, "max_tokens": 2048, "temperature": 0.5}
             headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
 
-        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
-        response.raise_for_status()
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            content = result["choices"][0]["message"]["content"]
         
         # 解析 JSON
         json_start = content.find("{")
@@ -338,22 +292,16 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         if json_start >= 0 and json_end > json_start:
             caption_data = json.loads(content[json_start:json_end])
             
-            # 保存到数据库
+            # 保存到数据库（wrap DB calls）
             cover_id = image_ids[0] if image_ids else None
-            save_sql = """
-                INSERT INTO photo_sets (date, set_type, cover_image_id, caption_title, 
-                                      caption_body, hashtags, image_ids)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            execute_query(save_sql, (
-                effective_date,
-                set_type,
-                cover_id,
+            await asyncio.to_thread(
+                DB.photo_sets_save,
+                effective_date, set_type, cover_id,
                 caption_data.get("title", ""),
                 caption_data.get("content") or caption_data.get("description", ""),
                 caption_data.get("hashtags", ""),
                 json.dumps(image_ids)
-            ), fetch=False)
+            )
             
             return {
                 "success": True,

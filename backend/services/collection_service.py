@@ -1,18 +1,18 @@
 """
 照片合集服务 — 基于 tags 聚类分组，先出照片后异步生成文案
 """
+import asyncio
 import json
 import random
 import os
+import httpx
 from typing import List, Dict, Optional
 from collections import defaultdict, Counter
-import concurrent.futures
 
 
-from database import execute_query
+from db import DB
 from config import LOCAL_LLM_API, LOCAL_LLM_MODEL, MINIMAX_API_KEY, MINIMAX_API_URL
 from core.model_router import is_local_model, get_model_name
-import requests
 
 # ============ 创意主题词库（LLM 回退用）============
 CREATIVE_THEMES = [
@@ -32,27 +32,7 @@ PLACEHOLDER_TITLE = "⏳ 生成中..."
 
 def _get_export_images_with_tags() -> List[Dict]:
     """获取导出目录所有图片及其描述/标签"""
-    rows = execute_query("""
-        SELECT i.id, i.file_path, i.filename, i.folder_path,
-               COALESCE(d.tags, '') as tags,
-               COALESCE(d.description, '') as description
-        FROM images i
-        LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.is_deleted = 0 AND i.folder_path LIKE %s
-        ORDER BY RAND()
-    """, ("%导出%",))
-    if not rows:
-        rows = execute_query("""
-            SELECT i.id, i.file_path, i.filename, i.folder_path,
-                   COALESCE(d.tags, '') as tags,
-                   COALESCE(d.description, '') as description
-            FROM images i
-            LEFT JOIN image_descriptions d ON i.id = d.image_id
-            WHERE i.is_deleted = 0
-            ORDER BY RAND()
-            LIMIT 500
-        """)
-    return rows
+    return DB.images_get_export_with_tags()
 
 
 def _parse_tags(tags_str: str) -> List[str]:
@@ -127,8 +107,8 @@ def _group_images(images: List[Dict], target_count: int = 12) -> List[Dict]:
 
 # ==================== LLM 生成元数据（可并行） ====================
 
-def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str, llm_model: str = "local") -> Dict:
-    """为单组合成元数据（可被并发调用）"""
+async def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str, llm_model: str = "local") -> Dict:
+    """为单组合成元数据（异步）"""
     # 收集共有标签和描述
     all_tags = []
     all_descs = []
@@ -190,9 +170,10 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
             }
             headers = {"Authorization": f"Bearer {MINIMAX_API_KEY}", "Content-Type": "application/json"}
 
-        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
         json_start = content.find("{")
         json_end = content.rfind("}") + 1
         if json_start >= 0 and json_end > json_start:
@@ -256,13 +237,13 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
 
 # ==================== 快速分组（无LLM） ====================
 
-def batch_generate_collections(count: int = 20, llm_model: str = "local") -> List[Dict]:
+async def batch_generate_collections(count: int = 20, llm_model: str = "local") -> List[Dict]:
     """
     快速分组：只按标签聚类，不调LLM。
     文案后续由 refresh_collections_meta() 异步生成。
     所有合集先以占位方式入库，让用户先看到照片。
     """
-    images = _get_export_images_with_tags()
+    images = await asyncio.to_thread(_get_export_images_with_tags)
     if not images:
         return []
 
@@ -277,19 +258,12 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
         photo_paths = [p["file_path"] for p in photos]
         photo_ids = [p["id"] for p in photos]
 
-        cid = execute_query("""
-            INSERT INTO photo_collections 
-                (title, description, tags, theme_type, theme_value,
-                 photo_paths, photo_ids, cover_path, llm_model)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            f"⏳ 生成中...",
-            "正在生成文案...",
-            "#摄影 #记录生活",
+        cid = await asyncio.to_thread(DB.collections_create,
+            f"⏳ 生成中...", "正在生成文案...", "#摄影 #记录生活",
             g["theme_type"], g["theme_value"],
             json.dumps(photo_paths), json.dumps(photo_ids),
             cover_path, llm_model,
-        ), fetch=False)
+        )
 
         results.append({
             "id": cid,
@@ -311,44 +285,33 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
 
 # ==================== LLM 生成元数据（独立调用，可并行） ====================
 
-def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> List[Dict]:
+async def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> List[Dict]:
     """
     为指定合集生成文案（title/description/tags）。
-    用线程池并发加速，优先刷新用户当前可见的合集。
+    用 asyncio.gather 并发加速。
     """
     if not coll_ids:
         return []
 
-    # 从DB读取合集数据
-    placeholders = ",".join(["%s"] * len(coll_ids))
-    rows = execute_query(f"SELECT * FROM photo_collections WHERE id IN ({placeholders})", coll_ids)
+    rows = await asyncio.to_thread(DB.collections_get_by_ids, coll_ids)
     if not rows:
         return []
 
-    def _process_one(row) -> Optional[Dict]:
-        """单个合集的 LLM 生成"""
+    async def _process_one(row) -> Optional[Dict]:
+        """单个合集的 LLM 生成 (Async)"""
         try:
             paths = json.loads(row["photo_paths"]) if isinstance(row["photo_paths"], str) else row["photo_paths"]
             ids_list = json.loads(row["photo_ids"]) if isinstance(row["photo_ids"], str) else row["photo_ids"]
         except (json.JSONDecodeError, TypeError):
             paths, ids_list = [], []
 
-        # 重建 photos 结构（只要 id、file_path、tags、description 即可）
-        photo_rows = execute_query(
-            "SELECT i.id AS img_id, i.file_path, COALESCE(d.tags,'') as tags, COALESCE(d.description,'') as description "
-            "FROM images i LEFT JOIN image_descriptions d ON i.id = d.image_id "
-            "WHERE i.id IN (" + ",".join(["%s"] * len(ids_list)) + ") AND i.is_deleted = 0",
-            ids_list
-        )
+        # 重建 photos 结构
+        photo_rows = await asyncio.to_thread(DB.images_get_paths_for_ids, ids_list)
         photos = [{"id": p["img_id"], "file_path": p["file_path"], "tags": p["tags"], "description": p["description"]} for p in photo_rows]
 
-        meta = _generate_meta_for_one(photos, row["theme_type"], row["theme_value"], llm_model)
+        meta = await _generate_meta_for_one(photos, row["theme_type"], row["theme_value"], llm_model)
 
-        execute_query(
-            "UPDATE photo_collections SET title=%s, description=%s, tags=%s WHERE id=%s",
-            (meta["title"], meta["description"], meta["tags"], row["id"]),
-            fetch=False
-        )
+        await asyncio.to_thread(DB.collections_update_meta, row["id"], meta["title"], meta["description"], meta["tags"])
 
         print(f"[collection] 文案刷新 #{row['id']}: {meta['title']}")
         return {
@@ -358,13 +321,9 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
             "tags": meta["tags"],
         }
 
-    updated = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_process_one, row): row["id"] for row in rows}
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result:
-                updated.append(result)
+    tasks = [_process_one(row) for row in rows]
+    results = await asyncio.gather(*tasks)
+    updated = [r for r in results if r]
 
     print(f"[collection] 文案刷新完成: {len(updated)}/{len(coll_ids)}")
     return updated
@@ -375,32 +334,16 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
 
 def get_collections(page: int = 1, page_size: int = 20, favorite_only: bool = False) -> Dict:
     """获取合集列表"""
-    offset = (page - 1) * page_size
-    where = "WHERE is_favorite = 1" if favorite_only else "WHERE is_favorite = 0"
-
-    count_sql = f"SELECT COUNT(*) as total FROM photo_collections {where}"
-    total = execute_query(count_sql)[0]["total"]
-
-    query_sql = f"""
-        SELECT * FROM photo_collections 
-        {where}
-        ORDER BY created_at DESC 
-        LIMIT %s OFFSET %s
-    """
-    rows = execute_query(query_sql, (page_size, offset))
-
-    collections = []
-    for row in rows:
-        collections.append(_row_to_dict(row))
-
+    total, rows = DB.collections_list(page, page_size, favorite_only)
+    collections = [_row_to_dict(row) for row in rows]
     return {"collections": collections, "total": total, "page": page, "page_size": page_size}
 
 
 def get_collection_detail(collection_id: int) -> Optional[Dict]:
-    rows = execute_query("SELECT * FROM photo_collections WHERE id = %s", (collection_id,))
-    if not rows:
+    row = DB.collections_get_detail(collection_id)
+    if not row:
         return None
-    return _row_to_dict(rows[0])
+    return _row_to_dict(row)
 
 
 def _row_to_dict(row) -> Dict:
@@ -426,23 +369,20 @@ def _row_to_dict(row) -> Dict:
 
 
 def toggle_favorite(collection_id: int, bgm_track: str = "") -> Dict:
-    rows = execute_query("SELECT is_favorite FROM photo_collections WHERE id = %s", (collection_id,))
-    if not rows:
+    is_fav = DB.collections_is_favorite(collection_id)
+    if is_fav is None:
         return {"success": False, "error": "合集不存在"}
-    new_val = 1 if not rows[0]["is_favorite"] else 0
-    if new_val == 1 and bgm_track:
-        execute_query("UPDATE photo_collections SET is_favorite = %s, bgm_track = %s WHERE id = %s", (new_val, bgm_track, collection_id), fetch=False)
-    else:
-        execute_query("UPDATE photo_collections SET is_favorite = %s WHERE id = %s", (new_val, collection_id), fetch=False)
+    new_val = 1 if not is_fav else 0
+    DB.collections_toggle_favorite(collection_id, new_val, bgm_track)
     return {"success": True, "is_favorite": bool(new_val)}
 
 
 def delete_collection(collection_id: int) -> Dict:
-    execute_query("DELETE FROM photo_collections WHERE id = %s", (collection_id,), fetch=False)
+    DB.collections_delete(collection_id)
     return {"success": True}
 
 
 def clear_all_collections() -> Dict:
     """清空非收藏合集（保留收藏的）"""
-    execute_query("DELETE FROM photo_collections WHERE is_favorite = 0", fetch=False)
+    DB.collections_clear_unfavorited()
     return {"success": True, "message": "已清空合集（收藏的保留）"}
