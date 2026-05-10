@@ -17,6 +17,11 @@ export default function CollectionPage({ isMobile, onBack }) {
   const [autoPlay, setAutoPlay] = useState(true);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [llmModel, setLlmModel] = useState('');
+
+  // 滑动动画状态
+  const [slideY, setSlideY] = useState(0);
+  const [pendingIndex, setPendingIndex] = useState(null);
+  const [sliding, setSliding] = useState(false);
   const autoPlayRef = useRef(null);
   const containerRef = useRef(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
@@ -206,13 +211,31 @@ export default function CollectionPage({ isMobile, onBack }) {
     return () => { if (autoPlayRef.current) clearInterval(autoPlayRef.current); };
   }, [autoPlay, currentIndex, collections]);
 
-  // 切换合集
+  // 切换合集（带滑动动画）
   const goToPrevCollection = useCallback(() => {
-    if (currentIndex > 0) { setCurrentIndex(prev => prev - 1); setPhotoIndex(0); }
-  }, [currentIndex]);
+    if (sliding || currentIndex <= 0) return;
+    setPendingIndex(currentIndex - 1);
+    setSliding(true);
+    setSlideY(100); // current slides DOWN, prev appears above
+  }, [currentIndex, sliding]);
+
   const goToNextCollection = useCallback(() => {
-    if (currentIndex < collections.length - 1) { setCurrentIndex(prev => prev + 1); setPhotoIndex(0); }
-  }, [currentIndex, collections.length]);
+    if (sliding || currentIndex >= collections.length - 1) return;
+    setPendingIndex(currentIndex + 1);
+    setSliding(true);
+    setSlideY(-100); // current slides UP, next appears below
+  }, [currentIndex, collections.length, sliding]);
+
+  // 滑动结束
+  const onSlideEnd = useCallback(() => {
+    if (pendingIndex !== null && slideY !== 0) {
+      setCurrentIndex(pendingIndex);
+      setPhotoIndex(0);
+    }
+    setSlideY(0);
+    setPendingIndex(null);
+    setSliding(false);
+  }, [pendingIndex, slideY]);
 
   const nextPhoto = useCallback(() => {
     const photos = collections[currentIndex]?.photo_paths || [];
@@ -243,8 +266,9 @@ export default function CollectionPage({ isMobile, onBack }) {
   }, []);
 
   // 触摸
-  const handleTouchStart = (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
+  const handleTouchStart = (e) => { if (sliding) return; touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
   const handleTouchEnd = (e) => {
+    if (sliding) return;
     const endX = e.changedTouches[0].clientX, endY = e.changedTouches[0].clientY;
     const dx = endX - touchStartRef.current.x, dy = endY - touchStartRef.current.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 50) return;
@@ -252,11 +276,13 @@ export default function CollectionPage({ isMobile, onBack }) {
     else { dx < 0 ? nextPhoto() : prevPhoto(); }
   };
   const handleWheel = (e) => {
+    if (sliding) return;
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { e.deltaX > 0 ? nextPhoto() : prevPhoto(); }
     else { e.deltaY > 0 ? goToNextCollection() : goToPrevCollection(); }
   };
   useEffect(() => {
     const h = (e) => {
+      if (sliding) return;
       switch (e.key) {
         case 'ArrowDown': goToNextCollection(); break;
         case 'ArrowUp': goToPrevCollection(); break;
@@ -266,7 +292,7 @@ export default function CollectionPage({ isMobile, onBack }) {
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [goToNextCollection, goToPrevCollection, nextPhoto, prevPhoto]);
+  }, [goToNextCollection, goToPrevCollection, nextPhoto, prevPhoto, sliding]);
 
   // ==== 渲染 ====
 
@@ -312,6 +338,41 @@ export default function CollectionPage({ isMobile, onBack }) {
   return (
     <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
       style={{ width: '100%', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none' }}>
+
+      {/* 背景层：下一个/上一个合集的照片（滑动时露出） */}
+      {sliding && pendingIndex !== null && collections[pendingIndex] && (() => {
+        const pc = collections[pendingIndex];
+        const pp = (pc.photo_paths || [])[0];
+        return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            {pp && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: `center/cover no-repeat url('${getProxyUrl(pp)}')`,
+                filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
+              }} />
+            )}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {pp ? (
+                <img src={getProxyUrl(pp)} alt="" draggable={false}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
+              ) : (
+                <Text style={{ color: '#666' }}>图片加载失败</Text>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 当前层（滑动出/入） */}
+      <div
+        onTransitionEnd={onSlideEnd}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 2,
+          transform: `translateY(${slideY}vh)`,
+          transition: sliding ? 'transform 0.35s cubic-bezier(0.22, 0.28, 0.17, 1)' : 'none',
+        }}
+      >
 
       {/* 模糊背景 */}
       {currentPhoto && (
@@ -439,6 +500,7 @@ export default function CollectionPage({ isMobile, onBack }) {
           onClick={handleFavorite}
           style={{ width: 56, height: 56, background: 'rgba(0,0,0,0.3)', borderRadius: '50%' }} />
         <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>{isFav ? '已收藏' : '收藏'}</Text>
+      </div>
       </div>
     </div>
   );
