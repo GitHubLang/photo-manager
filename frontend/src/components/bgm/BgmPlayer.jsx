@@ -46,7 +46,7 @@ function detectMood(title, tags) {
 }
 
 // ============ 组件 ============
-export default function BgmPlayer({ collection, visible = true }) {
+export default function BgmPlayer({ collection, visible = true, onTrackChange }) {
   const audioRef = useRef(null);
   const manifestRef = useRef(null);
   const moodRef = useRef('calm');
@@ -59,6 +59,18 @@ export default function BgmPlayer({ collection, visible = true }) {
   const [trackIndex, setTrackIndex] = useState(0);
   const [tracks, setTracks] = useState([]);
   const [source, setSource] = useState(null);
+  const trackRef = useRef(null);
+
+  // 当 tracks 或 trackIndex 变化时通知父组件
+  const getTrackLabel = useCallback(() => {
+    const t = tracks[trackIndex];
+    return t ? (t.artist ? `${t.artist} - ${t.title}` : t.title) : '';
+  }, [tracks, trackIndex]);
+
+  useEffect(() => {
+    const label = getTrackLabel();
+    if (onTrackChange && label) onTrackChange(label);
+  }, [trackIndex, tracks, onTrackChange, getTrackLabel]);
 
   // 初始化音频
   useEffect(() => {

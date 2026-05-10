@@ -199,6 +199,7 @@ def init_database():
             cover_path VARCHAR(500),
             is_favorite TINYINT(1) DEFAULT 0,
             llm_model VARCHAR(100) DEFAULT 'local',
+            bgm_track VARCHAR(300) DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_is_favorite (is_favorite),
             INDEX idx_created_at (created_at),

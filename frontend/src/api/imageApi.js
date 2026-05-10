@@ -150,8 +150,12 @@ export const fetchCollections = (page = 1, pageSize = 20, favoriteOnly = false) 
 export const fetchCollectionDetail = (id) =>
   fetch(API_BASE + '/collections/' + id).then(r => r.json());
 
-export const toggleCollectionFavorite = (id) =>
-  fetch(API_BASE + '/collections/' + id + '/favorite', { method: 'POST' }).then(r => r.json());
+export const toggleCollectionFavorite = (id, bgmTrack = '') =>
+  fetch(API_BASE + '/collections/' + id + '/favorite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bgm_track: bgmTrack })
+  }).then(r => r.json());
 
 export const deleteCollection = (id) =>
   fetch(API_BASE + '/collections/' + id, { method: 'DELETE' }).then(r => r.json());

@@ -24,6 +24,7 @@ export default function CollectionPage({ isMobile, onBack }) {
   const pollRef = useRef(null);
   const pendingRefreshRef = useRef(new Set());
   const llmModelRef = useRef('');
+  const currentBgmTrackRef = useRef('');
 
   // 加载设定
   useEffect(() => {
@@ -193,14 +194,20 @@ export default function CollectionPage({ isMobile, onBack }) {
     e.stopPropagation();
     const col = collections[currentIndex];
     if (!col) return;
-    const data = await toggleCollectionFavorite(col.id);
+    const bgmTrack = currentBgmTrackRef.current;
+    const data = await toggleCollectionFavorite(col.id, bgmTrack);
     if (data.success) {
       const newCols = [...collections];
-      newCols[currentIndex] = { ...newCols[currentIndex], is_favorite: data.is_favorite };
+      newCols[currentIndex] = { ...newCols[currentIndex], is_favorite: data.is_favorite, bgm_track: bgmTrack };
       setCollections(newCols);
       message.success(data.is_favorite ? '已收藏' : '已取消收藏');
     }
   };
+
+  // BGM 回调
+  const handleBgmTrackChange = useCallback((trackName) => {
+    currentBgmTrackRef.current = trackName;
+  }, []);
 
   // 触摸
   const handleTouchStart = (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
@@ -375,7 +382,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       </div>
 
       {/* BGM 播放器 */}
-      <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} />
+      <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} />
 
       {/* 收藏 */}
       <div style={{ position: 'absolute', right: 16, bottom: isMobile ? 200 : 180, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20 }}>

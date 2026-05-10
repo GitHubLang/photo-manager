@@ -418,17 +418,21 @@ def _row_to_dict(row) -> Dict:
         "photo_ids": photo_ids,
         "cover_path": row["cover_path"],
         "photo_count": len(photo_paths),
+        "bgm_track": row.get("bgm_track", "") or "",
         "is_favorite": bool(row["is_favorite"]),
-        "created_at": str(row["created_at"]) if row["created_at"] else None,
+        "bgm_track": row.get("bgm_track", "") or "",
     }
 
 
-def toggle_favorite(collection_id: int) -> Dict:
+def toggle_favorite(collection_id: int, bgm_track: str = "") -> Dict:
     rows = execute_query("SELECT is_favorite FROM photo_collections WHERE id = %s", (collection_id,))
     if not rows:
         return {"success": False, "error": "合集不存在"}
     new_val = 1 if not rows[0]["is_favorite"] else 0
-    execute_query("UPDATE photo_collections SET is_favorite = %s WHERE id = %s", (new_val, collection_id), fetch=False)
+    if new_val == 1 and bgm_track:
+        execute_query("UPDATE photo_collections SET is_favorite = %s, bgm_track = %s WHERE id = %s", (new_val, bgm_track, collection_id), fetch=False)
+    else:
+        execute_query("UPDATE photo_collections SET is_favorite = %s WHERE id = %s", (new_val, collection_id), fetch=False)
     return {"success": True, "is_favorite": bool(new_val)}
 
 

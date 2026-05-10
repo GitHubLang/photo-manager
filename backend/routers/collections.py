@@ -63,10 +63,14 @@ def api_get_collection(collection_id: int):
     return detail
 
 
+class FavoriteRequest(BaseModel):
+    bgm_track: str = ""
+
+
 @router.post("/collections/{collection_id}/favorite")
-def api_toggle_favorite(collection_id: int):
-    """切换收藏状态"""
-    return toggle_favorite(collection_id)
+def api_toggle_favorite(collection_id: int, req: FavoriteRequest = FavoriteRequest()):
+    """切换收藏状态，收藏时保存当前 BGM 曲目"""
+    return toggle_favorite(collection_id, bgm_track=req.bgm_track)
 
 
 @router.delete("/collections/{collection_id}")
