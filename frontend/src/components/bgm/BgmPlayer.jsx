@@ -49,6 +49,9 @@ function detectMood(title, tags) {
 export default function BgmPlayer({ collection, visible = true }) {
   const audioRef = useRef(null);
   const manifestRef = useRef(null);
+  const moodRef = useRef('calm');
+  const collectionTitleRef = useRef('');
+  const collectionTagsRef = useRef('');
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -115,7 +118,7 @@ export default function BgmPlayer({ collection, visible = true }) {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 合集变化 → 重新选曲
+  // 合集变化 → 重新选曲（用 id 做稳定对比，避免切照片也触发）
   useEffect(() => {
     if (!ready || !collection || source !== 'preinstalled') return;
     const manifest = manifestRef.current;
@@ -126,9 +129,12 @@ export default function BgmPlayer({ collection, visible = true }) {
     const pool = moodTracks?.length > 0 ? moodTracks : Object.values(manifest).flat();
     if (pool.length === 0) return;
 
+    moodRef.current = mood;
+    collectionTitleRef.current = collection.title;
+    collectionTagsRef.current = collection.tags;
     setTracks(pool);
     setTrackIndex(Math.floor(Math.random() * pool.length));
-  }, [ready, collection, source]);
+  }, [ready, collection?.id, source]);
 
   // trackIndex 变化 → 播放
   const playTrack = useCallback((idx) => {
@@ -140,8 +146,8 @@ export default function BgmPlayer({ collection, visible = true }) {
     if (source === 'local') {
       url = t.url;
     } else {
-      // preinstalled — 需重新检测 mood 以确定正确子目录
-      const mood = detectMood(collection?.title, collection?.tags);
+      // preinstalled — 用缓存的 mood 查子目录
+      const mood = moodRef.current;
       url = `/bgm/${mood}/${encodeURIComponent(t.filename)}`;
     }
 
@@ -153,9 +159,8 @@ export default function BgmPlayer({ collection, visible = true }) {
       .then(() => setPlaying(true))
       .catch(() => {
         setPlaying(false);
-        // 首次播放被浏览器拦截是正常的，不做额外处理
       });
-  }, [tracks, source, collection]);
+  }, [tracks, source]);
 
   // 播放下一曲（自动切换）
   const advanceTrack = useCallback(() => {

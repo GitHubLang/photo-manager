@@ -334,12 +334,12 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
 
         # 重建 photos 结构（只要 id、file_path、tags、description 即可）
         photo_rows = execute_query(
-            "SELECT id, file_path, COALESCE(tags,'') as tags, COALESCE(description,'') as description "
+            "SELECT i.id AS img_id, i.file_path, COALESCE(d.tags,'') as tags, COALESCE(d.description,'') as description "
             "FROM images i LEFT JOIN image_descriptions d ON i.id = d.image_id "
             "WHERE i.id IN (" + ",".join(["%s"] * len(ids_list)) + ")",
             ids_list
         )
-        photos = [{"id": p["id"], "file_path": p["file_path"], "tags": p["tags"], "description": p["description"]} for p in photo_rows]
+        photos = [{"id": p["img_id"], "file_path": p["file_path"], "tags": p["tags"], "description": p["description"]} for p in photo_rows]
 
         meta = _generate_meta_for_one(photos, row["theme_type"], row["theme_value"], llm_model)
 
@@ -370,6 +370,9 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
 
 
 # ==================== 查询接口 ====================
+
+
+def get_collections(page: int = 1, page_size: int = 20, favorite_only: bool = False) -> Dict:
     """获取合集列表"""
     offset = (page - 1) * page_size
     where = "WHERE is_favorite = 1" if favorite_only else ""
