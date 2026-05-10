@@ -3,6 +3,7 @@ import { Button, message, Spin, Typography, Empty } from 'antd';
 import { HeartOutlined, HeartFilled, LoadingOutlined, LeftOutlined } from '@ant-design/icons';
 import { generateCollections, fetchCollections, toggleCollectionFavorite, getProxyUrl, clearAllCollections } from '../api/imageApi';
 import { fetchSettings } from '../api/imageApi';
+import BgmPlayer from '../components/bgm/BgmPlayer';
 
 const { Text } = Typography;
 const PLACEHOLDER = '⏳ 生成中...';
@@ -325,6 +326,9 @@ export default function CollectionPage({ isMobile, onBack }) {
           </Text>
         </div>
       </div>
+
+      {/* BGM 播放器 */}
+      <BgmPlayer collection={currentCollection} visible={!isPlaceholder} />
 
       {/* 收藏 */}
       <div style={{ position: 'absolute', right: 16, bottom: isMobile ? 200 : 180, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20 }}>

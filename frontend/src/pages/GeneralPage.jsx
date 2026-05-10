@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Select, Button, message, Typography, Divider, Spin } from 'antd';
+import { Select, Button, message, Typography, Divider, Spin, Input } from 'antd';
 const { Text, Title } = Typography;
 import { fetchModels, fetchSettings, saveSettings } from '../api/imageApi';
 
@@ -16,6 +16,7 @@ export default function GeneralPage() {
   const [scoringModel, setScoringModel] = useState(getLocal(LS_SCORING));
   const [captionModel, setCaptionModel] = useState(getLocal(LS_CAPTION));
   const [collectionLlmModel, setCollectionLlmModel] = useState(getLocal(LS_COLLECTION_LLM));
+  const [bgmLocalDir, setBgmLocalDir] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +36,9 @@ export default function GeneralPage() {
           setCollectionLlmModel(data.caption_llm_model);
           try { localStorage.setItem(LS_COLLECTION_LLM, data.caption_llm_model); } catch {}
         }
+        if (data.bgm_local_dir !== undefined) {
+          setBgmLocalDir(data.bgm_local_dir);
+        }
       }).catch(() => {
         // 服务端不可用时回退到 localStorage
         setScoringModel(getLocal(LS_SCORING));
@@ -47,7 +51,7 @@ export default function GeneralPage() {
   const handleSave = async () => {
     // 存服务端
     try {
-      await saveSettings({ scoring_model: scoringModel, caption_model: captionModel, caption_llm_model: collectionLlmModel });
+      await saveSettings({ scoring_model: scoringModel, caption_model: captionModel, caption_llm_model: collectionLlmModel, bgm_local_dir: bgmLocalDir });
     } catch {
       // 服务端不可用时只存 localStorage
     }
@@ -109,6 +113,26 @@ export default function GeneralPage() {
             />
             <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
               用于照片合集的标题、文案和标签自动生成
+            </Text>
+          </div>
+          <Button type="primary" onClick={handleSave}>保存设置</Button>
+        </div>
+
+        <Divider />
+        <div style={{ maxWidth: 500 }}>
+          <Text strong>背景音乐设置</Text>
+          <Divider />
+          <div style={{ marginBottom: 16 }}>
+            <Text>本地音乐目录（可选）：</Text>
+            <Input
+              value={bgmLocalDir}
+              onChange={e => setBgmLocalDir(e.target.value)}
+              placeholder="例如：D:\Music\bgm"
+              style={{ width: '100%', marginTop: 8 }}
+            />
+            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
+              照片合集背景音乐优先从这里读取。留空则使用预置曲库。
+              支持 mp3, wav, ogg, flac, m4a
             </Text>
           </div>
           <Button type="primary" onClick={handleSave}>保存设置</Button>
