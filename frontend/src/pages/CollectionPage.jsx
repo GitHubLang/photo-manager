@@ -25,6 +25,17 @@ export default function CollectionPage({ isMobile, onBack }) {
   const pendingRefreshRef = useRef(new Set());
   const llmModelRef = useRef('');
   const currentBgmTrackRef = useRef('');
+  const savedAllIndexRef = useRef(0);
+
+  // 在「全部」模式下跟踪当前位置，切换回来时恢复
+  useEffect(() => {
+    if (!favoriteOnly && collections.length > 0) {
+      savedAllIndexRef.current = currentIndex;
+    }
+  }, [currentIndex, favoriteOnly, collections.length]);
+
+  // currentIndex 同步到 ref
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
 
   // 加载设定
   useEffect(() => {
@@ -150,8 +161,10 @@ export default function CollectionPage({ isMobile, onBack }) {
         .catch(() => {})
         .finally(() => setLoading(false));
     } else {
-      // 切回全部：重新拉取（避免停留在收藏列表）
-      refreshFromServer();
+      // 切回全部：恢复到之前在全部列表的位置
+      refreshFromServer().then(() => {
+        setCurrentIndex(savedAllIndexRef.current);
+      });
     }
   }, [favoriteOnly]);
 
