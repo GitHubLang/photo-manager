@@ -6,3 +6,6 @@
 !cinematic/Ahjay*.mp3
 !lofi/Ahjay*.mp3
 !upbeat/Ahjay*.mp3
+
+# manifest 本地生成，不提交
+manifest.json
