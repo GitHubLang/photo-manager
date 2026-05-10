@@ -20,7 +20,6 @@ export default function CollectionPage({ isMobile, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [llmModel, setLlmModel] = useState('');
 
@@ -377,7 +376,7 @@ export default function CollectionPage({ isMobile, onNavigate }) {
   const isFav = currentCollection.is_favorite;
 
   return (
-    <div ref={containerRef} className={'collection-page' + (fullscreen ? ' collection-fullscreen' : '')}
+    <div ref={containerRef} className="collection-page"
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
       style={{ width: '100%', height: '100%', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
 
@@ -452,18 +451,6 @@ export default function CollectionPage({ isMobile, onNavigate }) {
         photos={photos}
         isMobile={isMobile}
       />
-
-      {/* 全屏切换按钮 */}
-      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 30 }}>
-        <Button type="text"
-          icon={fullscreen
-            ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3"/></svg>
-            : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-          }
-          onClick={() => setFullscreen(!fullscreen)}
-          style={{ width: 44, height: 44, background: 'rgba(0,0,0,0.3)', borderRadius: '50%' }}
-        />
-      </div>
 
       {/* BGM 播放器 */}
       <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} isMobile={isMobile} />

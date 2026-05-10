@@ -121,13 +121,16 @@ export default function AppShell() {
   }
 
   // 移动端布局
+  const isFullscreenPage = activePage === 'collections';
   return (
     <div className="app-layout">
-      <TopBar
-        variant="mobile"
-        onSearch={handleSearch}
-        onMenuClick={() => setMenuDrawerOpen(true)}
-      />
+      {!isFullscreenPage && (
+        <TopBar
+          variant="mobile"
+          onSearch={handleSearch}
+          onMenuClick={() => setMenuDrawerOpen(true)}
+        />
+      )}
       <HamburgerDrawer
         open={menuDrawerOpen}
         activePage={activePage}
@@ -146,7 +149,9 @@ export default function AppShell() {
         onScoreImageClick={handleScoreImageClick}
         onNavigate={handleMenuClick}
       />
-      <BottomTabs activePage={activePage} onTabChange={handleMenuClick} />
+      {!isFullscreenPage && (
+        <BottomTabs activePage={activePage} onTabChange={handleMenuClick} />
+      )}
     </div>
   );
 }
