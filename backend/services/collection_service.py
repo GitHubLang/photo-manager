@@ -375,7 +375,7 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
 def get_collections(page: int = 1, page_size: int = 20, favorite_only: bool = False) -> Dict:
     """获取合集列表"""
     offset = (page - 1) * page_size
-    where = "WHERE is_favorite = 1" if favorite_only else ""
+    where = "WHERE is_favorite = 1" if favorite_only else "WHERE is_favorite = 0"
 
     count_sql = f"SELECT COUNT(*) as total FROM photo_collections {where}"
     total = execute_query(count_sql)[0]["total"]

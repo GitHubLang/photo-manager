@@ -354,7 +354,7 @@ export default function CollectionPage({ isMobile, onBack }) {
                   color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
                   fontWeight: !favoriteOnly ? 600 : 400, transition: 'background 0.2s',
                 }}>全部</button>
-              <button onClick={() => setFavoriteOnly(true)}
+              <button onClick={() => { savedAllIndexRef.current = currentIndex; setFavoriteOnly(true); }}
                 style={{
                   border: 'none', background: favoriteOnly ? '#ff4d4f' : 'transparent',
                   color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
