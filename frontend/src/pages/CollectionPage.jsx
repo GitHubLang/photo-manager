@@ -349,7 +349,7 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   if (loading && collections.length === 0) {
     return (
-      <div style={{ width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div style={{ width: '100%', height: isMobile ? '100dvh' : '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
         <Spin indicator={<LoadingOutlined style={{ fontSize: 36, color: '#fff' }} spin />} />
         <Text style={{ color: '#999', marginTop: 16 }}>生成合集中...</Text>
       </div>
@@ -358,7 +358,7 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   if (collections.length === 0 && !generating) {
     return (
-      <div style={{ width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div style={{ width: '100%', height: isMobile ? '100dvh' : '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
         <Empty description={<Text style={{ color: '#999' }}>{favoriteOnly ? '还没有收藏的合集' : '还没有照片合集'}</Text>} />
         {favoriteOnly ? (
           <Button type="default" size="large" ghost onClick={() => setFavoriteOnly(false)}
@@ -374,7 +374,7 @@ export default function CollectionPage({ isMobile, onBack }) {
   const currentCollection = collections[currentIndex];
   if (!currentCollection) {
     return (
-      <div style={{ width: '100%', height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div style={{ width: '100%', height: isMobile ? '100dvh' : '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', paddingTop: 'env(safe-area-inset-top)' }}>
         <Text>没有更多合集了</Text>
         <Button type="link" onClick={handleGenerate}>生成新合集</Button>
       </div>
@@ -388,7 +388,7 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   return (
     <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
-      style={{ width: '100%', height: '100dvh', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
+      style={{ width: '100%', height: isMobile ? '100dvh' : '100%', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 背景层：下一个/上一个合集的照片（滑动时露出） */}
       {sliding && pendingIndex !== null && collections[pendingIndex] && (() => {
