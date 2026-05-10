@@ -42,7 +42,7 @@ async def get_folder_images(
     """获取指定文件夹的图片列表"""
     folder_path = folder_path.replace('/', '\\')
 
-    where_clauses = ["i.folder_path = %s"]
+    where_clauses = ["i.is_deleted = 0", "i.folder_path = %s"]
     params = [folder_path]
 
     if min_score is not None:

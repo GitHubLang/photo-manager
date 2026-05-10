@@ -38,7 +38,7 @@ def _get_export_images_with_tags() -> List[Dict]:
                COALESCE(d.description, '') as description
         FROM images i
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.folder_path LIKE %s
+        WHERE i.is_deleted = 0 AND i.folder_path LIKE %s
         ORDER BY RAND()
     """, ("%导出%",))
     if not rows:
@@ -48,6 +48,7 @@ def _get_export_images_with_tags() -> List[Dict]:
                    COALESCE(d.description, '') as description
             FROM images i
             LEFT JOIN image_descriptions d ON i.id = d.image_id
+            WHERE i.is_deleted = 0
             ORDER BY RAND()
             LIMIT 500
         """)
@@ -336,7 +337,7 @@ def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> L
         photo_rows = execute_query(
             "SELECT i.id AS img_id, i.file_path, COALESCE(d.tags,'') as tags, COALESCE(d.description,'') as description "
             "FROM images i LEFT JOIN image_descriptions d ON i.id = d.image_id "
-            "WHERE i.id IN (" + ",".join(["%s"] * len(ids_list)) + ")",
+            "WHERE i.id IN (" + ",".join(["%s"] * len(ids_list)) + ") AND i.is_deleted = 0",
             ids_list
         )
         photos = [{"id": p["img_id"], "file_path": p["file_path"], "tags": p["tags"], "description": p["description"]} for p in photo_rows]

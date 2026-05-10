@@ -17,7 +17,7 @@ BATCH_DELAY = 5  # seconds between batches
 def get_unscored():
     return execute_query("""
         SELECT i.id, i.file_path FROM images i
-        WHERE i.folder_path = %s
+        WHERE i.is_deleted = 0 AND i.folder_path = %s
           AND i.id NOT IN (SELECT image_id FROM image_scores)
         ORDER BY i.filename
     """, (FOLDER,))

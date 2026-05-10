@@ -208,7 +208,7 @@ def llm_score(image_path: str) -> dict:
         )
         cur = db.cursor(dictionary=True)
         # file_path 中提取相对路径（数据库存的是完整路径或相对路径）
-        cur.execute('SELECT id FROM images WHERE file_path = %s LIMIT 1', (image_path,))
+        cur.execute('SELECT id FROM images WHERE file_path = %s AND is_deleted = 0 LIMIT 1', (image_path,))
         row = cur.fetchone()
         cur.close()
         db.close()
@@ -221,7 +221,7 @@ def llm_score(image_path: str) -> dict:
             cur = db.cursor(dictionary=True)
             # 用文件名匹配
             filename = os.path.basename(image_path)
-            cur.execute('SELECT id FROM images WHERE filename = %s LIMIT 1', (filename,))
+            cur.execute('SELECT id FROM images WHERE filename = %s AND is_deleted = 0 LIMIT 1', (filename,))
             row = cur.fetchone()
             cur.close()
             db.close()

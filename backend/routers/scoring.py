@@ -79,7 +79,7 @@ async def score_images(req: ScoreRequest):
                 if cursor.rowcount == 0:
                     return
 
-                cursor.execute("SELECT file_path FROM images WHERE id = %s", (image_id,))
+                cursor.execute("SELECT file_path FROM images WHERE id = %s AND is_deleted = 0", (image_id,))
                 img = cursor.fetchone()
                 if not img:
                     cursor.execute(
@@ -221,7 +221,7 @@ async def retry_score_tasks(image_ids: List[int]):
                 if cursor.rowcount == 0:
                     return
 
-                cursor.execute("SELECT file_path FROM images WHERE id = %s", (image_id,))
+                cursor.execute("SELECT file_path FROM images WHERE id = %s AND is_deleted = 0", (image_id,))
                 img = cursor.fetchone()
                 if not img:
                     cursor.execute(

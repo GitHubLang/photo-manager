@@ -225,12 +225,29 @@ def index_folder(folder_path: str) -> Dict:
     # 1. 先查 DB 已有的路径
     try:
         existing_rows = execute_query(
-            "SELECT file_path FROM images WHERE folder_path = %s",
+            "SELECT file_path FROM images WHERE folder_path = %s AND is_deleted = 0",
             (folder_path,)
         )
         existing_paths = {row['file_path'] for row in existing_rows}
     except:
         existing_paths = set()
+
+    # 标记已删除的文件
+    try:
+        all_db_records = execute_query(
+            "SELECT file_path FROM images WHERE folder_path = %s",
+            (folder_path,)
+        )
+        for record in all_db_records:
+            fp = record['file_path']
+            exists = os.path.isfile(fp) if fp else False
+            execute_query(
+                "UPDATE images SET is_deleted = %s WHERE file_path = %s AND folder_path = %s",
+                (0 if exists else 1, fp, folder_path),
+                fetch=False
+            )
+    except Exception as e:
+        print(f"Error updating is_deleted flags: {e}")
 
     # 2. 列出磁盘上的图片文件（不打开 PIL）
     disk_files = _list_image_files(folder_path)
@@ -250,8 +267,8 @@ def index_folder(folder_path: str) -> Dict:
     # 5. 批量插入数据库
     insert_sql = """
         INSERT INTO images (file_path, filename, folder_date, folder_path,
-                          file_size, width, height, orientation, perceptual_hash)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                          file_size, width, height, orientation, perceptual_hash, is_deleted)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
     """
     params = [
         (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],

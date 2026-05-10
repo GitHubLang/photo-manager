@@ -20,7 +20,7 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
         FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.folder_date = %s AND s.total_score IS NOT NULL
+        WHERE i.is_deleted = 0 AND i.folder_date = %s AND s.total_score IS NOT NULL
         ORDER BY s.total_score DESC
         LIMIT 20
     """, (date_str,))
@@ -79,13 +79,13 @@ def generate_daily_theme(date_str: str, llm_model: str = "local") -> Dict:
             
             # 保存到数据库
             photo_count = execute_query(
-                "SELECT COUNT(*) as cnt FROM images WHERE folder_date = %s",
+                "SELECT COUNT(*) as cnt FROM images WHERE folder_date = %s AND is_deleted = 0",
                 (date_str,)
             )[0]['cnt']
             
             avg_score = execute_query(
                 "SELECT AVG(total_score) as avg FROM image_scores s "
-                "JOIN images i ON s.image_id = i.id WHERE i.folder_date = %s",
+                "JOIN images i ON s.image_id = i.id AND i.is_deleted = 0 WHERE i.folder_date = %s",
                 (date_str,)
             )[0]['avg'] or 0
             
@@ -130,7 +130,7 @@ def recommend_photo_set(date_str: str, set_type: str = "xiaohongshu") -> Dict:
         FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.folder_date = %s AND s.total_score IS NOT NULL
+        WHERE i.is_deleted = 0 AND i.folder_date = %s AND s.total_score IS NOT NULL
         ORDER BY s.total_score DESC
         LIMIT 12
     """, (date_str,))
@@ -214,7 +214,7 @@ def generate_caption(date_str: str, image_ids: List[int], set_type: str = "xiaoh
         FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.id IN ({placeholders})
+        WHERE i.id IN ({placeholders}) AND i.is_deleted = 0
     """, tuple(image_ids))
     
     if not images:

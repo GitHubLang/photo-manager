@@ -31,7 +31,7 @@ async def get_images_batch(ids: str = Query(..., description="逗号分隔的图
         LEFT JOIN image_descriptions d ON d.id = (
             SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
         )
-        WHERE i.id IN ({placeholders})
+        WHERE i.id IN ({placeholders}) AND i.is_deleted = 0
         """,
         tuple(id_list)
     )
@@ -54,7 +54,7 @@ async def get_image(image_id: int):
         FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.id = %s
+        WHERE i.id = %s AND i.is_deleted = 0
     """, (image_id,))
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -124,7 +124,7 @@ async def search_images(
         SELECT COUNT(*) as total FROM images i
         LEFT JOIN image_scores s ON i.id = s.image_id
         LEFT JOIN image_descriptions d ON i.id = d.image_id
-        WHERE i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s
+        WHERE i.is_deleted = 0 AND (i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)
     """
     total = execute_query(count_sql, (pattern, pattern, pattern))[0]['total']
 
@@ -146,7 +146,7 @@ async def search_images(
         LEFT JOIN image_descriptions d ON d.id = (
             SELECT id FROM image_descriptions WHERE image_id = i.id ORDER BY created_at DESC LIMIT 1
         )
-        WHERE i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s
+        WHERE i.is_deleted = 0 AND (i.filename LIKE %s OR d.description LIKE %s OR d.tags LIKE %s)
         ORDER BY s.total_score DESC
         LIMIT %s OFFSET %s
     """

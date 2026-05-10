@@ -97,7 +97,7 @@ async def get_caption_history_all(
     query_sql = f"""
         SELECT ps.*, i.file_path as cover_filename
         FROM photo_sets ps
-        LEFT JOIN images i ON ps.cover_image_id = i.id
+        LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
         WHERE {where_sql}
         ORDER BY ps.created_at DESC
         LIMIT %s OFFSET %s
@@ -121,12 +121,12 @@ async def get_caption_history_by_date(
     """按日期获取文案"""
     if set_type:
         sql = """SELECT ps.*, i.file_path as cover_filename FROM photo_sets ps
-           LEFT JOIN images i ON ps.cover_image_id = i.id
+           LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
            WHERE ps.date = %s AND ps.set_type = %s ORDER BY ps.created_at DESC"""
         results = execute_query(sql, (date_str, set_type))
     else:
         sql = """SELECT ps.*, i.file_path as cover_filename FROM photo_sets ps
-           LEFT JOIN images i ON ps.cover_image_id = i.id
+           LEFT JOIN images i ON ps.cover_image_id = i.id AND i.is_deleted = 0
            WHERE ps.date = %s ORDER BY ps.created_at DESC"""
         results = execute_query(sql, (date_str,))
     return results

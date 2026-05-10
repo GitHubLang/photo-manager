@@ -47,6 +47,7 @@ def init_database():
             thumbnail_path VARCHAR(500),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_deleted TINYINT(1) DEFAULT 0,
             INDEX idx_folder_date (folder_date),
             INDEX idx_orientation (orientation),
             INDEX idx_created_at (created_at)
