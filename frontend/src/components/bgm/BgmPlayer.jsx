@@ -226,7 +226,7 @@ export default function BgmPlayer({ collection, visible = true, onTrackChange, i
   return (
     <div style={{
       position: 'absolute',
-      bottom: isMobile ? 200 : 120,
+      bottom: `calc(${isMobile ? 200 : 120}px + env(safe-area-inset-bottom, 0px))`,
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 25,

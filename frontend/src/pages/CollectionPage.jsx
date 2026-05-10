@@ -388,7 +388,7 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   return (
     <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
-      style={{ width: '100%', height: '100dvh', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      style={{ width: '100%', height: '100dvh', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 背景层：下一个/上一个合集的照片（滑动时露出） */}
       {sliding && pendingIndex !== null && collections[pendingIndex] && (() => {
@@ -527,7 +527,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       {/* 底部文案（恢复第一版样式） */}
       <div style={{
         position: 'absolute',
-        bottom: isMobile ? 80 : 40,
+        bottom: `calc(${isMobile ? 80 : 40}px + env(safe-area-inset-bottom, 0px))`,
         left: 0, right: 0,
         padding: '32px 16px 16px',
         background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
@@ -573,7 +573,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} isMobile={isMobile} />
 
       {/* 收藏 */}
-      <div style={{ position: 'absolute', right: 16, bottom: isMobile ? 200 : 180, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20 }}>
+      <div style={{ position: 'absolute', right: 16, bottom: `calc(${isMobile ? 200 : 180}px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20 }}>
         <Button type="text"
           icon={isFav ? <HeartFilled style={{ color: '#ff4d4f', fontSize: 28 }} /> : <HeartOutlined style={{ color: '#fff', fontSize: 28 }} />}
           onClick={handleFavorite}
