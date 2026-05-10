@@ -310,6 +310,9 @@ export default function BrowsePage({
       items.push({ key: 'douyin', label: '抖音文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } });
       items.push({ key: 'xiaohongshu', label: '小红书文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } });
       items.push({ key: 'theme', label: '生成主题', onClick: handleGenerateTheme });
+      if (selectedImages.length === 1) {
+        items.push({ key: 'benchmark', label: '评分测试', onClick: () => { setBenchmarkImage(selectedImages[0]); setBenchmarkVisible(true); } });
+      }
     }
 
     // 翻页（仅当在文件夹浏览时）

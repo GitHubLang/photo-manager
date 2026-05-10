@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Tag, Button, Space, Checkbox, Spin, Empty, Select, Typography } from 'antd';
 const { Text } = Typography;
-import { getThumbnailUrl } from '../api/imageApi';
+import { getThumbnailUrl, getProxyUrl } from '../api/imageApi';
+import ImagePreviewModal from '../components/modals/ImagePreviewModal';
 import '../styles/scores.css';
 
 /**
  * ScoresPage — 评分记录独立页面
- * PC 和移动端共享同一代码，CSS 处理布局差异
+ * 点击已完成的评分记录 → 在本页打开图片预览弹窗（不跳转到素材页）
  */
-export default function ScoresPage({ scoreHook, onScoreImageClick }) {
+export default function ScoresPage({ scoreHook }) {
   const {
     scoreTasks, scoreTasksTotal, scoreTasksPage, scoreTasksLoading,
     scoreTaskFilter, setScoreTaskFilter,
@@ -17,6 +18,8 @@ export default function ScoresPage({ scoreHook, onScoreImageClick }) {
   } = scoreHook;
 
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     if (!initialLoaded) {
@@ -29,6 +32,12 @@ export default function ScoresPage({ scoreHook, onScoreImageClick }) {
     if (!scoreTasksLoading && scoreTasks.length < scoreTasksTotal) {
       loadScoreTasks(scoreTaskFilter === 'all' ? null : scoreTaskFilter, scoreTasksPage + 1, true);
     }
+  };
+
+  const handleImageClick = (task) => {
+    if (!task.file_path) return;
+    setPreviewImage({ ...task, imageUrl: getProxyUrl(task.file_path) });
+    setPreviewVisible(true);
   };
 
   return (
@@ -95,9 +104,9 @@ export default function ScoresPage({ scoreHook, onScoreImageClick }) {
                       style={{ height: 60, objectFit: 'cover' }} />
                   ) : null}
                   onClick={() => {
-                    if (isCompleted && onScoreImageClick) {
-                      onScoreImageClick(task);
-                    } else if (!isCompleted) {
+                    if (isCompleted) {
+                      handleImageClick(task);
+                    } else {
                       setSelectedScoreTaskIds(prev =>
                         prev.includes(imageId)
                           ? prev.filter(id => id !== imageId)
@@ -147,6 +156,12 @@ export default function ScoresPage({ scoreHook, onScoreImageClick }) {
           </Button>
         </Space>
       </div>
+
+      <ImagePreviewModal
+        visible={previewVisible}
+        image={previewImage}
+        onClose={() => setPreviewVisible(false)}
+      />
     </div>
   );
 }

@@ -1,4 +1,15 @@
 /* ============================================
    Collection Page
    ============================================ */
-/* (styles handled inline via CollectionPage component) */
+.collection-page {
+  /* desktop: normal flow */
+}
+
+/* mobile: fullscreen, cover entire viewport */
+@media (max-width: 767px) {
+  .collection-page {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+  }
+}

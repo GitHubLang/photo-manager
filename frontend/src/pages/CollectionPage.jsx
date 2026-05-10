@@ -376,8 +376,9 @@ export default function CollectionPage({ isMobile, onNavigate }) {
   const isFav = currentCollection.is_favorite;
 
   return (
-    <div ref={containerRef} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
-      style={{ width: '100%', height: isMobile ? '100dvh' : '100%', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div ref={containerRef} className="collection-page"
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onWheel={handleWheel}
+      style={{ width: '100%', height: '100%', background: '#000', position: 'relative', overflow: 'hidden', userSelect: 'none', paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* 背景层：下一个/上一个合集的照片（滑动时露出） */}
       {sliding && pendingIndex !== null && collections[pendingIndex] && (() => {

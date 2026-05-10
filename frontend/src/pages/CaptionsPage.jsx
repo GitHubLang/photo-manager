@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Tag, Button, Space, Spin, Empty, Select, Input, Typography } from 'antd';
 const { Text } = Typography;
-import { getThumbnailUrl, fetchBatchImages } from '../api/imageApi';
+import { getThumbnailUrl, fetchBatchImages, getProxyUrl } from '../api/imageApi';
+import CaptionModal from '../components/modals/CaptionModal';
 import '../styles/captions.css';
 
 /**
  * CaptionsPage — 文案记录独立页面
- * PC 和移动端共享同一代码
+ * 点击文案记录 → 在本页打开文案详情弹窗（不跳转到素材页）
  */
 export default function CaptionsPage({ captionHook }) {
   const {
@@ -14,10 +15,12 @@ export default function CaptionsPage({ captionHook }) {
     captionKeyword, setCaptionKeyword,
     captionTypeFilter, setCaptionTypeFilter,
     loadCaptionHistory,
-    setGeneratedCaption, setCaptionModalImages, setCaptionModalVisible,
   } = captionHook;
 
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalCaption, setModalCaption] = useState(null);
+  const [modalImages, setModalImages] = useState([]);
 
   useEffect(() => {
     if (!initialLoaded) {
@@ -38,17 +41,18 @@ export default function CaptionsPage({ captionHook }) {
 
   const handleImageClick = (cap) => {
     const parsedIds = cap.image_ids ? JSON.parse(cap.image_ids) : [];
-    setGeneratedCaption({
+    const capData = {
       ...cap,
       title: cap.caption_title,
       setType: cap.set_type,
       content: cap.caption_body,
       hashtags: cap.hashtags,
-    });
+    };
+    setModalCaption(capData);
     fetchBatchImages(parsedIds)
-      .then(d => setCaptionModalImages(d.images || []))
-      .catch(() => setCaptionModalImages([]));
-    setCaptionModalVisible(true);
+      .then(d => setModalImages(d.images || []))
+      .catch(() => setModalImages([]));
+    setModalVisible(true);
   };
 
   return (
@@ -137,6 +141,14 @@ export default function CaptionsPage({ captionHook }) {
           </Button>
         </Space>
       </div>
+
+      <CaptionModal
+        visible={modalVisible}
+        caption={modalCaption}
+        images={modalImages}
+        onClose={() => { setModalVisible(false); setModalImages([]); }}
+        onImageClick={(img) => { /* future: image preview within captions page */ }}
+      />
     </div>
   );
 }
