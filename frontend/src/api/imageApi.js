@@ -136,6 +136,13 @@ export const generateCollections = (count = 20, llmModel = '') =>
     body: JSON.stringify({ count, llm_model: llmModel })
   }).then(r => r.json());
 
+export const refreshCollectionMeta = (collectionIds, llmModel = '') =>
+  fetch(API_BASE + '/collections/refresh-meta', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ collection_ids: collectionIds, llm_model: llmModel })
+  }).then(r => r.json());
+
 export const fetchCollections = (page = 1, pageSize = 20, favoriteOnly = false) =>
   fetch(API_BASE + '/collections?page=' + page + '&page_size=' + pageSize + '&favorite_only=' + favoriteOnly)
     .then(r => r.json());

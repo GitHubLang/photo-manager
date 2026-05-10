@@ -2,11 +2,12 @@
 照片合集 API 路由
 """
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 from services.collection_service import (
     batch_generate_collections,
+    refresh_collections_meta,
     get_collections,
     get_collection_detail,
     toggle_favorite,
@@ -22,12 +23,25 @@ class GenerateRequest(BaseModel):
     llm_model: str = ""
 
 
+class RefreshMetaRequest(BaseModel):
+    collection_ids: List[int]
+    llm_model: str = ""
+
+
 @router.post("/collections/generate")
 def api_generate_collections(req: GenerateRequest):
     """生成一批照片合集"""
     model = req.llm_model or "local"
     collections = batch_generate_collections(count=req.count, llm_model=model)
     return {"success": True, "collections": collections, "count": len(collections)}
+
+
+@router.post("/collections/refresh-meta")
+def api_refresh_collections_meta(req: RefreshMetaRequest):
+    """为指定合集刷新生文案（并发调用LLM）"""
+    model = req.llm_model or "local"
+    updated = refresh_collections_meta(req.collection_ids, llm_model=model)
+    return {"success": True, "updated": updated}
 
 
 @router.get("/collections")

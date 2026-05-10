@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, message, Spin, Typography, Empty } from 'antd';
 import { HeartOutlined, HeartFilled, LoadingOutlined, LeftOutlined } from '@ant-design/icons';
-import { generateCollections, fetchCollections, toggleCollectionFavorite, getProxyUrl, clearAllCollections } from '../api/imageApi';
+import { generateCollections, refreshCollectionMeta, fetchCollections, toggleCollectionFavorite, getProxyUrl, clearAllCollections } from '../api/imageApi';
 import { fetchSettings } from '../api/imageApi';
 import BgmPlayer from '../components/bgm/BgmPlayer';
 
@@ -73,7 +73,16 @@ export default function CollectionPage({ isMobile, onBack }) {
         setCollections(data.collections);
         setCurrentIndex(0);
         setPhotoIndex(0);
-        message.success(`生成了 ${data.collections.length} 个合集（文案后台生成中...）`);
+        message.success(`生成了 ${data.collections.length} 个合集（文案生成中...）`);
+
+        // 自动刷新前 5 个合集的文案（并发）
+        const firstIds = data.collections.slice(0, 5).map(c => c.id);
+        refreshCollectionMeta(firstIds, llmModel).then(res => {
+          if (res.success && res.updated?.length > 0) {
+            // 文案刷新后，从服务端拉最新数据
+            refreshFromServer();
+          }
+        }).catch(() => {});
       } else {
         message.error('生成失败');
       }

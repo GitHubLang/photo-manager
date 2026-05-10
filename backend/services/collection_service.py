@@ -6,6 +6,7 @@ import random
 import os
 from typing import List, Dict, Optional
 from collections import defaultdict, Counter
+import concurrent.futures
 
 
 from database import execute_query
@@ -252,50 +253,48 @@ def _generate_meta_for_one(photos: List[Dict], theme_type: str, theme_value: str
     }
 
 
-# ==================== 对外接口 ====================
+# ==================== 快速分组（无LLM） ====================
 
 def batch_generate_collections(count: int = 20, llm_model: str = "local") -> List[Dict]:
     """
-    分组后同步生成文案（确保LLM结果可靠再入库）
+    快速分组：只按标签聚类，不调LLM。
+    文案后续由 refresh_collections_meta() 异步生成。
+    所有合集先以占位方式入库，让用户先看到照片。
     """
     images = _get_export_images_with_tags()
     if not images:
         return []
 
-    # 1. 分组
     groups = _group_images(images)[:count]
     if not groups:
         return []
 
-    # 2. 同步生成每个合集的元数据并入库
     results = []
-    for i, g in enumerate(groups):
+    for g in groups:
         photos = g["photos"]
-        meta = _generate_meta_for_one(photos, g["theme_type"], g["theme_value"], llm_model)
-
         cover_path = photos[0]["file_path"]
         photo_paths = [p["file_path"] for p in photos]
         photo_ids = [p["id"] for p in photos]
 
-        sql = """
+        cid = execute_query("""
             INSERT INTO photo_collections 
                 (title, description, tags, theme_type, theme_value,
                  photo_paths, photo_ids, cover_path, llm_model)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cid = execute_query(sql, (
-            meta["title"], meta["description"], meta["tags"],
+        """, (
+            f"⏳ 生成中...",
+            "正在生成文案...",
+            "#摄影 #记录生活",
             g["theme_type"], g["theme_value"],
             json.dumps(photo_paths), json.dumps(photo_ids),
             cover_path, llm_model,
         ), fetch=False)
 
-        print(f"[collection] #{cid}: {meta['title']}")
         results.append({
             "id": cid,
-            "title": meta["title"],
-            "description": meta["description"],
-            "tags": meta["tags"],
+            "title": "⏳ 生成中...",
+            "description": "正在生成文案...",
+            "tags": "#摄影 #记录生活",
             "theme_type": g["theme_type"],
             "theme_value": g["theme_value"],
             "photo_paths": photo_paths,
@@ -305,10 +304,72 @@ def batch_generate_collections(count: int = 20, llm_model: str = "local") -> Lis
             "is_favorite": False,
         })
 
+    print(f"[collection] 生成 {len(results)} 个合集分组（文案待刷新）")
     return results
 
 
-def get_collections(page: int = 1, page_size: int = 20, favorite_only: bool = False) -> Dict:
+# ==================== LLM 生成元数据（独立调用，可并行） ====================
+
+def refresh_collections_meta(coll_ids: List[int], llm_model: str = "local") -> List[Dict]:
+    """
+    为指定合集生成文案（title/description/tags）。
+    用线程池并发加速，优先刷新用户当前可见的合集。
+    """
+    if not coll_ids:
+        return []
+
+    # 从DB读取合集数据
+    placeholders = ",".join(["%s"] * len(coll_ids))
+    rows = execute_query(f"SELECT * FROM photo_collections WHERE id IN ({placeholders})", coll_ids)
+    if not rows:
+        return []
+
+    def _process_one(row) -> Optional[Dict]:
+        """单个合集的 LLM 生成"""
+        try:
+            paths = json.loads(row["photo_paths"]) if isinstance(row["photo_paths"], str) else row["photo_paths"]
+            ids_list = json.loads(row["photo_ids"]) if isinstance(row["photo_ids"], str) else row["photo_ids"]
+        except (json.JSONDecodeError, TypeError):
+            paths, ids_list = [], []
+
+        # 重建 photos 结构（只要 id、file_path、tags、description 即可）
+        photo_rows = execute_query(
+            "SELECT id, file_path, COALESCE(tags,'') as tags, COALESCE(description,'') as description "
+            "FROM images i LEFT JOIN image_descriptions d ON i.id = d.image_id "
+            "WHERE i.id IN (" + ",".join(["%s"] * len(ids_list)) + ")",
+            ids_list
+        )
+        photos = [{"id": p["id"], "file_path": p["file_path"], "tags": p["tags"], "description": p["description"]} for p in photo_rows]
+
+        meta = _generate_meta_for_one(photos, row["theme_type"], row["theme_value"], llm_model)
+
+        execute_query(
+            "UPDATE photo_collections SET title=%s, description=%s, tags=%s WHERE id=%s",
+            (meta["title"], meta["description"], meta["tags"], row["id"]),
+            fetch=False
+        )
+
+        print(f"[collection] 文案刷新 #{row['id']}: {meta['title']}")
+        return {
+            "id": row["id"],
+            "title": meta["title"],
+            "description": meta["description"],
+            "tags": meta["tags"],
+        }
+
+    updated = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_process_one, row): row["id"] for row in rows}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                updated.append(result)
+
+    print(f"[collection] 文案刷新完成: {len(updated)}/{len(coll_ids)}")
+    return updated
+
+
+# ==================== 查询接口 ====================
     """获取合集列表"""
     offset = (page - 1) * page_size
     where = "WHERE is_favorite = 1" if favorite_only else ""
