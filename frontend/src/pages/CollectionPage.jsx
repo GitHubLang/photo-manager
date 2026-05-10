@@ -18,10 +18,15 @@ export default function CollectionPage({ isMobile, onBack }) {
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [llmModel, setLlmModel] = useState('');
 
-  // 滑动动画状态
+  // 滑动动画状态（合集）
   const [slideY, setSlideY] = useState(0);
   const [pendingIndex, setPendingIndex] = useState(null);
   const [sliding, setSliding] = useState(false);
+
+  // 滑动动画状态（照片左右切）
+  const [slideX, setSlideX] = useState(0);
+  const [pendingPhotoIdx, setPendingPhotoIdx] = useState(null);
+  const [photoSliding, setPhotoSliding] = useState(false);
   const autoPlayRef = useRef(null);
   const containerRef = useRef(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
@@ -201,7 +206,7 @@ export default function CollectionPage({ isMobile, onBack }) {
 
   // 自动轮播
   useEffect(() => {
-    if (autoPlay && collections.length > 0 && collections[currentIndex]) {
+    if (autoPlay && !photoSliding && collections.length > 0 && collections[currentIndex]) {
       const photos = collections[currentIndex].photo_paths || [];
       if (photos.length <= 1) return;
       autoPlayRef.current = setInterval(() => {
@@ -238,13 +243,36 @@ export default function CollectionPage({ isMobile, onBack }) {
   }, [pendingIndex, slideY]);
 
   const nextPhoto = useCallback(() => {
-    const photos = collections[currentIndex]?.photo_paths || [];
-    if (photos.length > 1) { setPhotoIndex(prev => (prev + 1) % photos.length); setAutoPlay(false); setTimeout(() => setAutoPlay(true), 5000); }
-  }, [currentIndex, collections]);
+    const p = collections[currentIndex]?.photo_paths || [];
+    if (photoSliding || sliding || p.length <= 1) return;
+    const next = (photoIndex + 1) % p.length;
+    setPendingPhotoIdx(next);
+    setPhotoSliding(true);
+    setSlideX(-100); // current slides LEFT, next appears from RIGHT
+    setAutoPlay(false);
+    setTimeout(() => setAutoPlay(true), 5000);
+  }, [currentIndex, collections, photoIndex, photoSliding, sliding]);
+
   const prevPhoto = useCallback(() => {
-    const photos = collections[currentIndex]?.photo_paths || [];
-    if (photos.length > 1) { setPhotoIndex(prev => (prev - 1 + photos.length) % photos.length); setAutoPlay(false); setTimeout(() => setAutoPlay(true), 5000); }
-  }, [currentIndex, collections]);
+    const p = collections[currentIndex]?.photo_paths || [];
+    if (photoSliding || sliding || p.length <= 1) return;
+    const prev = (photoIndex - 1 + p.length) % p.length;
+    setPendingPhotoIdx(prev);
+    setPhotoSliding(true);
+    setSlideX(100); // current slides RIGHT, prev appears from LEFT
+    setAutoPlay(false);
+    setTimeout(() => setAutoPlay(true), 5000);
+  }, [currentIndex, collections, photoIndex, photoSliding, sliding]);
+
+  // 照片滑动结束
+  const onPhotoSlideEnd = useCallback(() => {
+    if (pendingPhotoIdx !== null && slideX !== 0) {
+      setPhotoIndex(pendingPhotoIdx);
+    }
+    setSlideX(0);
+    setPendingPhotoIdx(null);
+    setPhotoSliding(false);
+  }, [pendingPhotoIdx, slideX]);
 
   const handleFavorite = async (e) => {
     e.stopPropagation();
@@ -374,23 +402,51 @@ export default function CollectionPage({ isMobile, onBack }) {
         }}
       >
 
-      {/* 模糊背景 */}
-      {currentPhoto && (
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          background: `center/cover no-repeat url('${getProxyUrl(currentPhoto)}')`,
-          filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
-        }} />
-      )}
+      {/* 照片背景层（滑动时露出下一个/上一个） */}
+      {photoSliding && pendingPhotoIdx !== null && photos[pendingPhotoIdx] && (() => {
+        const np = photos[pendingPhotoIdx];
+        return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              background: `center/cover no-repeat url('${getProxyUrl(np)}')`,
+              filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
+            }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src={getProxyUrl(np)} alt="" draggable={false}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
+            </div>
+          </div>
+        );
+      })()}
 
-      {/* 主图 */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {currentPhoto ? (
-          <img src={getProxyUrl(currentPhoto)} alt="" draggable={false}
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
-        ) : (
-          <Text style={{ color: '#666' }}>图片加载失败</Text>
+      {/* 当前照片层（滑动出/入） */}
+      <div
+        onTransitionEnd={onPhotoSlideEnd}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 2,
+          transform: `translateX(${slideX}vw)`,
+          transition: photoSliding ? 'transform 0.35s cubic-bezier(0.22, 0.28, 0.17, 1)' : 'none',
+        }}
+      >
+        {/* 模糊背景 */}
+        {currentPhoto && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: `center/cover no-repeat url('${getProxyUrl(currentPhoto)}')`,
+            filter: 'blur(20px)', opacity: 0.5, transform: 'scale(1.1)',
+          }} />
         )}
+
+        {/* 主图 */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {currentPhoto ? (
+            <img src={getProxyUrl(currentPhoto)} alt="" draggable={false}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 30px rgba(0,0,0,0.5)' }} />
+          ) : (
+            <Text style={{ color: '#666' }}>图片加载失败</Text>
+          )}
+        </div>
       </div>
 
       {/* 照片序号浮层 */}
