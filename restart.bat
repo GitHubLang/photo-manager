@@ -35,6 +35,6 @@ echo.
 echo ========================================
 echo   Restart complete
 echo   Backend: http://localhost:8000
-echo   Frontend: http://192.168.X.X:5173
+echo   Frontend: http://[HOST]:5173
 echo ========================================
 timeout /t 5 /nobreak >nul

@@ -203,23 +203,19 @@ def llm_score(image_path: str) -> dict:
     try:
         # 1. 从数据库查找 image_id
         import mysql.connector
-        db = mysql.connector.connect(
-            host='192.168.X.X', user='root', password='REDACTED', database='photo_manager_db'
-        )
+        from config import DB_CONFIG, DATABASE_NAME
+        db = mysql.connector.connect(**DB_CONFIG)
         cur = db.cursor(dictionary=True)
-        # file_path 中提取相对路径（数据库存的是完整路径或相对路径）
+        cur.execute(f'USE {DATABASE_NAME}')
         cur.execute('SELECT id FROM images WHERE file_path = %s AND is_deleted = 0 LIMIT 1', (image_path,))
         row = cur.fetchone()
         cur.close()
         db.close()
 
         if not row:
-            # 可能存的是相对路径，再试一次
-            db = mysql.connector.connect(
-                host='192.168.X.X', user='root', password='REDACTED', database='photo_manager_db'
-            )
+            db = mysql.connector.connect(**DB_CONFIG)
             cur = db.cursor(dictionary=True)
-            # 用文件名匹配
+            cur.execute(f'USE {DATABASE_NAME}')
             filename = os.path.basename(image_path)
             cur.execute('SELECT id FROM images WHERE filename = %s AND is_deleted = 0 LIMIT 1', (filename,))
             row = cur.fetchone()

@@ -8,7 +8,7 @@ buf = io.BytesIO()
 img.save(buf, format='JPEG')
 b64 = base64.b64encode(buf.getvalue()).decode()
 
-url = 'http://192.168.X.X:1234/v1/chat/completions'
+url = 'http://[LLM_HOST]:1234/v1/chat/completions'
 SCORING_PROMPT = """你是一位专业摄影比赛评委。请根据专业摄影比赛标准对这张照片进行评分。
 对每个维度，请提供：分数(0-100)、详细分析、具体改进建议。
 请按以下精确JSON格式返回分析结果（只返回JSON，不要其他内容）：

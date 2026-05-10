@@ -30,6 +30,6 @@ start "photo-manager preview" cmd /k "npm run preview"
 
 echo.
 echo 构建完成，preview 已在新窗口启动。
-echo 访问 http://192.168.X.X:4173 查看（局域网）。
+echo 访问 preview 地址查看（局域网）。
 echo.
 pause
