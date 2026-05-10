@@ -249,9 +249,14 @@ export default function CollectionPage({ isMobile, onBack }) {
   if (collections.length === 0 && !generating) {
     return (
       <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff' }}>
-        <Empty description={<Text style={{ color: '#999' }}>还没有照片合集</Text>} />
-        <Button type="primary" size="large" onClick={handleGenerate} loading={generating}
-          style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px' }}>生成合集</Button>
+        <Empty description={<Text style={{ color: '#999' }}>{favoriteOnly ? '还没有收藏的合集' : '还没有照片合集'}</Text>} />
+        {favoriteOnly ? (
+          <Button type="default" size="large" ghost onClick={() => setFavoriteOnly(false)}
+            style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px', color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>查看全部合集</Button>
+        ) : (
+          <Button type="primary" size="large" onClick={handleGenerate} loading={generating}
+            style={{ marginTop: 20, borderRadius: 24, padding: '8px 32px' }}>生成合集</Button>
+        )}
       </div>
     );
   }
@@ -307,12 +312,22 @@ export default function CollectionPage({ isMobile, onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <Button type="text" icon={<LeftOutlined />} onClick={onBack} style={{ color: '#fff', fontSize: 18 }}>返回</Button>
           <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>合集 {currentIndex + 1} / {collections.length}</Text>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button type={favoriteOnly ? 'primary' : 'default'} size="small" ghost={!favoriteOnly}
-              onClick={() => setFavoriteOnly(prev => !prev)}
-              style={{ borderRadius: 20, fontSize: 12, color: favoriteOnly ? '#ff4d4f' : '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>
-              {favoriteOnly ? '❤️ 收藏' : '收藏'}
-            </Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* 合集/收藏 切换 */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.1)', borderRadius: 20, overflow: 'hidden' }}>
+              <button onClick={() => setFavoriteOnly(false)}
+                style={{
+                  border: 'none', background: !favoriteOnly ? 'rgba(255,255,255,0.25)' : 'transparent',
+                  color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
+                  fontWeight: !favoriteOnly ? 600 : 400, transition: 'background 0.2s',
+                }}>全部</button>
+              <button onClick={() => setFavoriteOnly(true)}
+                style={{
+                  border: 'none', background: favoriteOnly ? '#ff4d4f' : 'transparent',
+                  color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
+                  fontWeight: favoriteOnly ? 600 : 400, transition: 'background 0.2s',
+                }}>❤️ 我的收藏</button>
+            </div>
             <Button size="small" ghost onClick={handleGenerate} loading={generating}
               style={{ borderRadius: 20, fontSize: 12, color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>刷新</Button>
           </div>
