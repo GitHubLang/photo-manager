@@ -1,0 +1,204 @@
+{
+  "ambient": [
+    {
+      "title": "Tech House vibes",
+      "artist": "Alejandro Magaña (A. M.)",
+      "filename": "Alejandro Magaña (A. M.) - Tech House vibes.mp3",
+      "size": 3276082
+    },
+    {
+      "title": "Jungle Voices",
+      "artist": "Diego Nava",
+      "filename": "Diego Nava - Jungle Voices.mp3",
+      "size": 3128886
+    },
+    {
+      "title": "Relaxing in Nature",
+      "artist": "Diego Nava",
+      "filename": "Diego Nava - Relaxing in Nature.mp3",
+      "size": 3107152
+    },
+    {
+      "title": "Forest Walk",
+      "artist": "Eugenio Mininni",
+      "filename": "Eugenio Mininni - Forest Walk.mp3",
+      "size": 5577546
+    },
+    {
+      "title": "Moon Walk",
+      "artist": "Eugenio Mininni",
+      "filename": "Eugenio Mininni - Moon Walk.mp3",
+      "size": 6552227
+    },
+    {
+      "title": "Piano Horror",
+      "artist": "Francisco Alvear",
+      "filename": "Francisco Alvear - Piano Horror.mp3",
+      "size": 3617898
+    }
+  ],
+  "calm": [
+    {
+      "title": "Cyberpunk City",
+      "artist": "Alejandro Magaña (A. M.)",
+      "filename": "Alejandro Magaña (A. M.) - Cyberpunk City.mp3",
+      "size": 3191654
+    },
+    {
+      "title": "Pilates and Yoga",
+      "artist": "Arulo",
+      "filename": "Arulo - Pilates and Yoga.mp3",
+      "size": 3074551
+    },
+    {
+      "title": "Wedding Song 03",
+      "artist": "Arulo",
+      "filename": "Arulo - Wedding Song 03.mp3",
+      "size": 3074551
+    },
+    {
+      "title": "Yoga Song",
+      "artist": "Arulo",
+      "filename": "Arulo - Yoga Song.mp3",
+      "size": 3140589
+    },
+    {
+      "title": "Yoga Tune",
+      "artist": "Arulo",
+      "filename": "Arulo - Yoga Tune.mp3",
+      "size": 3102973
+    },
+    {
+      "title": "Uplifting Bass",
+      "artist": "Lily J",
+      "filename": "Lily J - Uplifting Bass.mp3",
+      "size": 3839999
+    }
+  ],
+  "cinematic": [
+    {
+      "title": "Dreaming Big",
+      "artist": "Ahjay Stelino",
+      "filename": "Ahjay Stelino - Dreaming Big.mp3",
+      "size": 3534262
+    },
+    {
+      "title": "Driving Ambition",
+      "artist": "Ahjay Stelino",
+      "filename": "Ahjay Stelino - Driving Ambition.mp3",
+      "size": 3270947
+    },
+    {
+      "title": "The Journey",
+      "artist": "Ahjay Stelino",
+      "filename": "Ahjay Stelino - The Journey.mp3",
+      "size": 3463380
+    },
+    {
+      "title": "Epical Drums 01",
+      "artist": "Grigoriy Nuzhny",
+      "filename": "Grigoriy Nuzhny - Epical Drums 01.mp3",
+      "size": 3392455
+    },
+    {
+      "title": "Epical Drums 05",
+      "artist": "Grigoriy Nuzhny",
+      "filename": "Grigoriy Nuzhny - Epical Drums 05.mp3",
+      "size": 3278770
+    },
+    {
+      "title": "Fright Night",
+      "artist": "Michael Ramir C.",
+      "filename": "Michael Ramir C. - Fright Night.mp3",
+      "size": 3243407
+    }
+  ],
+  "lofi": [
+    {
+      "title": "A Blue Day",
+      "artist": "Alejandro Magaña (A. M.)",
+      "filename": "Alejandro Magaña (A. M.) - A Blue Day.mp3",
+      "size": 6392337
+    },
+    {
+      "title": "See Line Funk",
+      "artist": "Alejandro Magaña",
+      "filename": "Alejandro Magaña - See Line Funk.mp3",
+      "size": 4252486
+    },
+    {
+      "title": "Roses",
+      "artist": "Andrew Ev",
+      "filename": "Andrew Ev - Roses.mp3",
+      "size": 8542346
+    },
+    {
+      "title": "Lust or love",
+      "artist": "Arulo",
+      "filename": "Arulo - Lust or love.mp3",
+      "size": 4050904
+    },
+    {
+      "title": "Hip Hop Two",
+      "artist": "Francisco Alvear",
+      "filename": "Francisco Alvear - Hip Hop Two.mp3",
+      "size": 4468863
+    },
+    {
+      "title": "R&B vibes 1",
+      "artist": "Grigoriy Nuzhny",
+      "filename": "Grigoriy Nuzhny - R&B vibes 1.mp3",
+      "size": 5806615
+    },
+    {
+      "title": "Relaxation 04",
+      "artist": "Lily J",
+      "filename": "Lily J - Relaxation 04.mp3",
+      "size": 5183737
+    },
+    {
+      "title": "You're like Caviar",
+      "artist": "Michael Ramir C.",
+      "filename": "Michael Ramir C. - You're like Caviar.mp3",
+      "size": 4662796
+    }
+  ],
+  "upbeat": [
+    {
+      "title": "Raising Me Higher",
+      "artist": "Ahjay Stelino",
+      "filename": "Ahjay Stelino - Raising Me Higher.mp3",
+      "size": 3126333
+    },
+    {
+      "title": "Follow Me Home",
+      "artist": "Arulo",
+      "filename": "Arulo - Follow Me Home.mp3",
+      "size": 2359005
+    },
+    {
+      "title": "Rising Sun",
+      "artist": "Diego Nava",
+      "filename": "Diego Nava - Rising Sun.mp3",
+      "size": 2936625
+    },
+    {
+      "title": "PlaceIt World 01",
+      "artist": "Lily J",
+      "filename": "Lily J - PlaceIt World 01.mp3",
+      "size": 3839999
+    },
+    {
+      "title": "At the Playhouse",
+      "artist": "Michael Ramir C.",
+      "filename": "Michael Ramir C. - At the Playhouse.mp3",
+      "size": 2908278
+    },
+    {
+      "title": "Magical moment",
+      "artist": "Michael Ramir C.",
+      "filename": "Michael Ramir C. - Magical moment.mp3",
+      "size": 3138917
+    }
+  ]
+}
