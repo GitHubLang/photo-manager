@@ -113,7 +113,7 @@ export default function CollectionPage({ isMobile, onBack }) {
     }
   }, [favoriteOnly, handleGenerate]);
 
-  // 收藏模式下加载
+  // 收藏模式下加载 / 切回全部
   useEffect(() => {
     if (favoriteOnly) {
       setLoading(true);
@@ -129,6 +129,9 @@ export default function CollectionPage({ isMobile, onBack }) {
         })
         .catch(() => {})
         .finally(() => setLoading(false));
+    } else {
+      // 切回全部：重新拉取（避免停留在收藏列表）
+      refreshFromServer();
     }
   }, [favoriteOnly]);
 
@@ -326,7 +329,7 @@ export default function CollectionPage({ isMobile, onBack }) {
                   border: 'none', background: favoriteOnly ? '#ff4d4f' : 'transparent',
                   color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', borderRadius: 0,
                   fontWeight: favoriteOnly ? 600 : 400, transition: 'background 0.2s',
-                }}>❤️ 我的收藏</button>
+                }}>我的收藏</button>
             </div>
             <Button size="small" ghost onClick={handleGenerate} loading={generating}
               style={{ borderRadius: 20, fontSize: 12, color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>刷新</Button>
