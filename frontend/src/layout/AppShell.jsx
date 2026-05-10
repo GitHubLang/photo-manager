@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import { Layout } from 'antd';
+const { Sider } = Layout;
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import TopBar from './TopBar';
 import Sidebar from './Sidebar';
@@ -22,6 +24,7 @@ export default function AppShell() {
   // 当前页面（从菜单 key 映射）
   const [activePage, setActivePage] = useState('browse');
   const [subTab, setSubTab] = useState(null);
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
 
   // 全局 hooks
@@ -86,14 +89,22 @@ export default function AppShell() {
       <div className="app-layout">
         <TopBar variant="desktop" onSearch={handleSearch} onScan={imageHook.handleScanAll} />
         <div className="app-body">
-          <Sidebar
-            collapsed={false}
-            activePage={activePage}
-            folders={imageHook.folders}
-            selectedFolder={imageHook.selectedFolder}
-            onMenuClick={handleMenuClick}
-            onFolderSelect={handleFolderSelect}
-          />
+          <Sider
+            width={260}
+            collapsible
+            collapsed={menuCollapsed}
+            onCollapse={setMenuCollapsed}
+            className="folder-sider"
+          >
+            <Sidebar
+              collapsed={menuCollapsed}
+              activePage={activePage}
+              folders={imageHook.folders}
+              selectedFolder={imageHook.selectedFolder}
+              onMenuClick={handleMenuClick}
+              onFolderSelect={handleFolderSelect}
+            />
+          </Sider>
           <PageRouter
             page={activePage}
             subTab={subTab}

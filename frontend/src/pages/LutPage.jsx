@@ -116,6 +116,7 @@ export default function LutPage() {
   };
 
   return (
+    <div className="page-content" style={{ padding: 24, overflowY: 'auto' }}>
     <div style={C.box}>
       <Title level={3} style={{ marginBottom: 4, fontWeight: 600 }}>LUT 克隆</Title>
       <Text type="secondary" style={{ display: 'block', marginBottom: 28 }}>
@@ -287,6 +288,7 @@ export default function LutPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
