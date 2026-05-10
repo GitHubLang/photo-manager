@@ -139,6 +139,21 @@
   overflow: hidden;
 }
 
+/* 折叠触发按钮 — 匹配 light 主题 */
+.ant-layout-sider-trigger {
+  background: var(--bg-secondary) !important;
+  border-right: 1px solid var(--border) !important;
+  border-top: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+  transition: background var(--transition-normal);
+}
+.ant-layout-sider-trigger:hover {
+  background: var(--bg-tertiary) !important;
+}
+.ant-layout-sider-trigger .anticon {
+  color: var(--text-primary);
+}
+
 /* ============================================
    Bottom Tab Bar - Mobile Navigation
    ============================================ */
