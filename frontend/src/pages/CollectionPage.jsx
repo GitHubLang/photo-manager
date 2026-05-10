@@ -527,7 +527,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       {/* 底部文案（恢复第一版样式） */}
       <div style={{
         position: 'absolute',
-        bottom: `calc(${isMobile ? 80 : 40}px + env(safe-area-inset-bottom, 0px))`,
+        bottom: `calc(0px + env(safe-area-inset-bottom, 0px))`,
         left: 0, right: 0,
         padding: '32px 16px 16px',
         background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
