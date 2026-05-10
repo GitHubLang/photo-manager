@@ -246,9 +246,15 @@ export default function CollectionPage({ isMobile, onBack }) {
     const p = collections[currentIndex]?.photo_paths || [];
     if (photoSliding || sliding || p.length <= 1) return;
     const next = (photoIndex + 1) % p.length;
-    setPendingPhotoIdx(next);
-    setPhotoSliding(true);
-    setSlideX(-100); // current slides LEFT, next appears from RIGHT
+    const url = getProxyUrl(p[next]);
+    // 预加载，避免黑屏
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      setPendingPhotoIdx(next);
+      setPhotoSliding(true);
+      setSlideX(-100);
+    };
+    img.src = url;
     setAutoPlay(false);
     setTimeout(() => setAutoPlay(true), 5000);
   }, [currentIndex, collections, photoIndex, photoSliding, sliding]);
@@ -257,9 +263,14 @@ export default function CollectionPage({ isMobile, onBack }) {
     const p = collections[currentIndex]?.photo_paths || [];
     if (photoSliding || sliding || p.length <= 1) return;
     const prev = (photoIndex - 1 + p.length) % p.length;
-    setPendingPhotoIdx(prev);
-    setPhotoSliding(true);
-    setSlideX(100); // current slides RIGHT, prev appears from LEFT
+    const url = getProxyUrl(p[prev]);
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      setPendingPhotoIdx(prev);
+      setPhotoSliding(true);
+      setSlideX(100);
+    };
+    img.src = url;
     setAutoPlay(false);
     setTimeout(() => setAutoPlay(true), 5000);
   }, [currentIndex, collections, photoIndex, photoSliding, sliding]);
@@ -273,6 +284,18 @@ export default function CollectionPage({ isMobile, onBack }) {
     setPendingPhotoIdx(null);
     setPhotoSliding(false);
   }, [pendingPhotoIdx, slideX]);
+
+  // 被动预加载：photoIndex 变化时提前缓存相邻照片
+  useEffect(() => {
+    const p = (collections[currentIndex]?.photo_paths || []);
+    if (p.length <= 1) return;
+    const nextIdx = (photoIndex + 1) % p.length;
+    const prevIdx = (photoIndex - 1 + p.length) % p.length;
+    [prevIdx, nextIdx].forEach(idx => {
+      const img = new Image();
+      img.src = getProxyUrl(p[idx]);
+    });
+  }, [photoIndex, currentIndex, collections]);
 
   const handleFavorite = async (e) => {
     e.stopPropagation();
