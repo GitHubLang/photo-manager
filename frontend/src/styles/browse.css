@@ -112,8 +112,9 @@
   color: white;
 }
 
-/* ---- FAB Button (Mobile) ---- */
+/* ---- FAB Button (Mobile only via CSS) ---- */
 .fab-button {
+  display: none;
   position: fixed;
   right: var(--space-4);
   bottom: calc(72px + env(safe-area-inset-bottom));
@@ -127,6 +128,10 @@
   color: white !important;
 }
 .fab-button:active { transform: scale(0.95); }
+
+@media (max-width: 767px) {
+  .fab-button { display: flex; }
+}
 
 /* ---- Sort/Select tweaks ---- */
 .ant-select { font-size: 12px !important; }

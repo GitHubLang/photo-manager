@@ -139,7 +139,6 @@ export default function AppShell() {
       <PageRouter
         page={activePage}
         subTab={subTab}
-        isMobile={true}
         imageHook={imageHook}
         searchHook={searchHook}
         scoreHook={scoreHook}

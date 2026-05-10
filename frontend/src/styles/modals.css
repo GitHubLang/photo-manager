@@ -102,8 +102,35 @@
 /* ---- Tags ---- */
 .ant-tag { font-size: 11px; padding: 0 6px; line-height: 18px; border-radius: var(--radius-sm); }
 
+/* ---- Preview modal content ---- */
+.preview-modal-content .ant-modal-content { border-radius: 0; }
+.preview-modal-content .ant-modal-close { position: fixed; top: var(--space-4); right: var(--space-4); z-index: 1; }
+.preview-modal-content .ant-modal-body { height: 100%; overflow-y: auto; padding: var(--space-4); }
+
+.preview-modal-body {
+  text-align: center;
+  padding-bottom: 0;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 767px) {
+  .preview-modal-content .ant-modal-content {
+    position: fixed;
+    inset: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .preview-modal-content .ant-modal-body {
+    padding-top: calc(var(--space-4) + 40px);
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+  .preview-modal-body {
+    padding-bottom: 80px;
+  }
   .ant-modal { max-width: 100vw !important; margin: 0 !important; padding: 0 !important; }
   .ant-modal-content {
     border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;

@@ -33,7 +33,6 @@ function getSettingModel(key) {
  * PC 和移动端共享，差异走 CSS
  */
 export default function BrowsePage({
-  isMobile,
   imageHook, searchHook, scoreHook, captionHook,
 }) {
   // ---- 本地状态 ----
@@ -354,7 +353,6 @@ export default function BrowsePage({
 
       <ImagePreviewModal
         visible={previewVisible}
-        isMobile={isMobile}
         image={selectedImage}
         onClose={() => setPreviewVisible(false)}
         onScore={handleScore}
@@ -392,7 +390,7 @@ export default function BrowsePage({
         onClose={() => { setBenchmarkVisible(false); setBenchmarkImage(null); }}
       />
 
-      {isMobile && !previewVisible && FABButton()}
+      {!previewVisible && FABButton()}
     </>
   );
 }
