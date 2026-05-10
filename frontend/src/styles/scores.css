@@ -1,0 +1,30 @@
+/* ============================================
+   Scores Page
+   ============================================ */
+.scores-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.scores-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.scores-page-header .ant-space { flex-wrap: wrap; }
+
+.scores-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scores-pagination {
+  text-align: center;
+  margin-top: var(--space-4);
+}

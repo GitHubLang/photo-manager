@@ -13,7 +13,7 @@ import CollectionHeader from '../components/collection/CollectionHeader';
 import CollectionFooter from '../components/collection/CollectionFooter';
 import CollectionSlide from '../components/collection/CollectionSlide';
 
-export default function CollectionPage({ isMobile, onBack }) {
+export default function CollectionPage({ isMobile, onNavigate }) {
   const [collections, setCollections] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -439,7 +439,7 @@ export default function CollectionPage({ isMobile, onBack }) {
         setFavoriteOnly={setFavoriteOnly}
         handleGenerate={handleGenerate}
         generating={generating}
-        onBack={onBack}
+        onBack={() => onNavigate('browse')}
         currentCollection={currentCollection}
         savedAllIndexRef={savedAllIndexRef}
       />

@@ -1,0 +1,30 @@
+/* ============================================
+   Captions Page
+   ============================================ */
+.captions-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.captions-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.captions-page-header .ant-space { flex-wrap: wrap; }
+
+.captions-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.captions-pagination {
+  text-align: center;
+  margin-top: var(--space-4);
+}
