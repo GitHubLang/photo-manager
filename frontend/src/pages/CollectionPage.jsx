@@ -34,9 +34,6 @@ export default function CollectionPage({ isMobile, onBack }) {
     }
   }, [currentIndex, favoriteOnly, collections.length]);
 
-  // currentIndex 同步到 ref
-  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
-
   // 加载设定
   useEffect(() => {
     fetchSettings()
