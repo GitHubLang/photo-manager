@@ -471,7 +471,8 @@ function App() {
 
   return (
     <Layout className="app-layout">
-      {/* 顶部工具栏 */}
+      {/* 顶部工具栏 — 合集页面全屏时隐藏 */}
+      {!(isMobile && activeMenu === 'collections') && (
       <TopToolbar
         isMobile={isMobile}
         searchText=""
@@ -479,6 +480,7 @@ function App() {
         onScan={imageHook.handleScanAll}
         onMenuClick={() => setMenuDrawerOpen(true)}
       />
+      )}
 
       {/* 移动端抽屉 */}
       {isMobile && (
