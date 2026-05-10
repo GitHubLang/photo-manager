@@ -2,11 +2,15 @@
    Settings Page
    ============================================ */
 .settings-page {
-  max-width: 960px;
-  margin: 0 auto;
   padding: var(--space-4);
 }
 
 .settings-page .ant-tabs-nav {
   margin-bottom: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .settings-page {
+    padding: var(--space-5) var(--space-6);
+  }
 }

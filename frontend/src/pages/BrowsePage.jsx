@@ -273,20 +273,55 @@ export default function BrowsePage({
     </div>
   );
 
-  // ============ 移动端 FAB ============
-  const FABButton = () => {
-    if (!isMobile || selectedImages.length === 0) return null;
-    return (
-      <Dropdown menu={{ items: [
-        { key: 'select_all', label: selectedImages.length === displayImages.length ? '取消全选' : '全选', onClick: toggleSelectAll },
-        { key: 'download', label: '下载原图 (' + selectedImages.length + ')', onClick: handleDownloadSelected },
-        { key: 'theme', label: '生成主题', onClick: handleGenerateTheme },
-        { key: 'douyin', label: '抖音文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } },
-        { key: 'xiaohongshu', label: '小红书文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } },
-      ] }} trigger={['click']}>
-        <Button className="fab-button" type="primary"><ThunderboltOutlined /></Button>
-      </Dropdown>
-    );
+  // ============ 移动端 FAB (始终显示，根据是否选中展示不同菜单) ============
+  const FABButton = () => (
+    <Dropdown menu={{ items: buildFabMenu() }} trigger={['click']}>
+      <Button className="fab-button" type="primary"><ThunderboltOutlined /></Button>
+    </Dropdown>
+  );
+
+  const buildFabMenu = () => {
+    const items = [];
+
+    // 排序
+    items.push({
+      key: 'sort_group', label: '排序方式', type: 'group',
+      children: [
+        { key: 'sort_created', label: imageHook.sortBy === 'created_at' ? '✓ 创建时间' : '创建时间', onClick: () => imageHook.handleSortChange('created_at', imageHook.sortOrder) },
+        { key: 'sort_name', label: imageHook.sortBy === 'filename' ? '✓ 文件名' : '文件名', onClick: () => imageHook.handleSortChange('filename', imageHook.sortOrder) },
+        { key: 'sort_score', label: imageHook.sortBy === 'total_score' ? '✓ 评分' : '评分', onClick: () => imageHook.handleSortChange('total_score', imageHook.sortOrder) },
+        { key: 'sort_size', label: imageHook.sortBy === 'file_size' ? '✓ 大小' : '大小', onClick: () => imageHook.handleSortChange('file_size', imageHook.sortOrder) },
+      ]
+    });
+    items.push({
+      key: 'sort_order', label: '顺序', type: 'group',
+      children: [
+        { key: 'order_asc', label: imageHook.sortOrder === 'asc' ? '✓ 升序' : '升序', onClick: () => imageHook.handleSortChange(imageHook.sortBy, 'asc') },
+        { key: 'order_desc', label: imageHook.sortOrder === 'desc' ? '✓ 降序' : '降序', onClick: () => imageHook.handleSortChange(imageHook.sortBy, 'desc') },
+      ]
+    });
+
+    // 选择操作（仅当选中有图片时）
+    if (selectedImages.length > 0) {
+      items.push({ type: 'divider' });
+      items.push({ key: 'selected_count', label: '已选 ' + selectedImages.length + ' 张', disabled: true });
+      items.push({ key: 'select_all', label: selectedImages.length === displayImages.length ? '取消全选' : '全选', onClick: toggleSelectAll });
+      items.push({ key: 'download', label: '下载原图 (' + selectedImages.length + ')', onClick: handleDownloadSelected });
+      items.push({ key: 'batch_score', label: '批量评分 (' + selectedImages.length + ')', onClick: handleBatchScore });
+      items.push({ key: 'douyin', label: '抖音文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('douyin'); setCaptionInstructionsModalVisible(true); } });
+      items.push({ key: 'xiaohongshu', label: '小红书文案', onClick: () => { captionModalImgRef.current = selectedImages; setPendingCaptionType('xiaohongshu'); setCaptionInstructionsModalVisible(true); } });
+      items.push({ key: 'theme', label: '生成主题', onClick: handleGenerateTheme });
+    }
+
+    // 翻页（仅当在文件夹浏览时）
+    if (imageHook.selectedFolder && searchHook.searchResults === null) {
+      items.push({ type: 'divider' });
+      items.push({ key: 'page_info', label: '第 ' + imageHook.currentPage + ' / ' + imageHook.totalPages + ' 页', disabled: true });
+      items.push({ key: 'prev_page', label: '上一页', disabled: imageHook.currentPage <= 1, onClick: () => imageHook.goToPage(imageHook.currentPage - 1) });
+      items.push({ key: 'next_page', label: '下一页', disabled: imageHook.currentPage >= imageHook.totalPages, onClick: () => imageHook.goToPage(imageHook.currentPage + 1) });
+    }
+
+    return items;
   };
 
   // ============ 渲染 ============
@@ -357,7 +392,7 @@ export default function BrowsePage({
         onClose={() => { setBenchmarkVisible(false); setBenchmarkImage(null); }}
       />
 
-      {isMobile && !previewVisible && <FABButton />}
+      {isMobile && !previewVisible && FABButton()}
     </>
   );
 }

@@ -2,8 +2,6 @@
    Scores Page
    ============================================ */
 .scores-page {
-  max-width: 960px;
-  margin: 0 auto;
   padding: var(--space-4);
 }
 
@@ -27,4 +25,10 @@
 .scores-pagination {
   text-align: center;
   margin-top: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .scores-page {
+    padding: var(--space-5) var(--space-6);
+  }
 }
