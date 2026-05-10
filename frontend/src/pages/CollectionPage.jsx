@@ -430,7 +430,7 @@ export default function CollectionPage({ isMobile, onBack }) {
       </div>
 
       {/* BGM 播放器 */}
-      <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} />
+      <BgmPlayer key={currentCollection.id} collection={currentCollection} visible={!generating && collections.length > 0} onTrackChange={handleBgmTrackChange} isMobile={isMobile} />
 
       {/* 收藏 */}
       <div style={{ position: 'absolute', right: 16, bottom: isMobile ? 200 : 180, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20 }}>

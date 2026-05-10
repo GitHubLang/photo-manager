@@ -46,7 +46,7 @@ function detectMood(title, tags) {
 }
 
 // ============ 组件 ============
-export default function BgmPlayer({ collection, visible = true, onTrackChange }) {
+export default function BgmPlayer({ collection, visible = true, onTrackChange, isMobile }) {
   const audioRef = useRef(null);
   const manifestRef = useRef(null);
   const moodRef = useRef('calm');
@@ -226,7 +226,7 @@ export default function BgmPlayer({ collection, visible = true, onTrackChange })
   return (
     <div style={{
       position: 'absolute',
-      bottom: 120,
+      bottom: isMobile ? 200 : 120,
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 25,
