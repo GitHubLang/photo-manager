@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, List, Input, message, Typography, Spin, Tag, Space, Popconfirm, Divider, Alert } from 'antd';
-import { PlusOutlined, DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, FolderOpenOutlined, ScanOutlined } from '@ant-design/icons';
 const { Text, Title } = Typography;
 
 import {
@@ -9,12 +9,14 @@ import {
   deletePhotoDirectory,
   togglePhotoDirectory,
   scanAllFolders,
-  fetchScanProgress
+  fetchScanProgress,
+  scanSingleFolder
 } from '../../api/imageApi';
 
 /**
  * PhotoDirectoriesSettings — 照片目录管理
  * 支持查看、添加、删除、启用/禁用照片根目录
+ * 支持全量扫描和单目录扫描
  */
 export default function PhotoDirectoriesSettings() {
   const [directories, setDirectories] = useState([]);
@@ -23,6 +25,7 @@ export default function PhotoDirectoriesSettings() {
   const [adding, setAdding] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [scanningDir, setScanningDir] = useState(null); // 正在扫描的目录 id
 
   const loadDirectories = () => {
     setLoading(true);
@@ -82,7 +85,6 @@ export default function PhotoDirectoriesSettings() {
       const data = await scanAllFolders();
       const taskId = data.task_id;
 
-      // 轮询进度
       const poll = async () => {
         try {
           const progress = await fetchScanProgress(taskId);
@@ -90,7 +92,7 @@ export default function PhotoDirectoriesSettings() {
             const result = progress.result;
             setScanResult(result);
             setScanning(false);
-            message.success(`扫描完成: 新增 ${result.added} 张, 跳过 ${result.skipped} 张`);
+            message.success(`全量扫描完成: 新增 ${result.added} 张, 跳过 ${result.skipped} 张`);
           } else if (progress.status === 'running') {
             setTimeout(poll, 2000);
           } else {
@@ -105,6 +107,19 @@ export default function PhotoDirectoriesSettings() {
     } catch {
       message.error('启动扫描失败');
       setScanning(false);
+    }
+  };
+
+  const handleScanSingle = async (dir) => {
+    setScanningDir(dir.id);
+    try {
+      const result = await scanSingleFolder(dir.path);
+      message.success(`扫描完成: ${dir.path} — 新增 ${result.added} 张, 跳过 ${result.skipped} 张`);
+      loadDirectories(); // 刷新图片数量
+    } catch (err) {
+      message.error(`扫描失败: ${err.message || '未知错误'}`);
+    } finally {
+      setScanningDir(null);
     }
   };
 
@@ -134,7 +149,7 @@ export default function PhotoDirectoriesSettings() {
             </Button>
           </Space>
           <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
-            输入完整的目录路径，支持网络路径和映射盘
+            输入完整的目录路径，支持网络路径和映射盘。添加后建议手动扫描以索引图片。
           </Text>
         </div>
 
@@ -147,14 +162,14 @@ export default function PhotoDirectoriesSettings() {
               loading={scanning}
               size="small"
             >
-              {scanning ? '扫描中...' : '重新扫描所有目录'}
+              {scanning ? '全量扫描中...' : '扫描所有目录'}
             </Button>
           </Space>
 
           {scanResult && (
             <Alert
               type="success"
-              message={`扫描完成 — 新增 ${scanResult.added} 张图片, 跳过 ${scanResult.skipped} 张`}
+              message={`全量扫描完成 — 新增 ${scanResult.added} 张图片, 跳过 ${scanResult.skipped} 张`}
               closable
               onClose={() => setScanResult(null)}
               style={{ marginBottom: 12 }}
@@ -167,6 +182,16 @@ export default function PhotoDirectoriesSettings() {
             renderItem={item => (
               <List.Item
                 actions={[
+                  <Button
+                    key="scan"
+                    size="small"
+                    icon={<ScanOutlined />}
+                    onClick={() => handleScanSingle(item)}
+                    loading={scanningDir === item.id}
+                    disabled={!item.is_active || !item.exists}
+                  >
+                    扫描
+                  </Button>,
                   <Button
                     key="toggle"
                     size="small"
@@ -193,7 +218,7 @@ export default function PhotoDirectoriesSettings() {
                   }
                   title={
                     <Space>
-                      <Text code>{item.path}</Text>
+                      <Text code style={{ fontSize: 13 }}>{item.path}</Text>
                     </Space>
                   }
                   description={

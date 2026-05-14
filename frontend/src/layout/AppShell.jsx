@@ -90,7 +90,7 @@ export default function AppShell() {
         <TopBar variant="desktop" onSearch={handleSearch} onScan={imageHook.handleScanAll} />
         <div className="app-body">
           <Sider
-            width={260}
+            width={300}
             collapsible
             collapsed={menuCollapsed}
             onCollapse={setMenuCollapsed}

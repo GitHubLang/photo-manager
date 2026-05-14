@@ -152,6 +152,13 @@ export const togglePhotoDirectory = (id) =>
     method: 'POST'
   }).then(r => r.json());
 
+export const scanSingleFolder = (folderPath) =>
+  fetch(API_BASE + '/folders/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder_path: folderPath })
+  }).then(r => r.json());
+
 // ============ 照片合集 API ============
 export const generateCollections = (count = 20, llmModel = '') =>
   fetch(API_BASE + '/collections/generate', {

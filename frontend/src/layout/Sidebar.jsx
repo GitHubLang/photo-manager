@@ -56,12 +56,12 @@ function buildMenuItems(items, collapsed, treeData, selectedFolder, onFolderSele
           label: (
             <div style={{ padding: '8px 12px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
               <Tree
+                className="folder-tree"
                 treeData={treeData}
                 selectedKeys={selectedFolder ? [selectedFolder] : []}
                 onSelect={(keys, info) => { if (info.node.path) onFolderSelect(info.node.path); }}
                 defaultExpandedKeys={defaultExpandedKeys}
                 showIcon={false}
-                style={{ fontSize: 13 }}
               />
             </div>
           ),

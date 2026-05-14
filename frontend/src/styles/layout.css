@@ -90,6 +90,30 @@
   background: var(--bg-tertiary) !important;
 }
 
+/* 文件夹树：减小缩进，让日期名称一行显示 */
+.folder-tree .ant-tree-treenode {
+  padding: 0 !important;
+}
+.folder-tree .ant-tree .ant-tree-node-content-wrapper {
+  min-height: 28px;
+  line-height: 28px;
+  padding: 0 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folder-tree .ant-tree-switcher {
+  width: 18px;
+  line-height: 28px;
+}
+.folder-tree .ant-tree-indent-unit {
+  width: 14px;
+}
+.folder-tree .ant-tree {
+  font-size: 13px;
+}
+
 /* ---- Bottom Tabs (Mobile) ---- */
 .bottom-tabs {
   display: none;
