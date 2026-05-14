@@ -302,7 +302,7 @@ export default function PhotoDirectoriesSettings() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ maxWidth: 640 }}>
+      <div className="settings-page-inner">
 
         {/* 工具栏 */}
         <div className="dir-toolbar">

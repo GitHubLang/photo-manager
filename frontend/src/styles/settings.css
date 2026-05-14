@@ -5,6 +5,13 @@
 .settings-page {
   width: 100%;
   padding: var(--space-6);
+  display: flex;
+  justify-content: center;
+}
+
+.settings-page-inner {
+  width: 100%;
+  max-width: 800px;
 }
 
 /* ---- Card container ---- */
