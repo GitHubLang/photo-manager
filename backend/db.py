@@ -286,7 +286,7 @@ class DB:
                 raw_response, llm_model
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             ON DUPLICATE KEY UPDATE
                 total_score = VALUES(total_score),
