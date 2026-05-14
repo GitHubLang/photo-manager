@@ -59,18 +59,7 @@ export default function PhotoDirectoriesSettings() {
     });
   }, []);
 
-  // 默认展开所有有子节点的目录（仅首次加载）
-  useEffect(() => {
-    if (directories.length > 0 && expandedSet.size === 0) {
-      const defaults = new Set();
-      const hasChildren = new Set();
-      for (const d of directories) {
-        if (d.parent_id) hasChildren.add(d.parent_id);
-      }
-      for (const id of hasChildren) defaults.add(id);
-      setExpandedSet(defaults);
-    }
-  }, [directories]);
+  // 全部默认折叠（不展开任何目录）
 
   // 添加表单
   const [showAddForm, setShowAddForm] = useState(false);
@@ -307,8 +296,10 @@ export default function PhotoDirectoriesSettings() {
         {/* 工具栏 */}
         <div className="dir-toolbar">
           <div className="dir-toolbar-left">
-            <span className="dir-count-label">照片目录</span>
-            <span className="dir-total-badge">{directories.filter(d => !d.parent_id).length} 个根目录 · {totalImages.toLocaleString()} 张图片</span>
+            <span className="dir-toolbar-summary">
+              照片目录
+              <span className="dir-toolbar-count">{directories.filter(d => !d.parent_id).length} 个根目录 · {totalImages.toLocaleString()} 张</span>
+            </span>
           </div>
           <Space size="small">
             <Button size="small" icon={<ScanOutlined />} onClick={handleScanAll} loading={scanning}>
@@ -322,7 +313,7 @@ export default function PhotoDirectoriesSettings() {
 
         {/* 扫描进度 */}
         {scanProgress && (
-          <div className="scan-progress-bar">
+          <div className="scan-progress-banner">
             <LoadingOutlined />
             <Progress percent={Math.round((scanProgress.current / scanProgress.total) * 100)}
               size="small" format={() => `${scanProgress.current}/${scanProgress.total}`} />
@@ -330,7 +321,7 @@ export default function PhotoDirectoriesSettings() {
           </div>
         )}
         {scanDone && (
-          <div className="scan-progress-bar" style={{ background: '#d1fae5' }}>
+          <div className="scan-progress-banner" style={{ background: '#d1fae5' }}>
             <span>✓ 扫描完成: 新增 {scanDone.added || 0} 张, 跳过 {scanDone.skipped || 0} 张</span>
             <Button size="small" type="text" onClick={() => setScanDone(null)} style={{ marginLeft: 'auto' }}>
               关闭
@@ -340,7 +331,7 @@ export default function PhotoDirectoriesSettings() {
 
         {/* 添加表单 */}
         {showAddForm && (
-          <div className="settings-card" style={{ marginBottom: 16, animation: 'slideUp 200ms ease' }}>
+          <div className="dir-add-card" style={{ animation: 'slideUp 200ms ease' }}>
             <div className="settings-card-title">新增目录</div>
             <div className="settings-card-desc">添加真实目录到文件系统，或创建虚拟目录手动整理照片</div>
 

@@ -4,7 +4,6 @@
 
 .settings-page {
   width: 100%;
-  padding: var(--space-6);
   display: flex;
   justify-content: center;
 }
@@ -12,6 +11,99 @@
 .settings-page-inner {
   width: 100%;
   max-width: 800px;
+  padding: var(--space-6);
+}
+
+/* ---- Sub page header ---- */
+.settings-sub-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-back-link {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.settings-back-link:hover {
+  color: var(--accent);
+}
+
+.settings-sub-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ---- Home page header ---- */
+.settings-home-header {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Home page cards ---- */
+.settings-home-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-home-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.settings-home-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.08);
+}
+
+.settings-home-card-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  font-size: 18px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.settings-home-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-home-card-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settings-home-card-desc {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
 }
 
 /* ---- Card container ---- */
@@ -19,8 +111,8 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--space-6);
-  margin-bottom: var(--space-5);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .settings-card:last-child {
@@ -55,18 +147,42 @@
   gap: var(--space-2);
 }
 
-.dir-add-form .ant-input,
-.dir-add-form .ant-select {
-  border-radius: var(--radius-sm);
-}
-
 .dir-add-form .dir-add-hint {
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.4;
 }
 
-/* ---- Directory tree list ---- */
+/* ---- Directory tree toolbar ---- */
+.dir-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dir-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dir-toolbar-summary {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dir-toolbar-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  margin-left: var(--space-2);
+}
+
+/* ---- Directory list ---- */
 .dir-list {
   display: flex;
   flex-direction: column;
@@ -74,7 +190,7 @@
 
 .dir-list-empty {
   text-align: center;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-10) var(--space-4);
   color: var(--text-tertiary);
   font-size: 14px;
 }
@@ -83,8 +199,8 @@
 .dir-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  padding: 10px var(--space-3);
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
   cursor: default;
@@ -108,13 +224,13 @@
 
 /* Collapse/expand toggle */
 .dir-toggle {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
   cursor: pointer;
   transition: transform var(--transition-fast), color var(--transition-fast);
@@ -138,13 +254,13 @@
 
 /* Status dot */
 .dir-status-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.dir-status-dot.online { background: #10b981; }
+.dir-status-dot.online { background: var(--accent); }
 .dir-status-dot.offline { background: #f59e0b; }
 .dir-status-dot.disabled { background: #d4d4d4; }
 .dir-status-dot.virtual { background: #8b5cf6; }
@@ -168,7 +284,7 @@
 }
 
 .dir-name .dir-badge {
-  display: inline-block;
+  display: inline;
   font-size: 12px;
   font-weight: 400;
   color: var(--text-tertiary);
@@ -176,29 +292,13 @@
 }
 
 .dir-path {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-tertiary);
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.7;
-}
-
-/* Dir count badge */
-.dir-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 22px;
-  padding: 0 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border-radius: 11px;
-  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 /* Dir actions */
@@ -233,72 +333,43 @@
   background: #fef2f2;
 }
 
-/* ---- Scan progress bar ---- */
-.scan-progress-bar {
+/* ---- Scan progress ---- */
+.scan-progress-banner {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--accent-light);
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
   border-radius: var(--radius-md);
   margin-bottom: var(--space-4);
   font-size: 13px;
   color: #065f46;
 }
 
-.scan-progress-bar .ant-progress {
+.scan-progress-banner .ant-progress {
   flex: 1;
   margin: 0;
 }
 
-.scan-progress-bar .ant-progress-inner {
-  background: rgba(16, 185, 129, 0.2) !important;
+.scan-progress-banner .ant-progress-inner {
+  background: rgba(16, 185, 129, 0.15) !important;
 }
 
-.scan-progress-bar .ant-progress-bg {
+.scan-progress-banner .ant-progress-bg {
   background: var(--accent) !important;
 }
 
-/* ---- Top toolbar ---- */
-.dir-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ---- Add form ---- */
+.dir-add-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   margin-bottom: var(--space-4);
 }
 
-.dir-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.dir-toolbar-left .dir-count-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.dir-toolbar-left .dir-total-badge {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-/* ---- Add directory toggle ---- */
-.add-dir-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
-  cursor: pointer;
-  padding: var(--space-2) 0;
-  transition: color var(--transition-fast);
-  border: none;
-  background: none;
-}
-
-.add-dir-toggle:hover {
-  color: var(--accent-hover);
+.dir-add-card .ant-input,
+.dir-add-card .ant-select {
+  border-radius: var(--radius-sm);
 }

@@ -24,9 +24,8 @@ function buildTreeNodes(folders) {
  */
 export default function Sidebar({ collapsed, activePage, folders, selectedFolder, onMenuClick, onFolderSelect }) {
   const treeData = buildTreeNodes(folders);
-  const defaultExpandedKeys = treeData.map(n => n.key);
 
-  const items = buildMenuItems(menuItems, collapsed, treeData, selectedFolder, onFolderSelect, defaultExpandedKeys);
+  const items = buildMenuItems(menuItems, collapsed, treeData, selectedFolder, onFolderSelect);
 
   return (
     <Menu
@@ -39,7 +38,7 @@ export default function Sidebar({ collapsed, activePage, folders, selectedFolder
   );
 }
 
-function buildMenuItems(items, collapsed, treeData, selectedFolder, onFolderSelect, defaultExpandedKeys) {
+function buildMenuItems(items, collapsed, treeData, selectedFolder, onFolderSelect) {
   return items.map(item => {
     if (item.type === 'divider') {
       return { type: 'divider' };
@@ -60,7 +59,6 @@ function buildMenuItems(items, collapsed, treeData, selectedFolder, onFolderSele
                 treeData={treeData}
                 selectedKeys={selectedFolder ? [selectedFolder] : []}
                 onSelect={(keys, info) => { if (info.node.path) onFolderSelect(info.node.path); }}
-                defaultExpandedKeys={defaultExpandedKeys}
                 showIcon={false}
               />
             </div>
