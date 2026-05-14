@@ -1,120 +1,231 @@
 """
-图片扫描服务 - 支持多根目录 + 递归扫描
+图片扫描服务 - 扫描时更新 DB 目录树 + 计数
+菜单从 DB 读取，不直接扫文件系统
 """
 import os
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from PIL import Image as PILImage, ImageOps
-import imagehash
 
 from config import IMAGE_EXTENSIONS
 from db import DB
 
 
-def _get_photo_roots() -> List[str]:
-    """从数据库读取所有启用的照片根目录"""
+def _db() -> 'database':
+    """延迟导入避免循环依赖"""
     from database import execute_query
-    rows = execute_query("SELECT path FROM photo_directories WHERE is_active = 1 ORDER BY id")
-    return [row['path'] for row in rows]
+    return execute_query
 
 
-def _walk_folder_tree(root_path: str) -> tuple:
-    """递归遍历目录树，构建层级结构。
-    返回 (nodes_list, total_image_count)。
-    文件系统只负责目录结构，图片数量从 DB 批量查询（速度快得多）。
+def get_directory_tree() -> List[Dict]:
+    """从 DB 读取目录树（菜单用，不碰文件系统）"""
+    from database import execute_query
+    rows = execute_query(
+        "SELECT * FROM photo_directories WHERE is_active = 1 ORDER BY sort_order, name"
+    )
+    # 构建 parent → children 映射
+    children_map = {}
+    dir_map = {}
+    for r in rows:
+        pid = r['parent_id'] or 0
+        if pid not in children_map:
+            children_map[pid] = []
+        children_map[pid].append(r)
+        dir_map[r['id']] = r
+
+    def build(parent_id=0):
+        result = []
+        for r in children_map.get(parent_id, []):
+            node = {
+                "id": r['id'],
+                "name": r['name'],
+                "path": r['path'] or '',
+                "is_virtual": bool(r['is_virtual']),
+                "is_root": r['parent_id'] is None,
+                "imageCount": r['image_count'] or 0,
+                "date": str(r['folder_date']) if r['folder_date'] else None,
+                "children": build(r['id'])
+            }
+            result.append(node)
+        # 倒序排列：文件夹在前面，按名称
+        result.sort(key=lambda x: (not x['is_root'], x['name']), reverse=True)
+        return result
+
+    return build()
+
+
+def scan_root_directory(root_id: int, root_path: str) -> Dict:
     """
-    result = []
-    total_count = 0
-    try:
-        # 只列目录，不读文件（不计文件数，从 DB 获取）
-        entries = sorted(os.scandir(root_path), key=lambda e: e.name)
-    except Exception as e:
-        print(f"Error scanning directory {root_path}: {e}")
-        return result, 0
-
-    dir_paths = []  # 收集所有子目录路径，批量查 DB
-    dir_entries = []
-
-    for entry in entries:
-        if entry.is_dir(follow_symlinks=False):
-            dir_paths.append(entry.path)
-            dir_entries.append(entry)
-
-    # 批量从 DB 获取这些目录下的图片数量
-    db_counts = {}
-    if dir_paths:
-        try:
-            from database import execute_query
-            placeholders = ','.join(['%s'] * len(dir_paths))
-            rows = execute_query(
-                f"SELECT folder_path, COUNT(*) as cnt FROM images WHERE is_deleted = 0 "
-                f"AND folder_path IN ({placeholders}) GROUP BY folder_path",
-                dir_paths
-            )
-            for r in rows:
-                db_counts[r['folder_path']] = r['cnt']
-        except Exception as e:
-            print(f"Error querying DB counts: {e}")
-
-    for entry in dir_entries:
-        full_path = entry.path
-        name = entry.name
-
-        # 递归子目录
-        children, child_recursive_count = _walk_folder_tree(full_path)
-
-        # 本级图片数从 DB 取（没有则 0）
-        direct_count = db_counts.get(full_path, 0)
-        recursive_count = direct_count + child_recursive_count
-        total_count += recursive_count
-
-        # 解析日期（从文件夹名提取）
-        folder_date = None
-        if '-' in name:
-            try:
-                parts = name.split('-')
-                if len(parts) == 3:
-                    normalized = f"{int(parts[0])}-{int(parts[1]):02d}-{int(parts[2]):02d}"
-                    folder_date = datetime.strptime(normalized, '%Y-%m-%d').date()
-            except:
-                pass
-
-        node = {
-            "path": full_path,
-            "name": name,
-            "date": str(folder_date) if folder_date else None,
-            "imageCount": recursive_count,
-            "children": children
-        }
-        result.append(node)
-
-    # 按 name 倒序（日期新的在前）
-    result.sort(key=lambda x: x['name'], reverse=True)
-    return result, total_count
-
-
-def scan_folders() -> List[Dict]:
-    """扫描所有照片根目录，返回层级目录树
-    性能优化：自底向上计数，每个目录只扫一次本级文件
+    扫描一个根目录：遍历文件系统，在 photo_directories 中创建/同步子目录条目，
+    索引图片，更新 image_count。
     """
-    roots = _get_photo_roots()
-    result = []
+    from database import execute_query
+    if not os.path.isdir(root_path):
+        return {"added": 0, "skipped": 0, "error": f"Directory not found: {root_path}"}
 
-    for root_path in roots:
-        root_name = os.path.basename(root_path) or root_path
-        children, root_recursive_count = _walk_folder_tree(root_path)
+    # 先索引该目录下所有图片（递归）
+    result = index_folder(root_path)
 
-        result.append({
-            "path": root_path,
-            "name": root_name,
-            "date": None,
-            "imageCount": root_recursive_count,
-            "children": children,
-            "is_root": True  # 标记为根目录
-        })
+    # 同步目录树到 DB
+    _sync_directory_tree(root_id, root_path)
+
+    # 更新所有 photo_directories 的 image_count
+    _update_all_image_counts()
 
     return result
 
+
+def _sync_directory_tree(parent_id: int, dir_path: str):
+    """
+    递归扫描文件系统，确保 DB 中的 photo_directories 条目与实际目录同步。
+    仅创建新条目，不删除已存在的（用户可能想保留）。
+    """
+    from database import execute_query
+    try:
+        items = sorted(os.scandir(dir_path), key=lambda e: e.name)
+    except Exception as e:
+        print(f"Error scanning {dir_path}: {e}")
+        return
+
+    for entry in items:
+        if not entry.is_dir(follow_symlinks=False):
+            continue
+
+        full_path = entry.path
+        name = entry.name
+
+        # 检查是否已在 DB 中
+        existing = execute_query(
+            "SELECT id FROM photo_directories WHERE path = %s",
+            (full_path,)
+        )
+        if existing:
+            dir_id = existing[0]['id']
+            # 更新 name
+            execute_query(
+                "UPDATE photo_directories SET name = %s, is_active = 1 WHERE id = %s",
+                (name, dir_id), fetch=False
+            )
+        else:
+            # 解析日期
+            folder_date = None
+            if '-' in name:
+                try:
+                    parts = name.split('-')
+                    if len(parts) == 3:
+                        normalized = f"{int(parts[0])}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+                        folder_date = datetime.strptime(normalized, '%Y-%m-%d').date()
+                except:
+                    pass
+
+            # 创建新目录条目
+            execute_query(
+                "INSERT INTO photo_directories (name, path, parent_id, folder_date, is_active) "
+                "VALUES (%s, %s, %s, %s, 1) "
+                "ON DUPLICATE KEY UPDATE name = VALUES(name), parent_id = VALUES(parent_id), "
+                "folder_date = VALUES(folder_date), is_active = 1",
+                (name, full_path, parent_id, folder_date),
+                fetch=False
+            )
+
+        # 递归子目录
+        _sync_directory_tree(dir_id if existing else execute_query(
+            "SELECT id FROM photo_directories WHERE path = %s", (full_path,)
+        )[0]['id'], full_path)
+
+
+def _update_all_image_counts():
+    """为所有 photo_directories 更新 image_count（从 DB 统计）"""
+    from database import execute_query
+    # 统计每个 folder_path 的非删除图片数
+    rows = execute_query(
+        "SELECT folder_path, COUNT(*) as cnt FROM images "
+        "WHERE is_deleted = 0 AND folder_path IS NOT NULL "
+        "GROUP BY folder_path"
+    )
+    for r in rows:
+        execute_query(
+            "UPDATE photo_directories SET image_count = %s WHERE path = %s",
+            (r['cnt'], r['folder_path']), fetch=False
+        )
+
+
+def _get_photo_roots() -> List[Dict]:
+    """从 DB 读取所有真实（非虚拟）的根目录"""
+    from database import execute_query
+    rows = execute_query(
+        "SELECT id, name, path FROM photo_directories "
+        "WHERE is_active = 1 AND is_virtual = 0 AND path IS NOT NULL AND path != '' "
+        "AND parent_id IS NULL ORDER BY id"
+    )
+    return rows
+
+
+def index_folder(folder_path: str) -> Dict:
+    """递归扫描并索引指定文件夹的图片到数据库"""
+    all_image_files = _recursive_list_images(folder_path)
+    if not all_image_files:
+        return {"added": 0, "skipped": 0, "total": 0}
+
+    from collections import defaultdict
+    dirs_map = defaultdict(list)
+    for fp in all_image_files:
+        dirs_map[os.path.dirname(fp)].append(fp)
+
+    total_added = 0
+    total_skipped = 0
+
+    for dir_path, files in dirs_map.items():
+        try:
+            existing_paths = DB.images_get_existing_paths(dir_path)
+        except:
+            existing_paths = set()
+
+        try:
+            all_db_records = DB.images_get_all_paths(dir_path)
+            for record in all_db_records:
+                fp = record['file_path']
+                exists = os.path.isfile(fp) if fp else False
+                DB.images_mark_deleted(fp, dir_path, 0 if exists else 1)
+        except Exception as e:
+            print(f"Error updating is_deleted flags: {e}")
+
+        new_files = [f for f in files if f not in existing_paths]
+        to_skip = len(files) - len(new_files)
+
+        if new_files:
+            to_insert = [_get_image_info(fp, dir_path) for fp in new_files]
+            params = [
+                (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],
+                 img['file_size'], img['width'], img['height'], img['orientation'], img['perceptual_hash'])
+                for img in to_insert
+            ]
+            try:
+                DB.images_insert_many(params)
+            except Exception as e:
+                print(f"Error inserting images in {dir_path}: {e}")
+
+        total_added += len(new_files)
+        total_skipped += to_skip
+
+    return {"added": total_added, "skipped": total_skipped, "total": len(all_image_files)}
+
+
+def index_all_folders() -> Dict:
+    """索引所有真实根目录下的所有图片（递归），并同步 DB 目录树"""
+    roots = _get_photo_roots()
+    total_added = 0
+    total_skipped = 0
+
+    for root in roots:
+        result = scan_root_directory(root['id'], root['path'])
+        total_added += result.get('added', 0)
+        total_skipped += result.get('skipped', 0)
+
+    return {"added": total_added, "skipped": total_skipped}
+
+
+# ============ 内部辅助函数 ============
 
 def _recursive_list_images(dir_path: str) -> List[str]:
     """递归列出目录下所有有效图片路径"""
@@ -134,28 +245,6 @@ def _recursive_list_images(dir_path: str) -> List[str]:
                 result.append(fp)
     except Exception as e:
         print(f"Error recursive listing {dir_path}: {e}")
-    return result
-
-
-def _list_image_files(folder_path: str) -> List[str]:
-    """列出指定文件夹中所有有效图片路径（仅一层）"""
-    result = []
-    try:
-        for fname in os.listdir(folder_path):
-            ext = os.path.splitext(fname)[1].lower()
-            if ext not in ('.jpg', '.jpeg', '.png'):
-                continue
-            fp = os.path.join(folder_path, fname)
-            if not os.path.isfile(fp):
-                continue
-            try:
-                if os.path.getsize(fp) < 50000:
-                    continue
-            except:
-                continue
-            result.append(fp)
-    except Exception as e:
-        print(f"Error listing folder {folder_path}: {e}")
     return result
 
 
@@ -196,93 +285,6 @@ def _get_image_info(file_path: str, folder_path: str) -> Dict:
         "perceptual_hash": None
     }
 
-
-def index_folder(folder_path: str) -> Dict:
-    """
-    递归扫描并索引指定文件夹的图片到数据库
-    包含该文件夹及其所有子目录
-    """
-    # 1. 获取该目录下所有图片文件的目录集合
-    all_image_files = _recursive_list_images(folder_path)
-    if not all_image_files:
-        return {"added": 0, "skipped": 0, "total": 0}
-
-    # 2. 按文件夹分组，逐个子目录处理
-    from collections import defaultdict
-    dirs_map = defaultdict(list)
-    for fp in all_image_files:
-        dirs_map[os.path.dirname(fp)].append(fp)
-
-    total_added = 0
-    total_skipped = 0
-
-    for dir_path, files in dirs_map.items():
-        try:
-            existing_paths = DB.images_get_existing_paths(dir_path)
-        except:
-            existing_paths = set()
-
-        # 标记已删除的文件
-        try:
-            all_db_records = DB.images_get_all_paths(dir_path)
-            for record in all_db_records:
-                fp = record['file_path']
-                exists = os.path.isfile(fp) if fp else False
-                DB.images_mark_deleted(fp, dir_path, 0 if exists else 1)
-        except Exception as e:
-            print(f"Error updating is_deleted flags: {e}")
-
-        # 找出新文件
-        new_files = [f for f in files if f not in existing_paths]
-        to_skip = len(files) - len(new_files)
-
-        if new_files:
-            to_insert = [_get_image_info(fp, dir_path) for fp in new_files]
-            params = [
-                (img['file_path'], img['filename'], img['folder_date'], img['folder_path'],
-                 img['file_size'], img['width'], img['height'], img['orientation'], img['perceptual_hash'])
-                for img in to_insert
-            ]
-            try:
-                DB.images_insert_many(params)
-            except Exception as e:
-                print(f"Error inserting images in {dir_path}: {e}")
-
-        total_added += len(new_files)
-        total_skipped += to_skip
-
-    return {"added": total_added, "skipped": total_skipped, "total": len(all_image_files)}
-
-
-def scan_folder_images(folder_path: str) -> List[Dict]:
-    """扫描指定文件夹中所有图片（包含嵌套子目录）"""
-    images = []
-    all_files = _recursive_list_images(folder_path)
-
-    for file_path in all_files:
-        if not os.path.isfile(file_path):
-            continue
-        img_info = _get_image_info(file_path, os.path.dirname(file_path))
-        images.append(img_info)
-
-    return sorted(images, key=lambda x: x['filename'])
-
-
-def index_all_folders() -> Dict:
-    """索引所有根目录下的所有图片（递归）"""
-    roots = _get_photo_roots()
-    total_added = 0
-    total_skipped = 0
-
-    for root_path in roots:
-        result = index_folder(root_path)
-        total_added += result['added']
-        total_skipped += result['skipped']
-
-    return {"added": total_added, "skipped": total_skipped}
-
-
-# ============ 以下为旧版单层函数，保留兼容 ============
 
 def generate_thumbnail(image_path: str, thumbnail_dir: str) -> str:
     """为图片生成缩略图，返回缩略图路径"""

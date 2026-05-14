@@ -128,17 +128,27 @@ export const saveSettings = (settings) =>
     body: JSON.stringify(settings)
   }).then(r => r.json());
 
-// ============ 照片目录管理 API ============
+// ============ 照片目录管理 API（完整 CRUD）============
 export const fetchPhotoDirectories = () =>
   fetch(API_BASE + '/photo-directories').then(r => r.json());
 
-export const addPhotoDirectory = (path) =>
+export const createPhotoDirectory = (data) =>
   fetch(API_BASE + '/photo-directories', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path })
+    body: JSON.stringify(data)
   }).then(r => {
-    if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '添加失败'); });
+    if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '创建失败'); });
+    return r.json();
+  });
+
+export const updatePhotoDirectory = (id, data) =>
+  fetch(API_BASE + '/photo-directories/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }).then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '更新失败'); });
     return r.json();
   });
 
@@ -149,6 +159,11 @@ export const deletePhotoDirectory = (id) =>
 
 export const togglePhotoDirectory = (id) =>
   fetch(API_BASE + '/photo-directories/' + id + '/toggle', {
+    method: 'POST'
+  }).then(r => r.json());
+
+export const scanPhotoDirectory = (id) =>
+  fetch(API_BASE + '/photo-directories/' + id + '/scan', {
     method: 'POST'
   }).then(r => r.json());
 

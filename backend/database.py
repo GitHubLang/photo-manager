@@ -25,11 +25,11 @@ def init_database():
     # 先连接不带数据库，创建数据库
     init_conn = mysql.connector.connect(**DB_CONFIG)
     cursor = init_conn.cursor()
-    
+
     # 创建数据库
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
     cursor.execute(f"USE {DATABASE_NAME}")
-    
+
     # 创建图片表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS images (
@@ -53,7 +53,7 @@ def init_database():
             INDEX idx_created_at (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     # 创建评分表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS image_scores (
@@ -86,7 +86,7 @@ def init_database():
             UNIQUE KEY uk_image_id (image_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     # 创建描述表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS image_descriptions (
@@ -99,7 +99,7 @@ def init_database():
             FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     # 创建每日主题表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_themes (
@@ -113,7 +113,7 @@ def init_database():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     # 创建评分任务队列表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS score_tasks (
@@ -128,7 +128,7 @@ def init_database():
             INDEX idx_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     # 创建推荐组合表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS photo_sets (
@@ -145,7 +145,6 @@ def init_database():
             FOREIGN KEY (cover_image_id) REFERENCES images(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
 
     # Create models config table
     cursor.execute("""
@@ -207,19 +206,57 @@ def init_database():
             INDEX idx_theme_value (theme_value)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
-    # 创建照片根目录配置表（支持多目录）
+
+    # ----- 照片目录表（DB 驱动，菜单从此读取）-----
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS photo_directories (
             id INT PRIMARY KEY AUTO_INCREMENT,
-            path VARCHAR(500) NOT NULL,
+            name VARCHAR(200) NOT NULL DEFAULT '',
+            path VARCHAR(500),
+            is_virtual TINYINT(1) DEFAULT 0,
+            parent_id INT DEFAULT NULL,
             is_active TINYINT(1) DEFAULT 1,
+            image_count INT DEFAULT 0,
+            folder_date DATE DEFAULT NULL,
+            sort_order INT DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uk_path (path)
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_path (path),
+            INDEX idx_parent (parent_id),
+            INDEX idx_active (is_active)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
+    # 迁移旧表（如已存在旧结构，添加新列）
+    for col, dtype in [
+        ('name', "VARCHAR(200) NOT NULL DEFAULT ''"),
+        ('is_virtual', 'TINYINT(1) DEFAULT 0'),
+        ('parent_id', 'INT DEFAULT NULL'),
+        ('image_count', 'INT DEFAULT 0'),
+        ('folder_date', 'DATE DEFAULT NULL'),
+        ('sort_order', 'INT DEFAULT 0'),
+        ('updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'),
+    ]:
+        cursor.execute(f"ALTER TABLE photo_directories ADD COLUMN IF NOT EXISTS {col} {dtype}")
     # 插入默认目录 E:\图像（如不存在）
-    cursor.execute("INSERT IGNORE INTO photo_directories (path) VALUES ('E:\\\\图像')")
+    cursor.execute("INSERT IGNORE INTO photo_directories (name, path) VALUES ('E:\\图像', 'E:\\图像')")
+    # 更新旧记录的 name
+    cursor.execute("UPDATE photo_directories SET name = path WHERE name = '' OR name IS NULL")
+    # 设置旧记录 parent_id = NULL
+    cursor.execute("UPDATE photo_directories SET parent_id = NULL WHERE parent_id = 0")
+
+    # 创建目录-图片映射表（虚拟目录手动关联）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS directory_images (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            directory_id INT NOT NULL,
+            image_id BIGINT NOT NULL,
+            sort_order INT DEFAULT 0,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (directory_id) REFERENCES photo_directories(id) ON DELETE CASCADE,
+            FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
+            UNIQUE KEY uk_dir_image (directory_id, image_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
 
     # 创建文案指令历史表
     cursor.execute("""
@@ -231,7 +268,7 @@ def init_database():
             INDEX idx_set_type (set_type)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
-    
+
     init_conn.commit()
     cursor.close()
     init_conn.close()

@@ -1,67 +1,105 @@
 import React, { useState, useEffect } from 'react';
-import { Button, List, Input, message, Typography, Spin, Tag, Space, Popconfirm, Divider, Alert } from 'antd';
-import { PlusOutlined, DeleteOutlined, FolderOpenOutlined, ScanOutlined } from '@ant-design/icons';
+import { Button, List, Input, InputNumber, message, Typography, Spin, Tag, Space, Popconfirm, Divider, Alert, Modal, Switch, Select } from 'antd';
+import { PlusOutlined, DeleteOutlined, FolderOpenOutlined, EditOutlined, ScanOutlined, FolderAddOutlined } from '@ant-design/icons';
 const { Text, Title } = Typography;
 
 import {
   fetchPhotoDirectories,
-  addPhotoDirectory,
+  createPhotoDirectory,
+  updatePhotoDirectory,
   deletePhotoDirectory,
   togglePhotoDirectory,
+  scanPhotoDirectory,
   scanAllFolders,
   fetchScanProgress,
-  scanSingleFolder
 } from '../../api/imageApi';
 
 /**
- * PhotoDirectoriesSettings — 照片目录管理
- * 支持查看、添加、删除、启用/禁用照片根目录
- * 支持全量扫描和单目录扫描
+ * PhotoDirectoriesSettings — 目录管理（DB 驱动）
+ * 支持真实目录 + 虚拟目录的完整 CRUD，只操作库不碰文件系统
  */
 export default function PhotoDirectoriesSettings() {
   const [directories, setDirectories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newPath, setNewPath] = useState('');
-  const [adding, setAdding] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [scanningDir, setScanningDir] = useState(null); // 正在扫描的目录 id
+  const [scanningId, setScanningId] = useState(null);
+
+  // 添加/编辑弹窗
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editItem, setEditItem] = useState(null); // null = 新增
+  const [formName, setFormName] = useState('');
+  const [formPath, setFormPath] = useState('');
+  const [formIsVirtual, setFormIsVirtual] = useState(false);
+  const [formParentId, setFormParentId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const loadDirectories = () => {
     setLoading(true);
     fetchPhotoDirectories()
-      .then(data => {
-        setDirectories(data.directories || []);
-      })
+      .then(data => setDirectories(data.directories || []))
       .catch(() => message.error('加载照片目录失败'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { loadDirectories(); }, []);
 
-  const handleAdd = async () => {
-    const path = newPath.trim();
-    if (!path) {
-      message.warning('请输入目录路径');
+  const openAdd = () => {
+    setEditItem(null);
+    setFormName('');
+    setFormPath('');
+    setFormIsVirtual(false);
+    setFormParentId(null);
+    setModalVisible(true);
+  };
+
+  const openEdit = (item) => {
+    setEditItem(item);
+    setFormName(item.name);
+    setFormPath(item.path || '');
+    setFormIsVirtual(item.is_virtual);
+    setFormParentId(item.parent_id);
+    setModalVisible(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!formName.trim()) {
+      message.warning('请输入目录名称');
       return;
     }
-    setAdding(true);
+    setSubmitting(true);
     try {
-      await addPhotoDirectory(path);
-      message.success(`已添加目录: ${path}`);
-      setNewPath('');
+      if (editItem) {
+        // 编辑
+        await updatePhotoDirectory(editItem.id, {
+          name: formName.trim(),
+          path: formPath.trim() || null,
+          parent_id: formParentId,
+        });
+        message.success('目录已更新');
+      } else {
+        // 新增
+        await createPhotoDirectory({
+          name: formName.trim(),
+          path: formPath.trim() || '',
+          is_virtual: formIsVirtual,
+          parent_id: formParentId,
+        });
+        message.success('目录已创建');
+      }
+      setModalVisible(false);
       loadDirectories();
     } catch (err) {
-      message.error(err.message || '添加失败');
+      message.error(err.message || '操作失败');
     } finally {
-      setAdding(false);
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
     try {
       await deletePhotoDirectory(id);
-      message.success('已删除目录');
+      message.success('目录已删除');
       loadDirectories();
     } catch {
       message.error('删除失败');
@@ -78,13 +116,30 @@ export default function PhotoDirectoriesSettings() {
     }
   };
 
+  const handleScanSingle = async (dir) => {
+    if (dir.is_virtual) {
+      message.warning('虚拟目录无需扫描');
+      return;
+    }
+    setScanningId(dir.id);
+    try {
+      const data = await scanPhotoDirectory(dir.id);
+      const result = data.result || {};
+      message.success(`扫描完成: ${dir.name} — 新增 ${result.added || 0} 张, 跳过 ${result.skipped || 0} 张`);
+      loadDirectories();
+    } catch (err) {
+      message.error(err.message || '扫描失败');
+    } finally {
+      setScanningId(null);
+    }
+  };
+
   const handleScanAll = async () => {
     setScanning(true);
     setScanResult(null);
     try {
       const data = await scanAllFolders();
       const taskId = data.task_id;
-
       const poll = async () => {
         try {
           const progress = await fetchScanProgress(taskId);
@@ -99,9 +154,7 @@ export default function PhotoDirectoriesSettings() {
             setScanning(false);
             message.error('扫描任务异常');
           }
-        } catch {
-          setTimeout(poll, 3000);
-        }
+        } catch { setTimeout(poll, 3000); }
       };
       setTimeout(poll, 1000);
     } catch {
@@ -110,127 +163,152 @@ export default function PhotoDirectoriesSettings() {
     }
   };
 
-  const handleScanSingle = async (dir) => {
-    setScanningDir(dir.id);
-    try {
-      const result = await scanSingleFolder(dir.path);
-      message.success(`扫描完成: ${dir.path} — 新增 ${result.added} 张, 跳过 ${result.skipped} 张`);
-      loadDirectories(); // 刷新图片数量
-    } catch (err) {
-      message.error(`扫描失败: ${err.message || '未知错误'}`);
-    } finally {
-      setScanningDir(null);
-    }
+  // 可供选择的父目录（排除自身及子代）
+  const getParentOptions = () => {
+    const excludeIds = editItem ? [editItem.id] : [];
+    const flatten = (items) => {
+      let result = [];
+      for (const d of items) {
+        if (!excludeIds.includes(d.id)) {
+          result.push({ value: d.id, label: d.name });
+        }
+        // Items are flat from API already
+      }
+      return result;
+    };
+    return flatten(directories.filter(d => !d.is_virtual));
   };
 
   return (
     <Spin spinning={loading}>
-      <div style={{ maxWidth: 600 }}>
-        {/* 添加目录 */}
-        <div style={{ marginBottom: 24 }}>
-          <Text strong>添加照片目录</Text>
-          <Divider />
-          <Space style={{ width: '100%', marginTop: 8 }}>
-            <Input
-              value={newPath}
-              onChange={e => setNewPath(e.target.value)}
-              placeholder="例如: E:\图像"
-              style={{ flex: 1 }}
-              onPressEnter={handleAdd}
-              prefix={<FolderOpenOutlined />}
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-              loading={adding}
-            >
-              添加
+      <div style={{ maxWidth: 680 }}>
+        {/* 操作栏 */}
+        <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+              新增目录
+            </Button>
+            <Button icon={<FolderAddOutlined />} onClick={() => {
+              setEditItem(null);
+              setFormName('');
+              setFormPath('');
+              setFormIsVirtual(true);
+              setFormParentId(null);
+              setModalVisible(true);
+            }}>
+              新建虚拟目录
             </Button>
           </Space>
-          <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
-            输入完整的目录路径，支持网络路径和映射盘。添加后建议手动扫描以索引图片。
-          </Text>
-        </div>
+          <Button onClick={handleScanAll} loading={scanning} size="small">
+            {scanning ? '全量扫描中...' : '扫描所有目录'}
+          </Button>
+        </Space>
 
-        {/* 现有目录列表 */}
-        <div style={{ marginBottom: 24 }}>
-          <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text strong>已配置目录 ({directories.length})</Text>
-            <Button
-              onClick={handleScanAll}
-              loading={scanning}
-              size="small"
+        {scanResult && (
+          <Alert type="success" message={`全量扫描完成 — 新增 ${scanResult.added} 张, 跳过 ${scanResult.skipped} 张`}
+            closable onClose={() => setScanResult(null)} style={{ marginBottom: 12 }} />
+        )}
+
+        {/* 目录列表 */}
+        <List
+          dataSource={directories}
+          locale={{ emptyText: '暂无目录，点击"新增目录"添加' }}
+          renderItem={item => (
+            <List.Item
+              actions={[
+                <Button key="scan" size="small" icon={<ScanOutlined />}
+                  onClick={() => handleScanSingle(item)}
+                  loading={scanningId === item.id}
+                  disabled={item.is_virtual || !item.is_active}>
+                  扫描
+                </Button>,
+                <Button key="edit" size="small" icon={<EditOutlined />}
+                  onClick={() => openEdit(item)}>
+                  编辑
+                </Button>,
+                <Button key="toggle" size="small" onClick={() => handleToggle(item.id)}>
+                  {item.is_active ? '禁用' : '启用'}
+                </Button>,
+                <Popconfirm key="delete" title="确定删除此目录？不会影响文件系统。"
+                  onConfirm={() => handleDelete(item.id)} okText="删除" cancelText="取消">
+                  <Button size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>,
+              ]}
             >
-              {scanning ? '全量扫描中...' : '扫描所有目录'}
-            </Button>
-          </Space>
-
-          {scanResult && (
-            <Alert
-              type="success"
-              message={`全量扫描完成 — 新增 ${scanResult.added} 张图片, 跳过 ${scanResult.skipped} 张`}
-              closable
-              onClose={() => setScanResult(null)}
-              style={{ marginBottom: 12 }}
-            />
+              <List.Item.Meta
+                avatar={
+                  <Tag color={item.is_virtual ? 'purple' : (item.is_active ? 'green' : 'default')}>
+                    {item.is_virtual ? '虚拟' : (item.is_active ? '在线' : '已禁用')}
+                  </Tag>
+                }
+                title={
+                  <Space>
+                    <Text strong style={{ fontSize: 14 }}>{item.name}</Text>
+                    {item.path && <Text code style={{ fontSize: 12, opacity: 0.7 }}>{item.path}</Text>}
+                    <Text type="secondary" style={{ fontSize: 13 }}>({item.image_count} 张)</Text>
+                  </Space>
+                }
+                description={
+                  <Space size="small">
+                    {item.parent_id && <Text type="secondary" style={{ fontSize: 12 }}>子目录</Text>}
+                    {item.folder_date && <Text type="secondary" style={{ fontSize: 12 }}>{item.folder_date}</Text>}
+                    {item.updated_at && <Text type="secondary" style={{ fontSize: 12 }}>更新: {item.updated_at}</Text>}
+                  </Space>
+                }
+              />
+            </List.Item>
           )}
+        />
 
-          <List
-            dataSource={directories}
-            locale={{ emptyText: '暂无照片目录，请添加 E:\图像 或其他目录' }}
-            renderItem={item => (
-              <List.Item
-                actions={[
-                  <Button
-                    key="scan"
-                    size="small"
-                    icon={<ScanOutlined />}
-                    onClick={() => handleScanSingle(item)}
-                    loading={scanningDir === item.id}
-                    disabled={!item.is_active || !item.exists}
-                  >
-                    扫描
-                  </Button>,
-                  <Button
-                    key="toggle"
-                    size="small"
-                    onClick={() => handleToggle(item.id)}
-                  >
-                    {item.is_active ? '禁用' : '启用'}
-                  </Button>,
-                  <Popconfirm
-                    key="delete"
-                    title="确定删除此目录？不会影响已索引的图片。"
-                    onConfirm={() => handleDelete(item.id)}
-                    okText="删除"
-                    cancelText="取消"
-                  >
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                ]}
-              >
-                <List.Item.Meta
-                  avatar={
-                    <Tag color={item.is_active ? (item.exists ? 'green' : 'orange') : 'default'}>
-                      {item.is_active ? (item.exists ? '在线' : '离线') : '已禁用'}
-                    </Tag>
-                  }
-                  title={
-                    <Space>
-                      <Text code style={{ fontSize: 13 }}>{item.path}</Text>
-                    </Space>
-                  }
-                  description={
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      添加时间: {item.created_at || '未知'}
-                    </Text>
-                  }
-                />
-              </List.Item>
+        {/* 新增/编辑弹窗 */}
+        <Modal
+          title={editItem ? '编辑目录' : '新增目录'}
+          open={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          onOk={handleSubmit}
+          confirmLoading={submitting}
+          okText={editItem ? '保存' : '创建'}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div>
+              <Text>目录名称</Text>
+              <Input value={formName} onChange={e => setFormName(e.target.value)}
+                placeholder="例如：2023年旅行" style={{ marginTop: 4 }} />
+            </div>
+            {!editItem && (
+              <div>
+                <Space style={{ marginBottom: 4 }}>
+                  <Text>虚拟目录</Text>
+                  <Switch checked={formIsVirtual} onChange={v => {
+                    setFormIsVirtual(v);
+                    if (v) setFormPath('');
+                  }} size="small" />
+                </Space>
+                <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                  虚拟目录不关联文件系统路径，照片需手动添加
+                </Text>
+              </div>
             )}
-          />
-        </div>
+            {!formIsVirtual && (
+              <div>
+                <Text>文件系统路径</Text>
+                <Input value={formPath} onChange={e => setFormPath(e.target.value)}
+                  placeholder="例如: E:\图像\2023" style={{ marginTop: 4 }} disabled={editItem && !editItem.path} />
+              </div>
+            )}
+            <div>
+              <Text>父目录（可选）</Text>
+              <Select
+                value={formParentId}
+                onChange={setFormParentId}
+                allowClear
+                placeholder="无（顶级目录）"
+                style={{ width: '100%', marginTop: 4 }}
+                options={getParentOptions()}
+              />
+            </div>
+          </Space>
+        </Modal>
       </div>
     </Spin>
   );

@@ -1,5 +1,7 @@
 """
 文件夹 + 图片列表 + 扫描 API
+- 目录树从 DB 读取（不碰文件系统）
+- 扫描时更新 DB 目录 + 索引图片
 """
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -9,17 +11,13 @@ import time
 import uuid
 
 from db import DB
-from services.image_scanner import scan_folders, index_folder
+from services.image_scanner import get_directory_tree, scan_root_directory, index_all_folders, _get_photo_roots
 
 router = APIRouter(prefix="/api", tags=["folders"])
 
 # 后台扫描任务状态
 _scan_tasks = {}
 _scan_lock = threading.Lock()
-
-# 目录树缓存（30s TTL）
-_folder_tree_cache = {"data": None, "timestamp": 0}
-_folder_tree_lock = threading.Lock()
 
 
 class FolderScanRequest(BaseModel):
@@ -28,17 +26,8 @@ class FolderScanRequest(BaseModel):
 
 @router.get("/folders")
 async def get_folders():
-    """获取目录树（缓存 30s）"""
-    global _folder_tree_cache
-    now = time.time()
-    # 缓存命中
-    with _folder_tree_lock:
-        if _folder_tree_cache["data"] and (now - _folder_tree_cache["timestamp"]) < 30:
-            return {"folders": _folder_tree_cache["data"]}
-    # 缓存未命中，重新扫描
-    folders = scan_folders()
-    with _folder_tree_lock:
-        _folder_tree_cache = {"data": folders, "timestamp": now}
+    """获取目录树（从 DB 读取，轻量快速）"""
+    folders = get_directory_tree()
     return {"folders": folders}
 
 
@@ -70,17 +59,18 @@ async def get_folder_images(
 @router.post("/folders/scan")
 async def scan_folder(req: FolderScanRequest):
     """扫描并索引指定文件夹"""
+    from services.image_scanner import index_folder
     result = index_folder(req.folder_path)
+    # 更新 image_count
+    from services.image_scanner import _update_all_image_counts
+    _update_all_image_counts()
     return result
 
 
 @router.post("/folders/scan-all")
 async def scan_all():
-    """启动后台扫描所有根目录（递归，异步，立即返回 task_id）"""
-    import os
+    """启动后台扫描所有真实根目录（异步，立即返回 task_id）"""
     task_id = uuid.uuid4().hex[:12]
-    # 直接从数据库获取根目录列表
-    from services.image_scanner import _get_photo_roots
     roots = _get_photo_roots()
     total = len(roots)
 
@@ -94,25 +84,24 @@ async def scan_all():
     def _run():
         total_added = 0
         total_skipped = 0
-        for i, root_path in enumerate(roots):
+        for i, root in enumerate(roots):
             with _scan_lock:
                 if task_id not in _scan_tasks:
                     return
-                root_name = os.path.basename(root_path) or root_path
                 _scan_tasks[task_id]["progress"].update({
-                    "current": i + 1, "current_folder": root_name,
+                    "current": i + 1, "current_folder": root['name'],
                 })
             try:
-                result = index_folder(root_path)
-                total_added += result["added"]
-                total_skipped += result["skipped"]
+                result = scan_root_directory(root['id'], root['path'])
+                total_added += result.get("added", 0)
+                total_skipped += result.get("skipped", 0)
                 with _scan_lock:
                     if task_id in _scan_tasks:
                         _scan_tasks[task_id]["progress"].update({
                             "added": total_added, "skipped": total_skipped
                         })
             except Exception as e:
-                print(f"Scan error on {root_path}: {e}")
+                print(f"Scan error on {root['name']}: {e}")
         with _scan_lock:
             if task_id in _scan_tasks:
                 _scan_tasks[task_id]["status"] = "completed"
