@@ -18,38 +18,55 @@ def _get_photo_roots() -> List[str]:
     return [row['path'] for row in rows]
 
 
-def _count_images_recursive(dir_path: str) -> int:
-    """递归统计目录及子目录下的图片数量"""
-    count = 0
-    try:
-        for entry in os.scandir(dir_path):
-            if entry.is_dir(follow_symlinks=False):
-                count += _count_images_recursive(entry.path)
-            elif entry.is_file(follow_symlinks=False):
-                ext = os.path.splitext(entry.name)[1].lower()
-                if ext in ('.jpg', '.jpeg', '.png'):
-                    count += 1
-    except (PermissionError, OSError):
-        pass
-    return count
-
-
-def _walk_folder_tree(root_path: str) -> List[Dict]:
-    """递归遍历目录树，构建层级结构"""
+def _walk_folder_tree(root_path: str) -> tuple:
+    """递归遍历目录树，构建层级结构。
+    返回 (nodes_list, total_image_count)。
+    文件系统只负责目录结构，图片数量从 DB 批量查询（速度快得多）。
+    """
     result = []
+    total_count = 0
     try:
-        items = sorted(os.listdir(root_path))
+        # 只列目录，不读文件（不计文件数，从 DB 获取）
+        entries = sorted(os.scandir(root_path), key=lambda e: e.name)
     except Exception as e:
-        print(f"Error listing directory {root_path}: {e}")
-        return result
+        print(f"Error scanning directory {root_path}: {e}")
+        return result, 0
 
-    for name in items:
-        full_path = os.path.join(root_path, name)
-        if not os.path.isdir(full_path):
-            continue
+    dir_paths = []  # 收集所有子目录路径，批量查 DB
+    dir_entries = []
 
-        # 递归统计图片数量（含子目录）
-        image_count = _count_images_recursive(full_path)
+    for entry in entries:
+        if entry.is_dir(follow_symlinks=False):
+            dir_paths.append(entry.path)
+            dir_entries.append(entry)
+
+    # 批量从 DB 获取这些目录下的图片数量
+    db_counts = {}
+    if dir_paths:
+        try:
+            from database import execute_query
+            placeholders = ','.join(['%s'] * len(dir_paths))
+            rows = execute_query(
+                f"SELECT folder_path, COUNT(*) as cnt FROM images WHERE is_deleted = 0 "
+                f"AND folder_path IN ({placeholders}) GROUP BY folder_path",
+                dir_paths
+            )
+            for r in rows:
+                db_counts[r['folder_path']] = r['cnt']
+        except Exception as e:
+            print(f"Error querying DB counts: {e}")
+
+    for entry in dir_entries:
+        full_path = entry.path
+        name = entry.name
+
+        # 递归子目录
+        children, child_recursive_count = _walk_folder_tree(full_path)
+
+        # 本级图片数从 DB 取（没有则 0）
+        direct_count = db_counts.get(full_path, 0)
+        recursive_count = direct_count + child_recursive_count
+        total_count += recursive_count
 
         # 解析日期（从文件夹名提取）
         folder_date = None
@@ -62,38 +79,36 @@ def _walk_folder_tree(root_path: str) -> List[Dict]:
             except:
                 pass
 
-        # 递归子目录
-        children = _walk_folder_tree(full_path)
-
         node = {
             "path": full_path,
             "name": name,
             "date": str(folder_date) if folder_date else None,
-            "imageCount": image_count,
+            "imageCount": recursive_count,
             "children": children
         }
         result.append(node)
 
     # 按 name 倒序（日期新的在前）
-    return sorted(result, key=lambda x: x['name'], reverse=True)
+    result.sort(key=lambda x: x['name'], reverse=True)
+    return result, total_count
 
 
 def scan_folders() -> List[Dict]:
-    """扫描所有照片根目录，返回层级目录树"""
+    """扫描所有照片根目录，返回层级目录树
+    性能优化：自底向上计数，每个目录只扫一次本级文件
+    """
     roots = _get_photo_roots()
     result = []
 
     for root_path in roots:
-        # 根目录本身作为顶层节点
         root_name = os.path.basename(root_path) or root_path
-        root_image_count = _count_images_recursive(root_path)
-        children = _walk_folder_tree(root_path)
+        children, root_recursive_count = _walk_folder_tree(root_path)
 
         result.append({
             "path": root_path,
             "name": root_name,
             "date": None,
-            "imageCount": root_image_count,
+            "imageCount": root_recursive_count,
             "children": children,
             "is_root": True  # 标记为根目录
         })

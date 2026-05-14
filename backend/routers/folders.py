@@ -17,6 +17,10 @@ router = APIRouter(prefix="/api", tags=["folders"])
 _scan_tasks = {}
 _scan_lock = threading.Lock()
 
+# 目录树缓存（30s TTL）
+_folder_tree_cache = {"data": None, "timestamp": 0}
+_folder_tree_lock = threading.Lock()
+
 
 class FolderScanRequest(BaseModel):
     folder_path: str
@@ -24,8 +28,17 @@ class FolderScanRequest(BaseModel):
 
 @router.get("/folders")
 async def get_folders():
-    """获取目录树"""
+    """获取目录树（缓存 30s）"""
+    global _folder_tree_cache
+    now = time.time()
+    # 缓存命中
+    with _folder_tree_lock:
+        if _folder_tree_cache["data"] and (now - _folder_tree_cache["timestamp"]) < 30:
+            return {"folders": _folder_tree_cache["data"]}
+    # 缓存未命中，重新扫描
     folders = scan_folders()
+    with _folder_tree_lock:
+        _folder_tree_cache = {"data": folders, "timestamp": now}
     return {"folders": folders}
 
 
