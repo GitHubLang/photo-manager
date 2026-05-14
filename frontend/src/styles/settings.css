@@ -1,16 +1,267 @@
 /* ============================================
-   Settings Page
+   Settings Page Styles
    ============================================ */
+
 .settings-page {
-  padding: var(--space-4);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-6);
 }
 
-.settings-page .ant-tabs-nav {
+/* ---- Card container ---- */
+.settings-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-5);
+}
+
+.settings-card:last-child {
+  margin-bottom: 0;
+}
+
+.settings-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.settings-card-desc {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-5);
+  line-height: 1.5;
+}
+
+/* ---- Add directory form ---- */
+.dir-add-form {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.dir-add-form .dir-add-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dir-add-form .ant-input,
+.dir-add-form .ant-select {
+  border-radius: var(--radius-sm);
+}
+
+.dir-add-form .dir-add-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+/* ---- Directory tree list ---- */
+.dir-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dir-list-empty {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+/* ---- Directory row ---- */
+.dir-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+  cursor: default;
+}
+
+.dir-row:hover {
+  background: var(--bg-tertiary);
+}
+
+.dir-row + .dir-row {
+  border-top: 1px solid var(--border);
+}
+
+/* Nesting indentation */
+.dir-row.depth-0 { padding-left: var(--space-3); }
+.dir-row.depth-1 { padding-left: calc(var(--space-3) + var(--space-5)); }
+.dir-row.depth-2 { padding-left: calc(var(--space-3) + var(--space-10)); }
+.dir-row.depth-3 { padding-left: calc(var(--space-3) + var(--space-12)); }
+.dir-row.depth-4 { padding-left: calc(var(--space-3) + var(--space-14)); }
+
+/* Status dot */
+.dir-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dir-status-dot.online { background: #10b981; }
+.dir-status-dot.offline { background: #f59e0b; }
+.dir-status-dot.disabled { background: #d4d4d4; }
+.dir-status-dot.virtual { background: #8b5cf6; }
+
+/* Dir info */
+.dir-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dir-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dir-name .dir-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  margin-left: var(--space-2);
+}
+
+.dir-path {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+/* Dir count badge */
+.dir-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+
+/* Dir actions */
+.dir-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.dir-row:hover .dir-actions {
+  opacity: 1;
+}
+
+.dir-actions .ant-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.dir-actions .ant-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.dir-actions .ant-btn.danger:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+/* ---- Scan progress bar ---- */
+.scan-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-light);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: 13px;
+  color: #065f46;
+}
+
+.scan-progress-bar .ant-progress {
+  flex: 1;
+  margin: 0;
+}
+
+.scan-progress-bar .ant-progress-inner {
+  background: rgba(16, 185, 129, 0.2) !important;
+}
+
+.scan-progress-bar .ant-progress-bg {
+  background: var(--accent) !important;
+}
+
+/* ---- Top toolbar ---- */
+.dir-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: var(--space-4);
 }
 
-@media (min-width: 768px) {
-  .settings-page {
-    padding: var(--space-5) var(--space-6);
-  }
+.dir-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dir-toolbar-left .dir-count-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.dir-toolbar-left .dir-total-badge {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Add directory toggle ---- */
+.add-dir-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  padding: var(--space-2) 0;
+  transition: color var(--transition-fast);
+  border: none;
+  background: none;
+}
+
+.add-dir-toggle:hover {
+  color: var(--accent-hover);
 }
