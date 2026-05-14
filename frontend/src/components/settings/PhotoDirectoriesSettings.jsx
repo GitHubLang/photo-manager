@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Input, message, Typography, Spin, Progress, Tooltip, Popconfirm, Switch, Select, Space } from 'antd';
 import {
   PlusOutlined, ScanOutlined, EditOutlined, DeleteOutlined,
   PauseCircleOutlined, FolderAddOutlined, LoadingOutlined,
-  FolderOutlined, FolderOpenOutlined
+  FolderOutlined, FolderOpenOutlined, RightOutlined
 } from '@ant-design/icons';
 const { Text } = Typography;
 
@@ -46,6 +46,31 @@ function TypeChip({ isVirtual, onClick }) {
 export default function PhotoDirectoriesSettings() {
   const [directories, setDirectories] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // 折叠状态
+  const [expandedSet, setExpandedSet] = useState(new Set());
+
+  const toggleExpand = useCallback((id) => {
+    setExpandedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // 默认展开所有有子节点的目录（仅首次加载）
+  useEffect(() => {
+    if (directories.length > 0 && expandedSet.size === 0) {
+      const defaults = new Set();
+      const hasChildren = new Set();
+      for (const d of directories) {
+        if (d.parent_id) hasChildren.add(d.parent_id);
+      }
+      for (const id of hasChildren) defaults.add(id);
+      setExpandedSet(defaults);
+    }
+  }, [directories]);
 
   // 添加表单
   const [showAddForm, setShowAddForm] = useState(false);
@@ -97,43 +122,67 @@ export default function PhotoDirectoriesSettings() {
         </div>
       );
     }
-    return items.map(d => (
-      <React.Fragment key={d.id}>
-        <div className={`dir-row depth-${Math.min(depth, 4)}`}>
-          <span className={`dir-status-dot ${d.is_virtual ? 'virtual' : d.is_active ? 'online' : 'disabled'}`} />
-          <div className="dir-info">
-            <div className="dir-name">
-              {d.name}
-              <span className="dir-badge">{d.image_count} 张</span>
+    return items.map(d => {
+      const childCount = (childrenMap[d.id] || []).length;
+      const isExpanded = expandedSet.has(d.id);
+      const showChildren = childCount > 0 && isExpanded;
+
+      return (
+        <React.Fragment key={d.id}>
+          <div className={`dir-row depth-${Math.min(depth, 4)}`}>
+            {/* 折叠箭头 */}
+            <span
+              className={`dir-toggle ${childCount > 0 ? (isExpanded ? 'expanded' : '') : 'leaf'}`}
+              onClick={() => childCount > 0 && toggleExpand(d.id)}
+            >
+              {childCount > 0 ? <RightOutlined style={{ fontSize: 11 }} /> : null}
+            </span>
+
+            {/* 状态圆点 */}
+            <span className={`dir-status-dot ${d.is_virtual ? 'virtual' : d.is_active ? 'online' : 'disabled'}`} />
+
+            {/* 信息 */}
+            <div className="dir-info">
+              <div className="dir-name">
+                <span
+                  style={{ cursor: childCount > 0 ? 'pointer' : 'default' }}
+                  onClick={() => childCount > 0 && toggleExpand(d.id)}
+                >
+                  {d.name}
+                </span>
+                <span className="dir-badge">{calcAggregated(d.id)} 张</span>
+              </div>
+              {d.path && <div className="dir-path">{d.path}</div>}
             </div>
-            {d.path && <div className="dir-path">{d.path}</div>}
-          </div>
-          <div className="dir-actions">
-            <Tooltip title="扫描">
-              <Button size="small" icon={<ScanOutlined />}
-                onClick={() => handleScan(d)}
-                loading={scanningId === d.id}
-                disabled={d.is_virtual || !d.is_active || !d.path} />
-            </Tooltip>
-            <Tooltip title="编辑">
-              <Button size="small" icon={<EditOutlined />}
-                onClick={() => startEdit(d)} />
-            </Tooltip>
-            <Tooltip title={d.is_active ? '禁用' : '启用'}>
-              <Button size="small" icon={<PauseCircleOutlined />}
-                onClick={() => handleToggle(d.id)} />
-            </Tooltip>
-            <Popconfirm title={`删除「${d.name}」？`} description="仅删除数据库记录，不影响文件系统"
-              onConfirm={() => handleDelete(d.id)} okText="删除" cancelText="取消" placement="left">
-              <Tooltip title="删除">
-                <Button size="small" className="danger" icon={<DeleteOutlined />} />
+
+            {/* 操作按钮 */}
+            <div className="dir-actions">
+              <Tooltip title="扫描">
+                <Button size="small" icon={<ScanOutlined />}
+                  onClick={() => handleScan(d)}
+                  loading={scanningId === d.id}
+                  disabled={d.is_virtual || !d.is_active || !d.path} />
               </Tooltip>
-            </Popconfirm>
+              <Tooltip title="编辑">
+                <Button size="small" icon={<EditOutlined />}
+                  onClick={() => startEdit(d)} />
+              </Tooltip>
+              <Tooltip title={d.is_active ? '禁用' : '启用'}>
+                <Button size="small" icon={<PauseCircleOutlined />}
+                  onClick={() => handleToggle(d.id)} />
+              </Tooltip>
+              <Popconfirm title={`删除「${d.name}」？`} description="仅删除数据库记录，不影响文件系统"
+                onConfirm={() => handleDelete(d.id)} okText="删除" cancelText="取消" placement="left">
+                <Tooltip title="删除">
+                  <Button size="small" className="danger" icon={<DeleteOutlined />} />
+                </Tooltip>
+              </Popconfirm>
+            </div>
           </div>
-        </div>
-        {renderTree(d.id, depth + 1)}
-      </React.Fragment>
-    ));
+          {showChildren && renderTree(d.id, depth + 1)}
+        </React.Fragment>
+      );
+    });
   };
 
   // ===== 操作 =====

@@ -3,8 +3,7 @@
    ============================================ */
 
 .settings-page {
-  max-width: 720px;
-  margin: 0 auto;
+  width: 100%;
   padding: var(--space-6);
 }
 
@@ -78,26 +77,57 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
   cursor: default;
+  border-bottom: 1px solid var(--border);
 }
 
 .dir-row:hover {
   background: var(--bg-tertiary);
 }
 
-.dir-row + .dir-row {
-  border-top: 1px solid var(--border);
+.dir-row:last-child {
+  border-bottom: none;
 }
 
 /* Nesting indentation */
 .dir-row.depth-0 { padding-left: var(--space-3); }
-.dir-row.depth-1 { padding-left: calc(var(--space-3) + var(--space-5)); }
-.dir-row.depth-2 { padding-left: calc(var(--space-3) + var(--space-10)); }
-.dir-row.depth-3 { padding-left: calc(var(--space-3) + var(--space-12)); }
-.dir-row.depth-4 { padding-left: calc(var(--space-3) + var(--space-14)); }
+.dir-row.depth-1 { padding-left: calc(var(--space-3) + var(--space-6)); }
+.dir-row.depth-2 { padding-left: calc(var(--space-3) + var(--space-12)); }
+.dir-row.depth-3 { padding-left: calc(var(--space-3) + var(--space-18)); }
+.dir-row.depth-4 { padding-left: calc(var(--space-3) + var(--space-24)); }
+
+/* Collapse/expand toggle */
+.dir-toggle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+  border-radius: 4px;
+  user-select: none;
+}
+
+.dir-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.dir-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.dir-toggle.leaf {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 /* Status dot */
 .dir-status-dot {
