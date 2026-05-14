@@ -18,40 +18,43 @@ def _db() -> 'database':
 
 
 def get_directory_tree() -> List[Dict]:
-    """从 DB 读取目录树（菜单用，不碰文件系统）"""
+    """从 DB 读取目录树（菜单用，不碰文件系统）
+    子节点计数向上聚合到父节点
+    """
     from database import execute_query
     rows = execute_query(
         "SELECT * FROM photo_directories WHERE is_active = 1 ORDER BY sort_order, name"
     )
     # 构建 parent → children 映射
     children_map = {}
-    dir_map = {}
     for r in rows:
         pid = r['parent_id'] or 0
         if pid not in children_map:
             children_map[pid] = []
         children_map[pid].append(r)
-        dir_map[r['id']] = r
 
     def build(parent_id=0):
         result = []
         for r in children_map.get(parent_id, []):
+            children, child_total = build(r['id'])
+            total_count = (r['image_count'] or 0) + child_total
             node = {
                 "id": r['id'],
                 "name": r['name'],
                 "path": r['path'] or '',
                 "is_virtual": bool(r['is_virtual']),
                 "is_root": r['parent_id'] is None,
-                "imageCount": r['image_count'] or 0,
+                "imageCount": total_count,
                 "date": str(r['folder_date']) if r['folder_date'] else None,
-                "children": build(r['id'])
+                "children": children
             }
             result.append(node)
-        # 倒序排列：文件夹在前面，按名称
-        result.sort(key=lambda x: (not x['is_root'], x['name']), reverse=True)
-        return result
+        # 按 name 倒序
+        result.sort(key=lambda x: x['name'], reverse=True)
+        return result, sum(n['imageCount'] for n in result)
 
-    return build()
+    tree, _ = build()
+    return tree
 
 
 def scan_root_directory(root_id: int, root_path: str) -> Dict:
