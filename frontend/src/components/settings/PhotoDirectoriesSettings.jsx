@@ -118,7 +118,7 @@ export default function PhotoDirectoriesSettings() {
 
       return (
         <React.Fragment key={d.id}>
-          <div className={`dir-row depth-${Math.min(depth, 4)}`}>
+          <div className={`dir-row depth-${Math.min(depth, 4)}${!d.is_active ? ' is-disabled' : ''}`}>
             {/* 折叠箭头 */}
             <span
               className={`dir-toggle ${childCount > 0 ? (isExpanded ? 'expanded' : '') : 'leaf'}`}
@@ -139,6 +139,7 @@ export default function PhotoDirectoriesSettings() {
                 >
                   {d.name}
                 </span>
+                {!d.is_active && <span style={{ fontSize: 11, color: '#9c9c9c', marginLeft: 6 }}>已禁用</span>}
                 <span className="dir-badge">{calcAggregated(d.id)} 张</span>
               </div>
               {d.path && <div className="dir-path">{d.path}</div>}
