@@ -2,12 +2,14 @@ import React from 'react';
 import { Typography } from 'antd';
 const { Title, Text } = Typography;
 import GeneralSettings from '../components/settings/GeneralSettings';
+import PhotoDirectoriesSettings from '../components/settings/PhotoDirectoriesSettings';
 import ModelManagement from '../components/modals/ModelManagement';
 import ThemeSwitcher from '../components/settings/ThemeSwitcher';
 import '../styles/settings.css';
 
 const SUB_PAGES = {
   'settings-general': { title: '通用设置', desc: '默认模型、BGM 等全局配置', Comp: GeneralSettings },
+  'settings-photo-dirs': { title: '照片目录', desc: '管理照片扫描根目录，支持多目录和递归扫描', Comp: PhotoDirectoriesSettings },
   'settings-models':  { title: '模型管理', desc: '配置 AI 模型 API 端点和密钥', Comp: ModelManagement },
   'settings-theme':   { title: '主题切换', desc: '界面主题配置', Comp: ThemeSwitcher },
 };

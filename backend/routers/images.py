@@ -10,6 +10,16 @@ from PIL import Image as PILImage, ImageOps
 from db import DB
 from config import PHOTO_ROOT
 
+
+def _get_photo_roots():
+    """从数据库获取所有启用的照片根目录"""
+    from database import execute_query
+    try:
+        rows = execute_query("SELECT path FROM photo_directories WHERE is_active = 1")
+        return [row['path'] for row in rows]
+    except:
+        return [PHOTO_ROOT]
+
 router = APIRouter(prefix="/api", tags=["images"])
 
 
@@ -41,9 +51,10 @@ async def thumbnail_image(path: str, size: int = Query(400, ge=100, le=1200)):
 
     decoded_path = urllib.parse.unquote(path)
     image_path = Path(decoded_path)
-    root = Path(PHOTO_ROOT)
+    roots = _get_photo_roots()
 
-    if not str(image_path).startswith(str(root)):
+    allowed = any(str(image_path).startswith(str(Path(r))) for r in roots)
+    if not allowed:
         raise HTTPException(status_code=403, detail="Access denied")
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
@@ -74,9 +85,10 @@ async def proxy_image(path: str):
 
     decoded_path = urllib.parse.unquote(path)
     image_path = Path(decoded_path)
-    root = Path(PHOTO_ROOT)
+    roots = _get_photo_roots()
 
-    if not str(image_path).startswith(str(root)):
+    allowed = any(str(image_path).startswith(str(Path(r))) for r in roots)
+    if not allowed:
         raise HTTPException(status_code=403, detail="Access denied")
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")

@@ -164,13 +164,29 @@ export function useImages() {
     setImages(prev => prev.map(img => img.id === imageId ? { ...img, ...updatedFields } : img));
   }, []);
 
+  /** 递归展开文件夹列表（将嵌套树拍平成数组） */
+  const flattenFolders = useCallback((folderList) => {
+    const result = [];
+    const walk = (nodes) => {
+      for (const node of nodes) {
+        result.push(node);
+        if (node.children && node.children.length > 0) {
+          walk(node.children);
+        }
+      }
+    };
+    walk(folderList);
+    return result;
+  }, []);
+
   // ========== 扫描 ==========
 
   const handleScanAll = useCallback(async () => {
     setLoading(true);
     const hideMsg = message.loading('正在启动扫描...', 0);
     try {
-      const { task_id, total_folders } = await scanAllFolders();
+      const data = await scanAllFolders();
+      const { task_id } = data;
       if (!task_id) throw new Error('No task_id');
       let lastUpdate = 0;
       const result = await new Promise((resolve, reject) => {
@@ -201,6 +217,8 @@ export function useImages() {
 
   const restoreBrowseState = useCallback(async (currentFolders) => {
     if (!currentFolders?.length) return;
+    // 拍平目录树，搜索匹配路径
+    const flatFolders = flattenFolders(currentFolders);
     let state = loadPersistedState();
     if (!state) {
       try {
@@ -209,8 +227,13 @@ export function useImages() {
       } catch {}
     }
     if (state?.last_folder_path) {
-      const folderName = state.last_folder_path.split(/[/\\]/).pop();
-      const matched = currentFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
+      // 先尝试精确匹配路径
+      let matched = flatFolders.find(f => f.path === state.last_folder_path);
+      // 如果没找到，尝试按文件夹名匹配
+      if (!matched) {
+        const folderName = state.last_folder_path.split(/[/\\]/).pop();
+        matched = flatFolders.find(f => f.path.split(/[/\\]/).pop() === folderName);
+      }
       if (matched) {
         isRestoringRef.current = true;
         setSortBy(state.last_sort_by || 'created_at');
@@ -218,7 +241,7 @@ export function useImages() {
         await loadImages(matched.path, state.last_page || 1);
       }
     }
-  }, [loadImages, loadPersistedState]);
+  }, [loadImages, loadPersistedState, flattenFolders]);
 
   useEffect(() => { loadFolders().then(restoreBrowseState); }, []);
 

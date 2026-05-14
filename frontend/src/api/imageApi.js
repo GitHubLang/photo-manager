@@ -128,6 +128,30 @@ export const saveSettings = (settings) =>
     body: JSON.stringify(settings)
   }).then(r => r.json());
 
+// ============ 照片目录管理 API ============
+export const fetchPhotoDirectories = () =>
+  fetch(API_BASE + '/photo-directories').then(r => r.json());
+
+export const addPhotoDirectory = (path) =>
+  fetch(API_BASE + '/photo-directories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  }).then(r => {
+    if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '添加失败'); });
+    return r.json();
+  });
+
+export const deletePhotoDirectory = (id) =>
+  fetch(API_BASE + '/photo-directories/' + id, {
+    method: 'DELETE'
+  }).then(r => r.json());
+
+export const togglePhotoDirectory = (id) =>
+  fetch(API_BASE + '/photo-directories/' + id + '/toggle', {
+    method: 'POST'
+  }).then(r => r.json());
+
 // ============ 照片合集 API ============
 export const generateCollections = (count = 20, llmModel = '') =>
   fetch(API_BASE + '/collections/generate', {

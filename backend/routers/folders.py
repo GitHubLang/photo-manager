@@ -63,10 +63,13 @@ async def scan_folder(req: FolderScanRequest):
 
 @router.post("/folders/scan-all")
 async def scan_all():
-    """启动后台扫描所有文件夹（异步，立即返回 task_id）"""
+    """启动后台扫描所有根目录（递归，异步，立即返回 task_id）"""
+    import os
     task_id = uuid.uuid4().hex[:12]
-    folders = scan_folders()
-    total = len(folders)
+    # 直接从数据库获取根目录列表
+    from services.image_scanner import _get_photo_roots
+    roots = _get_photo_roots()
+    total = len(roots)
 
     with _scan_lock:
         _scan_tasks[task_id] = {
@@ -78,15 +81,16 @@ async def scan_all():
     def _run():
         total_added = 0
         total_skipped = 0
-        for i, folder in enumerate(folders):
+        for i, root_path in enumerate(roots):
             with _scan_lock:
                 if task_id not in _scan_tasks:
                     return
+                root_name = os.path.basename(root_path) or root_path
                 _scan_tasks[task_id]["progress"].update({
-                    "current": i + 1, "current_folder": folder["name"],
+                    "current": i + 1, "current_folder": root_name,
                 })
             try:
-                result = index_folder(folder["path"])
+                result = index_folder(root_path)
                 total_added += result["added"]
                 total_skipped += result["skipped"]
                 with _scan_lock:
@@ -95,7 +99,7 @@ async def scan_all():
                             "added": total_added, "skipped": total_skipped
                         })
             except Exception as e:
-                print(f"Scan error on {folder['name']}: {e}")
+                print(f"Scan error on {root_path}: {e}")
         with _scan_lock:
             if task_id in _scan_tasks:
                 _scan_tasks[task_id]["status"] = "completed"

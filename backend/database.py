@@ -208,6 +208,19 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """)
     
+    # 创建照片根目录配置表（支持多目录）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS photo_directories (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            path VARCHAR(500) NOT NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_path (path)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """)
+    # 插入默认目录 E:\图像（如不存在）
+    cursor.execute("INSERT IGNORE INTO photo_directories (path) VALUES ('E:\\\\图像')")
+
     # 创建文案指令历史表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS instruction_history (

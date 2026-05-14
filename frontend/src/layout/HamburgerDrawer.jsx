@@ -1,12 +1,39 @@
 import React from 'react';
 import { Button, Typography, Menu } from 'antd';
 const { Text } = Typography;
-import { FolderOutlined } from '@ant-design/icons';
+import { FolderOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { menuItems } from '../config/menu';
 
 /**
+ * 递归构建文件夹菜单项（支持嵌套结构）
+ */
+function buildFolderMenuItems(folders, depth = 0) {
+  return folders.map(f => {
+    const hasChildren = f.children && f.children.length > 0;
+    const prefix = f.is_root ? <FolderOpenOutlined /> : <FolderOutlined />;
+    const label = (
+      <span style={{ paddingLeft: depth > 0 ? depth * 12 : 0 }}>
+        {prefix} {f.name}
+        {f.imageCount > 0 && <span style={{ marginLeft: 6, color: '#999', fontSize: 12 }}>{f.imageCount}</span>}
+      </span>
+    );
+
+    const menuItem = {
+      key: '__folder__' + f.path,
+      label,
+    };
+
+    if (hasChildren) {
+      menuItem.children = buildFolderMenuItems(f.children, depth + 1);
+    }
+
+    return menuItem;
+  });
+}
+
+/**
  * HamburgerDrawer — 移动端菜单抽屉
- * 从左侧滑出，所有菜单项 可滚动
+ * 从左侧滑出，所有菜单项可滚动，文件夹支持嵌套
  */
 export default function HamburgerDrawer({ open, activePage, folders, onClose, onMenuSelect, onFolderSelect }) {
   const treeItems = buildTree(menuItems, folders);
@@ -38,18 +65,9 @@ function buildTree(items, folders) {
   return items
     .filter(item => item.type !== 'divider')
     .map(item => {
-      // 素材：子项是文件夹列表
+      // 素材：子项是文件夹列表（支持嵌套递归）
       if (item.key === 'browse') {
-        const folderChildren = (folders || []).map(f => ({
-          key: '__folder__' + f.path,
-          icon: React.createElement(FolderOutlined),
-          label: (
-            <span>
-              {f.name}
-              <span style={{ marginLeft: 8, color: '#999', fontSize: 12 }}>{f.imageCount}</span>
-            </span>
-          ),
-        }));
+        const folderChildren = buildFolderMenuItems(folders);
         return {
           key: 'browse',
           icon: item.icon ? React.createElement(item.icon) : undefined,

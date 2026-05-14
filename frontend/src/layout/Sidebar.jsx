@@ -4,16 +4,29 @@ import { FolderOutlined } from '@ant-design/icons';
 import { menuItems } from '../config/menu';
 
 /**
+ * 递归构建树节点
+ */
+function buildTreeNodes(folders) {
+  return folders.map(f => {
+    const hasChildren = f.children && f.children.length > 0;
+    const label = f.is_root
+      ? <span><strong>{f.name}</strong> ({f.imageCount})</span>
+      : <span><FolderOutlined /> {f.name}{f.imageCount > 0 && <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.6 }}>{f.imageCount}</span>}</span>;
+
+    const node = { title: label, key: f.path, path: f.path, isLeaf: !hasChildren };
+    if (hasChildren) node.children = buildTreeNodes(f.children);
+    return node;
+  });
+}
+
+/**
  * Sidebar — PC 端常驻侧边栏
  */
 export default function Sidebar({ collapsed, activePage, folders, selectedFolder, onMenuClick, onFolderSelect }) {
-  const treeData = folders.map(f => ({
-    title: <span><FolderOutlined /> {f.name}<span style={{ marginLeft: 8 }}>{f.imageCount}</span></span>,
-    key: f.path,
-    path: f.path,
-  }));
+  const treeData = buildTreeNodes(folders);
+  const defaultExpandedKeys = treeData.map(n => n.key);
 
-  const items = buildMenuItems(menuItems, collapsed, folders, selectedFolder, onFolderSelect);
+  const items = buildMenuItems(menuItems, collapsed, treeData, selectedFolder, onFolderSelect, defaultExpandedKeys);
 
   return (
     <Menu
@@ -26,13 +39,13 @@ export default function Sidebar({ collapsed, activePage, folders, selectedFolder
   );
 }
 
-function buildMenuItems(items, collapsed, folders, selectedFolder, onFolderSelect) {
+function buildMenuItems(items, collapsed, treeData, selectedFolder, onFolderSelect, defaultExpandedKeys) {
   return items.map(item => {
     if (item.type === 'divider') {
       return { type: 'divider' };
     }
 
-    // 文件夹：子树是目录树
+    // 文件夹：子树是目录树（支持嵌套）
     if (item.key === 'browse') {
       return {
         key: 'browse',
@@ -41,16 +54,14 @@ function buildMenuItems(items, collapsed, folders, selectedFolder, onFolderSelec
         children: !collapsed ? [{
           key: 'folder-tree',
           label: (
-            <div style={{ padding: '8px 12px' }}>
+            <div style={{ padding: '8px 12px', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
               <Tree
-                treeData={folders.map(f => ({
-                  title: <span><FolderOutlined /> {f.name}<span style={{ marginLeft: 8, color: '#999', fontSize: 12 }}>{f.imageCount}</span></span>,
-                  key: f.path,
-                  path: f.path,
-                }))}
+                treeData={treeData}
                 selectedKeys={selectedFolder ? [selectedFolder] : []}
                 onSelect={(keys, info) => { if (info.node.path) onFolderSelect(info.node.path); }}
+                defaultExpandedKeys={defaultExpandedKeys}
                 showIcon={false}
+                style={{ fontSize: 13 }}
               />
             </div>
           ),

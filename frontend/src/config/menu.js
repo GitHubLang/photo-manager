@@ -44,6 +44,7 @@ export const menuItems = [
     label: '设置',
     children: [
       { key: 'settings-general',  label: '通用设置' },
+      { key: 'settings-photo-dirs', label: '照片目录' },
       { key: 'settings-models',   label: '模型管理' },
       { key: 'settings-theme',    label: '主题切换' },
     ],
